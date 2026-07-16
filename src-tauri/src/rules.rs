@@ -1206,6 +1206,54 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/338.html"],
         skip_in_tests: true,
     },
+    Rule {
+        id: "VS-GO-007",
+        title: "Слабый шифр (DES/RC4)",
+        description: "DES с 56-битным ключом перебирается, а поток RC4 имеет статистические смещения. Оба алгоритма считаются сломанными.",
+        recommendation: "Используйте AES-GCM через crypto/aes и crypto/cipher со случайным nonce на каждое сообщение.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::Go],
+        pattern: r"(?:des|rc4)\.NewCipher\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-327"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-GO-008",
+        title: "Приведение к template.HTML отключает экранирование",
+        description: "Значения типов template.HTML/JS/URL вставляются в шаблон без автоэкранирования. Если в них попадает пользовательский ввод, это XSS.",
+        recommendation: "Не приводите пользовательские данные к template.HTML. Пусть html/template экранирует их сам, передавая как обычную строку.",
+        severity: Severity::Medium,
+        confidence: Confidence::Low,
+        category: "XSS",
+        languages: &[Language::Go],
+        pattern: r"\btemplate\.(?:HTML|JS|URL|CSS)\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-79"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/79.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-GO-009",
+        title: "Файл создаётся с правами 0777",
+        description: "Права 0777 дают чтение, запись и исполнение любому пользователю системы. Локальный злоумышленник сможет подменить содержимое файла.",
+        recommendation: "Задавайте минимально необходимые права: 0600 для приватных файлов, 0644 для читаемых, 0700 для каталогов.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: &[Language::Go],
+        pattern: r"(?:Chmod|MkdirAll|WriteFile|OpenFile|Mkdir)\s*\([^)]*0o?777",
+        unless_contains: &[],
+        cwe: &["CWE-276"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/276.html"],
+        skip_in_tests: true,
+    },
 
     // ------------------------------------------------------------------ Java
     Rule {
@@ -1304,6 +1352,54 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/327.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-JV-007",
+        title: "Слабый шифр (DES/RC4)",
+        description: "DES, RC4 и RC2 давно взломаны: короткий ключ или предсказуемый поток позволяют восстановить открытый текст.",
+        recommendation: "Используйте Cipher.getInstance(\"AES/GCM/NoPadding\") со случайным IV на каждое сообщение.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"Cipher\.getInstance\s*\(\s*["'](?:DES|RC4|RC2|ARCFOUR|Blowfish)\b"#,
+        unless_contains: &[],
+        cwe: &["CWE-327"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-008",
+        title: "Проверка имени хоста TLS отключена",
+        description: "ALLOW_ALL_HOSTNAME_VERIFIER и NoopHostnameVerifier принимают сертификат для любого домена. Это открывает соединение для man-in-the-middle.",
+        recommendation: "Уберите кастомный verifier и используйте проверку по умолчанию. Сертификат должен соответствовать хосту.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"ALLOW_ALL_HOSTNAME_VERIFIER|NoopHostnameVerifier",
+        unless_contains: &[],
+        cwe: &["CWE-295"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/295.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-009",
+        title: "CORS разрешён для любого источника",
+        description: "Разрешённый источник \"*\" позволяет любому сайту слать запросы с полномочиями пользователя. В связке с cookie это ведёт к краже данных.",
+        recommendation: "Перечислите доверенные источники явным списком вместо \"*\". Не используйте wildcard с credentials.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"(?i)(?:setAllowedOrigins|allowedOrigins|allowedOriginPatterns)\s*\([^)]*["']\*["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-942"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/942.html"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------------------- PHP
     Rule {
@@ -1384,6 +1480,54 @@ pub static RULES: &[Rule] = &[
         cwe: &["CWE-98", "CWE-22"],
         owasp: Some(OWASP_INJECTION),
         references: &["https://cwe.mitre.org/data/definitions/98.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-006",
+        title: "Вывод суперглобала без экранирования (XSS)",
+        description: "echo/print значения из $_GET, $_POST или $_REQUEST напрямую вставляет пользовательский ввод в HTML — это отражённый XSS.",
+        recommendation: "Экранируйте вывод через htmlspecialchars($value, ENT_QUOTES) перед вставкой в страницу.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "XSS",
+        languages: &[Language::Php],
+        pattern: r"(?i)\b(?:echo|print)\s+\$_(?:GET|POST|REQUEST|COOKIE)\b",
+        unless_contains: &["htmlspecialchars", "htmlentities"],
+        cwe: &["CWE-79"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/79.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-007",
+        title: "extract() на пользовательских данных",
+        description: "extract($_GET/$_POST) создаёт переменные по ключам из запроса и может перезаписать уже существующие, подменяя логику и обходя проверки.",
+        recommendation: "Не применяйте extract() к суперглобалам. Читайте нужные поля явно: $id = $_GET['id'].",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Контроль доступа",
+        languages: &[Language::Php],
+        pattern: r"extract\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER)",
+        unless_contains: &[],
+        cwe: &["CWE-915"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/915.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-008",
+        title: "preg_replace с модификатором /e",
+        description: "Модификатор /e заставляет preg_replace выполнять замену как код PHP. На данных из запроса это выполнение произвольного кода.",
+        recommendation: "Замените на preg_replace_callback() и формируйте результат в функции обратного вызова без eval.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Php],
+        pattern: r#"preg_replace\s*\(\s*["'][^"']*/[a-zA-Z]*e[a-zA-Z]*["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-95"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/95.html"],
         skip_in_tests: false,
     },
 
@@ -1977,6 +2121,50 @@ mod tests {
     fn finds_rust_tls_bypass() {
         let code = "let c = Client::builder().danger_accept_invalid_certs(true).build()?;\n";
         assert!(hit_ids(code, Language::Rust, "src/net.rs").contains(&"VS-RS-006"));
+    }
+
+    #[test]
+    fn finds_go_weak_cipher() {
+        let code = "block, _ := des.NewCipher(key)\n";
+        assert!(hit_ids(code, Language::Go, "crypto.go").contains(&"VS-GO-007"));
+    }
+
+    #[test]
+    fn finds_go_world_writable() {
+        let code = "os.WriteFile(path, data, 0777)\n";
+        assert!(hit_ids(code, Language::Go, "io.go").contains(&"VS-GO-009"));
+        let ok = "os.WriteFile(path, data, 0600)\n";
+        assert!(!hit_ids(ok, Language::Go, "io.go").contains(&"VS-GO-009"));
+    }
+
+    #[test]
+    fn finds_java_weak_cipher_and_hostname() {
+        let cipher = "Cipher c = Cipher.getInstance(\"DES/CBC/PKCS5Padding\");\n";
+        assert!(hit_ids(cipher, Language::Java, "Crypto.java").contains(&"VS-JV-007"));
+        let host = "conn.setHostnameVerifier(SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);\n";
+        assert!(hit_ids(host, Language::Java, "Net.java").contains(&"VS-JV-008"));
+    }
+
+    #[test]
+    fn finds_java_cors_wildcard() {
+        let code = "config.setAllowedOrigins(Arrays.asList(\"*\"));\n";
+        assert!(hit_ids(code, Language::Java, "Cors.java").contains(&"VS-JV-009"));
+    }
+
+    #[test]
+    fn finds_php_reflected_xss() {
+        let code = "<?php echo $_GET['name']; ?>\n";
+        assert!(hit_ids(code, Language::Php, "page.php").contains(&"VS-PH-006"));
+        let ok = "<?php echo htmlspecialchars($_GET['name'], ENT_QUOTES); ?>\n";
+        assert!(!hit_ids(ok, Language::Php, "page.php").contains(&"VS-PH-006"));
+    }
+
+    #[test]
+    fn finds_php_preg_replace_e() {
+        let code = "$out = preg_replace('/(\\w+)/e', 'strtoupper($1)', $in);\n";
+        assert!(hit_ids(code, Language::Php, "r.php").contains(&"VS-PH-008"));
+        let ok = "$out = preg_replace('/(\\w+)/i', 'X', $in);\n";
+        assert!(!hit_ids(ok, Language::Php, "r.php").contains(&"VS-PH-008"));
     }
 
     #[test]

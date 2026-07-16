@@ -507,6 +507,51 @@ export const EN: Record<string, string> = {
   отсечено: "filtered",
 
   // -- backend content: rule catalogue, secrets, categories, labels
+  // Go/Java/PHP rules added 16.07.2026
+  "Слабый шифр (DES/RC4)": "Weak cipher (DES/RC4)",
+  "DES с 56-битным ключом перебирается, а поток RC4 имеет статистические смещения. Оба алгоритма считаются сломанными.":
+    "DES has a 56-bit key that can be brute-forced, and the RC4 stream has statistical biases. Both algorithms are considered broken.",
+  "Используйте AES-GCM через crypto/aes и crypto/cipher со случайным nonce на каждое сообщение.":
+    "Use AES-GCM via crypto/aes and crypto/cipher with a fresh nonce per message.",
+  "Приведение к template.HTML отключает экранирование": "Casting to template.HTML disables escaping",
+  "Значения типов template.HTML/JS/URL вставляются в шаблон без автоэкранирования. Если в них попадает пользовательский ввод, это XSS.":
+    "Values of type template.HTML/JS/URL are inserted into the template without auto-escaping. If user input reaches them, it is XSS.",
+  "Не приводите пользовательские данные к template.HTML. Пусть html/template экранирует их сам, передавая как обычную строку.":
+    "Do not cast user data to template.HTML. Pass it as a plain string and let html/template escape it.",
+  "Файл создаётся с правами 0777": "File created with 0777 permissions",
+  "Права 0777 дают чтение, запись и исполнение любому пользователю системы. Локальный злоумышленник сможет подменить содержимое файла.":
+    "0777 grants read, write and execute to every user on the system. A local attacker can replace the file's contents.",
+  "Задавайте минимально необходимые права: 0600 для приватных файлов, 0644 для читаемых, 0700 для каталогов.":
+    "Set the least permission needed: 0600 for private files, 0644 for readable ones, 0700 for directories.",
+  "DES, RC4 и RC2 давно взломаны: короткий ключ или предсказуемый поток позволяют восстановить открытый текст.":
+    "DES, RC4 and RC2 have long been broken: a short key or a predictable stream lets an attacker recover the plaintext.",
+  'Используйте Cipher.getInstance("AES/GCM/NoPadding") со случайным IV на каждое сообщение.':
+    'Use Cipher.getInstance("AES/GCM/NoPadding") with a random IV per message.',
+  "Проверка имени хоста TLS отключена": "TLS hostname verification disabled",
+  "ALLOW_ALL_HOSTNAME_VERIFIER и NoopHostnameVerifier принимают сертификат для любого домена. Это открывает соединение для man-in-the-middle.":
+    "ALLOW_ALL_HOSTNAME_VERIFIER and NoopHostnameVerifier accept a certificate for any domain, opening the connection to a man-in-the-middle.",
+  "Уберите кастомный verifier и используйте проверку по умолчанию. Сертификат должен соответствовать хосту.":
+    "Remove the custom verifier and use the default check. The certificate must match the host.",
+  "CORS разрешён для любого источника": "CORS allows any origin",
+  'Разрешённый источник "*" позволяет любому сайту слать запросы с полномочиями пользователя. В связке с cookie это ведёт к краже данных.':
+    'An allowed origin of "*" lets any site send requests with the user\'s privileges. Combined with cookies, this leaks data.',
+  'Перечислите доверенные источники явным списком вместо "*". Не используйте wildcard с credentials.':
+    'List trusted origins explicitly instead of "*". Never use a wildcard together with credentials.',
+  "Вывод суперглобала без экранирования (XSS)": "Superglobal echoed without escaping (XSS)",
+  "echo/print значения из $_GET, $_POST или $_REQUEST напрямую вставляет пользовательский ввод в HTML — это отражённый XSS.":
+    "echo/print of a value from $_GET, $_POST or $_REQUEST puts user input straight into HTML — this is reflected XSS.",
+  "Экранируйте вывод через htmlspecialchars($value, ENT_QUOTES) перед вставкой в страницу.":
+    "Escape output with htmlspecialchars($value, ENT_QUOTES) before putting it on the page.",
+  "extract() на пользовательских данных": "extract() on user input",
+  "extract($_GET/$_POST) создаёт переменные по ключам из запроса и может перезаписать уже существующие, подменяя логику и обходя проверки.":
+    "extract($_GET/$_POST) creates variables from request keys and can overwrite existing ones, subverting logic and bypassing checks.",
+  "Не применяйте extract() к суперглобалам. Читайте нужные поля явно: $id = $_GET['id'].":
+    "Do not apply extract() to superglobals. Read the fields you need explicitly: $id = $_GET['id'].",
+  "preg_replace с модификатором /e": "preg_replace with the /e modifier",
+  "Модификатор /e заставляет preg_replace выполнять замену как код PHP. На данных из запроса это выполнение произвольного кода.":
+    "The /e modifier makes preg_replace run the replacement as PHP code. On request data this is arbitrary code execution.",
+  "Замените на preg_replace_callback() и формируйте результат в функции обратного вызова без eval.":
+    "Switch to preg_replace_callback() and build the result inside the callback without eval.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",
