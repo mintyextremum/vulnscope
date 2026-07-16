@@ -1580,6 +1580,54 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/502.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-RB-004",
+        title: "eval() — выполнение произвольного кода",
+        description: "eval() исполняет строку как код Ruby. Если в неё попадают данные извне, это полная компрометация процесса.",
+        recommendation: "Уберите eval(). Для выбора поведения используйте хэш-диспетчер или case, для данных — JSON.parse.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Ruby],
+        pattern: r"\beval\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-95"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/95.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-RB-005",
+        title: "html_safe / raw отключает экранирование во вью",
+        description: "html_safe и raw помечают строку как безопасный HTML, и Rails вставляет её без экранирования. Пользовательский ввод в ней даёт XSS.",
+        recommendation: "Не вызывайте html_safe на пользовательских данных. Для нужной разметки используйте sanitize с белым списком тегов.",
+        severity: Severity::Medium,
+        confidence: Confidence::Low,
+        category: "XSS",
+        languages: &[Language::Ruby],
+        pattern: r"\.html_safe\b|\braw\s*\(",
+        unless_contains: &["sanitize"],
+        cwe: &["CWE-79"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/79.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-RB-006",
+        title: "Вызов метода по имени из запроса (send)",
+        description: "send/public_send с именем метода из params позволяет вызвать любой метод объекта, включая приватные, — это обход логики и контроля доступа.",
+        recommendation: "Сверяйте имя метода с белым списком перед вызовом или используйте явный case по допустимым действиям.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Контроль доступа",
+        languages: &[Language::Ruby],
+        pattern: r"\.(?:send|public_send|__send__)\s*\(\s*params\b",
+        unless_contains: &[],
+        cwe: &["CWE-749"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/749.html"],
+        skip_in_tests: false,
+    },
 
     // -------------------------------------------------------------------- C#
     Rule {
@@ -1628,6 +1676,54 @@ pub static RULES: &[Rule] = &[
         cwe: &["CWE-295"],
         owasp: Some(OWASP_CRYPTO),
         references: &["https://cwe.mitre.org/data/definitions/295.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-004",
+        title: "Команда запускается через шелл",
+        description: "Process.Start с cmd.exe, powershell или /bin/sh отдаёт разбор строки шеллу. Подстановка данных извне даёт инъекцию команд.",
+        recommendation: "Запускайте программу напрямую через ProcessStartInfo с Arguments-списком и UseShellExecute = false.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::CSharp],
+        pattern: r#"(?i)Process\.Start\s*\(\s*(?:new\s+ProcessStartInfo\s*\(\s*)?["'](?:cmd|cmd\.exe|powershell|powershell\.exe|/bin/sh|/bin/bash|bash)["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-005",
+        title: "Слабый хеш (MD5/SHA-1)",
+        description: "MD5 и SHA-1 подвержены коллизиям и не годятся для подписей и проверки целостности.",
+        recommendation: "Используйте SHA256.Create(). Для паролей — PBKDF2 (Rfc2898DeriveBytes), bcrypt или Argon2.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::CSharp],
+        pattern: r"(?:MD5|SHA1)\.Create\s*\(|new\s+(?:MD5|SHA1)CryptoServiceProvider",
+        unless_contains: &[],
+        cwe: &["CWE-327", "CWE-328"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-CS-006",
+        title: "Устаревшая версия TLS/SSL",
+        description: "SSL 3.0 и TLS 1.0/1.1 содержат известные уязвимости (POODLE, BEAST) и выведены из эксплуатации.",
+        recommendation: "Не задавайте SecurityProtocol вручную — пусть ОС выберет актуальную версию, либо укажите Tls12/Tls13.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::CSharp],
+        pattern: r"SecurityProtocolType\.(?:Ssl3|Tls11|Tls)\b",
+        unless_contains: &[],
+        cwe: &["CWE-326"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/326.html"],
         skip_in_tests: false,
     },
 
@@ -1679,6 +1775,54 @@ pub static RULES: &[Rule] = &[
         owasp: Some(OWASP_INJECTION),
         references: &["https://cwe.mitre.org/data/definitions/78.html"],
         skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-C-004",
+        title: "scanf(\"%s\") без ограничения длины",
+        description: "%s в scanf/sscanf без ширины поля читает ввод любой длины в буфер фиксированного размера — переполнение буфера.",
+        recommendation: "Указывайте максимальную ширину: scanf(\"%63s\", buf) для буфера в 64 байта, либо используйте fgets.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Безопасность памяти",
+        languages: &[Language::C, Language::Cpp],
+        pattern: r#"\b(?:scanf|sscanf|fscanf)\s*\(\s*[^;]*%s"#,
+        unless_contains: &[],
+        cwe: &["CWE-120"],
+        owasp: None,
+        references: &["https://cwe.mitre.org/data/definitions/120.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-C-005",
+        title: "Небезопасное создание временного файла",
+        description: "tmpnam, tempnam и mktemp возвращают имя, но не создают файл атомарно. Между проверкой и открытием возможна подмена (race, символическая ссылка).",
+        recommendation: "Используйте mkstemp(), который создаёт и открывает файл одним атомарным вызовом.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Работа с файлами",
+        languages: &[Language::C, Language::Cpp],
+        pattern: r"\b(?:tmpnam|tempnam|mktemp)\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-377"],
+        owasp: None,
+        references: &["https://cwe.mitre.org/data/definitions/377.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-C-006",
+        title: "Слабый генератор случайных чисел",
+        description: "rand()/random() — предсказуемые PRNG. Токены, ключи и соли, полученные из них, восстанавливаются по нескольким значениям.",
+        recommendation: "Для безопасности используйте getrandom(2), /dev/urandom или arc4random.",
+        severity: Severity::Low,
+        confidence: Confidence::Low,
+        category: "Криптография",
+        languages: &[Language::C, Language::Cpp],
+        pattern: r"\b(?:rand|random|srand)\s*\(",
+        unless_contains: &["arc4random", "getrandom"],
+        cwe: &["CWE-338"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/338.html"],
+        skip_in_tests: true,
     },
 
     // ------------------------------------------------------------- Terraform
@@ -2165,6 +2309,40 @@ mod tests {
         assert!(hit_ids(code, Language::Php, "r.php").contains(&"VS-PH-008"));
         let ok = "$out = preg_replace('/(\\w+)/i', 'X', $in);\n";
         assert!(!hit_ids(ok, Language::Php, "r.php").contains(&"VS-PH-008"));
+    }
+
+    #[test]
+    fn finds_ruby_send_from_params() {
+        let code = "user.send(params[:method])\n";
+        assert!(hit_ids(code, Language::Ruby, "app/controllers/u.rb").contains(&"VS-RB-006"));
+    }
+
+    #[test]
+    fn finds_csharp_weak_tls() {
+        let bad = "ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls;\n";
+        assert!(hit_ids(bad, Language::CSharp, "Net.cs").contains(&"VS-CS-006"));
+        let ok = "ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;\n";
+        assert!(!hit_ids(ok, Language::CSharp, "Net.cs").contains(&"VS-CS-006"));
+    }
+
+    #[test]
+    fn finds_csharp_shell_command() {
+        let code = "Process.Start(\"cmd.exe\", \"/c \" + userInput);\n";
+        assert!(hit_ids(code, Language::CSharp, "Run.cs").contains(&"VS-CS-004"));
+    }
+
+    #[test]
+    fn finds_c_unbounded_scanf() {
+        let code = "char buf[16];\nscanf(\"%s\", buf);\n";
+        assert!(hit_ids(code, Language::C, "in.c").contains(&"VS-C-004"));
+        let ok = "char buf[16];\nscanf(\"%15s\", buf);\n";
+        assert!(!hit_ids(ok, Language::C, "in.c").contains(&"VS-C-004"));
+    }
+
+    #[test]
+    fn finds_c_insecure_tempfile() {
+        let code = "char *p = tmpnam(NULL);\n";
+        assert!(hit_ids(code, Language::C, "t.c").contains(&"VS-C-005"));
     }
 
     #[test]
