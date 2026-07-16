@@ -54,9 +54,12 @@ badge but drop out of the counts; suppression is never counted as "fixed".
 
 ## Export
 
-The report exports to **JSON** (full data), **SARIF 2.1.0** (for GitHub code
-scanning and CI dashboards — with rule dedup, severity mapping and stable
-fingerprints), and **Markdown** (a readable report for a PR, issue, or chat).
+The report exports to five formats: **JSON** (full data), **SARIF 2.1.0** (for
+GitHub code scanning and CI dashboards — with rule dedup, severity mapping and
+stable fingerprints), **Markdown** (a readable report for a PR, issue, or chat),
+**CSV** (one row per finding for sorting and triage in a spreadsheet, with a
+formula-injection guard), and **HTML** (a single self-contained file you open in
+a browser or print to PDF). All of them follow the language on screen.
 
 ## Accessibility
 
