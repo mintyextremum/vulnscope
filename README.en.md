@@ -12,7 +12,7 @@ code) — and only when the CVE check is enabled.
 
 ## What it finds
 
-**Code — 143 built-in rules** across 38 languages: command and SQL injection, XSS
+**Code — 153 built-in rules** across 38 languages: command and SQL injection, XSS
 (including `dangerouslySetInnerHTML`), unsafe deserialization (`pickle`,
 `yaml.load`), disabled TLS verification, weak cryptography, path traversal,
 `unsafe` pitfalls in Rust, and misconfigurations in Dockerfiles, GitHub

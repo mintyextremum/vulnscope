@@ -702,6 +702,57 @@ export const EN: Record<string, string> = {
     "autoindex on returns the directory's file list when there is no index file, exposing the structure and files that were not meant to be public.",
   "Уберите autoindex on там, где листинг не нужен намеренно.":
     "Remove autoindex on where a listing is not deliberately wanted.",
+  // Python/JS/Java/Terraform rules added 16.07.2026
+  "extractall() — распаковка без проверки путей": "extractall() — extraction without path checks",
+  "tarfile.extractall и zipfile.extractall доверяют путям внутри архива. Запись вида ../../etc даёт запись за пределы целевого каталога (Zip Slip).":
+    "tarfile.extractall and zipfile.extractall trust the paths inside the archive. An entry like ../../etc writes outside the target directory (Zip Slip).",
+  "Проверяйте каждый путь перед распаковкой или используйте tarfile с filter=\"data\" (Python 3.12+), отсекающим выходы за каталог.":
+    "Check every path before extracting, or use tarfile with filter=\"data\" (Python 3.12+), which blocks escapes from the directory.",
+  "SSTI: render_template_string с данными": "SSTI: render_template_string with data",
+  "render_template_string компилирует переданную строку как шаблон Jinja2. Пользовательский ввод в ней приводит к инъекции шаблона и выполнению кода на сервере.":
+    "render_template_string compiles the passed string as a Jinja2 template. User input in it leads to template injection and server-side code execution.",
+  "Рендерите статические шаблоны из файлов и передавайте данные через контекст, а не собирайте текст шаблона из ввода.":
+    "Render static templates from files and pass data through the context, instead of building the template text from input.",
+  "JWT: проверка подписи отключена": "JWT: signature verification disabled",
+  "verify=False или verify_signature: False заставляет jwt.decode принять токен без проверки подписи. Атакующий сможет подделать любые claims.":
+    "verify=False or verify_signature: False makes jwt.decode accept a token without checking the signature. An attacker can forge any claims.",
+  "Всегда проверяйте подпись: jwt.decode(token, key, algorithms=[\"RS256\"]). Не отключайте verify_signature.":
+    "Always verify the signature: jwt.decode(token, key, algorithms=[\"RS256\"]). Do not disable verify_signature.",
+  "mark_safe отключает экранирование (XSS)": "mark_safe disables escaping (XSS)",
+  "mark_safe помечает строку как безопасный HTML, и Django вставляет её в шаблон без экранирования. Пользовательский ввод в ней даёт XSS.":
+    "mark_safe marks a string as safe HTML, so Django inserts it into the template without escaping. User input in it becomes XSS.",
+  "Не вызывайте mark_safe на пользовательских данных. Для нужной разметки используйте bleach.clean с белым списком тегов.":
+    "Do not call mark_safe on user data. For the markup you need, use bleach.clean with an allowlist of tags.",
+  "SSH: проверка ключа хоста отключена (paramiko)": "SSH: host key check disabled (paramiko)",
+  "AutoAddPolicy и WarningPolicy принимают ключ хоста автоматически. Соединение перестаёт защищать от man-in-the-middle.":
+    "AutoAddPolicy and WarningPolicy accept the host key automatically. The connection no longer protects against man-in-the-middle.",
+  "Используйте RejectPolicy и заранее загруженные known_hosts через load_system_host_keys.":
+    "Use RejectPolicy and preloaded known_hosts via load_system_host_keys.",
+  "NoSQL-инъекция через $where": "NoSQL injection via $where",
+  "Оператор $where в MongoDB выполняет JavaScript на сервере БД. Данные пользователя в его значении дают инъекцию кода и обход фильтров запроса.":
+    "MongoDB's $where operator runs JavaScript on the database server. User data in its value gives code injection and bypasses the query filters.",
+  "Не используйте $where. Стройте условия обычными операторами ($eq, $in) и приводите типы параметров запроса.":
+    "Do not use $where. Build conditions with normal operators ($eq, $in) and coerce the types of query parameters.",
+  "SnakeYAML: небезопасная загрузка": "SnakeYAML: unsafe load",
+  "new Yaml().load() с конструктором по умолчанию создаёт произвольные Java-объекты по тегам в YAML. На недоверенных данных это ведёт к выполнению кода.":
+    "new Yaml().load() with the default constructor builds arbitrary Java objects from tags in the YAML. On untrusted data this leads to code execution.",
+  "Создавайте Yaml с SafeConstructor: new Yaml(new SafeConstructor(new LoaderOptions())).":
+    "Create Yaml with a SafeConstructor: new Yaml(new SafeConstructor(new LoaderOptions())).",
+  "IAM-политика с действием \"*\"": "IAM policy with action \"*\"",
+  "Action = \"*\" (часто вместе с Resource \"*\") даёт полный доступ ко всем операциям сервиса. Скомпрометированный принципал получает права администратора.":
+    "Action = \"*\" (often together with Resource \"*\") grants full access to every operation of the service. A compromised principal gets admin rights.",
+  "Перечислите только нужные действия и ограничьте Resource конкретными ARN — принцип наименьших привилегий.":
+    "List only the actions you need and scope Resource to specific ARNs — least privilege.",
+  "База данных доступна из интернета": "Database reachable from the internet",
+  "publicly_accessible = true выдаёт инстансу БД публичный адрес. В связке с открытой security group это выставляет базу наружу.":
+    "publicly_accessible = true gives the database instance a public address. Combined with an open security group it exposes the database to the outside.",
+  "Задайте publicly_accessible = false и держите БД в приватной подсети, доступной только из приложения.":
+    "Set publicly_accessible = false and keep the database in a private subnet reachable only from the application.",
+  "Разрешён IMDSv1 (метаданные без токена)": "IMDSv1 allowed (token-less metadata)",
+  "http_tokens = \"optional\" оставляет доступным IMDSv1. При SSRF на инстансе это позволяет украсть временные креды роли через сервис метаданных.":
+    "http_tokens = \"optional\" leaves IMDSv1 reachable. With an SSRF on the instance it lets an attacker steal the role's temporary credentials via the metadata service.",
+  "Требуйте IMDSv2: в metadata_options задайте http_tokens = \"required\".":
+    "Require IMDSv2: set http_tokens = \"required\" in metadata_options.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",

@@ -380,6 +380,86 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/732.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-PY-022",
+        title: "extractall() — распаковка без проверки путей",
+        description: "tarfile.extractall и zipfile.extractall доверяют путям внутри архива. Запись вида ../../etc даёт запись за пределы целевого каталога (Zip Slip).",
+        recommendation: "Проверяйте каждый путь перед распаковкой или используйте tarfile с filter=\"data\" (Python 3.12+), отсекающим выходы за каталог.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Path traversal",
+        languages: PY,
+        pattern: r"\.extractall\s*\(",
+        unless_contains: &["filter="],
+        cwe: &["CWE-22"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/22.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-023",
+        title: "SSTI: render_template_string с данными",
+        description: "render_template_string компилирует переданную строку как шаблон Jinja2. Пользовательский ввод в ней приводит к инъекции шаблона и выполнению кода на сервере.",
+        recommendation: "Рендерите статические шаблоны из файлов и передавайте данные через контекст, а не собирайте текст шаблона из ввода.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: PY,
+        pattern: r"render_template_string\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-94"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/94.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-024",
+        title: "JWT: проверка подписи отключена",
+        description: "verify=False или verify_signature: False заставляет jwt.decode принять токен без проверки подписи. Атакующий сможет подделать любые claims.",
+        recommendation: "Всегда проверяйте подпись: jwt.decode(token, key, algorithms=[\"RS256\"]). Не отключайте verify_signature.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Аутентификация",
+        languages: PY,
+        pattern: r#"(?i)verify_signature["']?\s*:\s*False|jwt\.decode\s*\([^)]*\bverify\s*=\s*False"#,
+        unless_contains: &[],
+        cwe: &["CWE-347"],
+        owasp: Some(OWASP_AUTH),
+        references: &["https://cwe.mitre.org/data/definitions/347.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-025",
+        title: "mark_safe отключает экранирование (XSS)",
+        description: "mark_safe помечает строку как безопасный HTML, и Django вставляет её в шаблон без экранирования. Пользовательский ввод в ней даёт XSS.",
+        recommendation: "Не вызывайте mark_safe на пользовательских данных. Для нужной разметки используйте bleach.clean с белым списком тегов.",
+        severity: Severity::Medium,
+        confidence: Confidence::Low,
+        category: "XSS",
+        languages: PY,
+        pattern: r"\bmark_safe\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-79"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/79.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-PY-026",
+        title: "SSH: проверка ключа хоста отключена (paramiko)",
+        description: "AutoAddPolicy и WarningPolicy принимают ключ хоста автоматически. Соединение перестаёт защищать от man-in-the-middle.",
+        recommendation: "Используйте RejectPolicy и заранее загруженные known_hosts через load_system_host_keys.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: PY,
+        pattern: r"(?:AutoAddPolicy|WarningPolicy)\b",
+        unless_contains: &[],
+        cwe: &["CWE-295"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/295.html"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------ JavaScript / TS
     Rule {
@@ -829,6 +909,22 @@ pub static RULES: &[Rule] = &[
         owasp: Some(OWASP_DESIGN),
         references: &["https://cwe.mitre.org/data/definitions/1333.html"],
         skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-JS-029",
+        title: "NoSQL-инъекция через $where",
+        description: "Оператор $where в MongoDB выполняет JavaScript на сервере БД. Данные пользователя в его значении дают инъекцию кода и обход фильтров запроса.",
+        recommendation: "Не используйте $where. Стройте условия обычными операторами ($eq, $in) и приводите типы параметров запроса.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "SQL-инъекция",
+        languages: JS_FAMILY,
+        pattern: r#"["']?\$where["']?\s*:"#,
+        unless_contains: &[],
+        cwe: &["CWE-943"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/943.html"],
+        skip_in_tests: false,
     },
 
     // ------------------------------------------------------------------ Rust
@@ -1478,6 +1574,22 @@ pub static RULES: &[Rule] = &[
         cwe: &["CWE-942"],
         owasp: Some(OWASP_MISCONFIG),
         references: &["https://cwe.mitre.org/data/definitions/942.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-010",
+        title: "SnakeYAML: небезопасная загрузка",
+        description: "new Yaml().load() с конструктором по умолчанию создаёт произвольные Java-объекты по тегам в YAML. На недоверенных данных это ведёт к выполнению кода.",
+        recommendation: "Создавайте Yaml с SafeConstructor: new Yaml(new SafeConstructor(new LoaderOptions())).",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Небезопасная десериализация",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"new\s+Yaml\s*\([^)]*\)\s*\.\s*load",
+        unless_contains: &["SafeConstructor"],
+        cwe: &["CWE-502"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://cwe.mitre.org/data/definitions/502.html"],
         skip_in_tests: false,
     },
 
@@ -2270,6 +2382,54 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/798.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-TF-005",
+        title: "IAM-политика с действием \"*\"",
+        description: "Action = \"*\" (часто вместе с Resource \"*\") даёт полный доступ ко всем операциям сервиса. Скомпрометированный принципал получает права администратора.",
+        recommendation: "Перечислите только нужные действия и ограничьте Resource конкретными ARN — принцип наименьших привилегий.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Контроль доступа",
+        languages: &[Language::Terraform],
+        pattern: r#"(?i)(?:"Action"|actions)\s*[:=]\s*\[?\s*["']\*["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-732"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/732.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-TF-006",
+        title: "База данных доступна из интернета",
+        description: "publicly_accessible = true выдаёт инстансу БД публичный адрес. В связке с открытой security group это выставляет базу наружу.",
+        recommendation: "Задайте publicly_accessible = false и держите БД в приватной подсети, доступной только из приложения.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Terraform],
+        pattern: r"(?mi)publicly_accessible\s*=\s*true",
+        unless_contains: &[],
+        cwe: &["CWE-668"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/668.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-TF-007",
+        title: "Разрешён IMDSv1 (метаданные без токена)",
+        description: "http_tokens = \"optional\" оставляет доступным IMDSv1. При SSRF на инстансе это позволяет украсть временные креды роли через сервис метаданных.",
+        recommendation: "Требуйте IMDSv2: в metadata_options задайте http_tokens = \"required\".",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Terraform],
+        pattern: r#"(?mi)http_tokens\s*=\s*"optional""#,
+        unless_contains: &[],
+        cwe: &["CWE-16"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------------ Kubernetes
     Rule {
@@ -2803,6 +2963,47 @@ mod tests {
     fn finds_lua_os_execute() {
         let code = "os.execute(\"rm \" .. name)\n";
         assert!(hit_ids(code, Language::Lua, "build.lua").contains(&"VS-LU-001"));
+    }
+
+    #[test]
+    fn finds_python_zip_slip() {
+        let code = "tar.extractall(dest)\n";
+        assert!(hit_ids(code, Language::Python, "unpack.py").contains(&"VS-PY-022"));
+        let ok = "tar.extractall(dest, filter=\"data\")\n";
+        assert!(!hit_ids(ok, Language::Python, "unpack.py").contains(&"VS-PY-022"));
+    }
+
+    #[test]
+    fn finds_python_ssti() {
+        let code = "return render_template_string(\"Hello \" + name)\n";
+        assert!(hit_ids(code, Language::Python, "views.py").contains(&"VS-PY-023"));
+    }
+
+    #[test]
+    fn finds_python_jwt_no_verify() {
+        let code = "jwt.decode(token, options={\"verify_signature\": False})\n";
+        assert!(hit_ids(code, Language::Python, "auth.py").contains(&"VS-PY-024"));
+        // A plain requests verify=False must not trip the JWT rule.
+        let tls = "requests.get(url, verify=False)\n";
+        assert!(!hit_ids(tls, Language::Python, "api.py").contains(&"VS-PY-024"));
+    }
+
+    #[test]
+    fn finds_js_nosql_where() {
+        let code = "db.users.find({ $where: \"this.name == '\" + q + \"'\" })\n";
+        assert!(hit_ids(code, Language::JavaScript, "q.js").contains(&"VS-JS-029"));
+    }
+
+    #[test]
+    fn finds_java_snakeyaml_load() {
+        let code = "Object o = new Yaml().load(input);\n";
+        assert!(hit_ids(code, Language::Java, "Cfg.java").contains(&"VS-JV-010"));
+    }
+
+    #[test]
+    fn finds_terraform_public_db() {
+        let code = "  publicly_accessible = true\n";
+        assert!(hit_ids(code, Language::Terraform, "rds.tf").contains(&"VS-TF-006"));
     }
 
     #[test]
