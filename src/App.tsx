@@ -1488,6 +1488,30 @@ function Overview({ report }: { report: ScanReport }) {
             <Icon name="bar_chart" />
             {t("По уровню опасности")}
           </div>
+          {(() => {
+            const total = SEVERITY_ORDER.reduce((n, s) => n + report.counts[s], 0);
+            if (total === 0) return null;
+            // A single proportional bar answers "how much of this is critical?"
+            // before the eye reaches the per-level rows below.
+            return (
+              <div
+                className="sev-split"
+                role="img"
+                aria-label={SEVERITY_ORDER.filter((s) => report.counts[s] > 0)
+                  .map((s) => `${t(SEVERITY_LABEL[s])}: ${report.counts[s]}`)
+                  .join(", ")}
+              >
+                {SEVERITY_ORDER.filter((s) => report.counts[s] > 0).map((s) => (
+                  <span
+                    key={s}
+                    className={`sev-split-seg ${s}`}
+                    style={{ flexGrow: report.counts[s] }}
+                    title={`${t(SEVERITY_LABEL[s])}: ${report.counts[s]}`}
+                  />
+                ))}
+              </div>
+            );
+          })()}
           {SEVERITY_ORDER.map((s) => (
             <SeverityBar
               key={s}
