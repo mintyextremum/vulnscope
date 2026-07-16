@@ -34,6 +34,7 @@ import {
   SeverityBar,
 } from "./components";
 import { applyTheme } from "./theme-tokens";
+import { toSarif } from "./sarif";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
 import { RuleEditor } from "./RuleEditor";
@@ -233,6 +234,20 @@ export default function App() {
     }).catch((e) => setError(String(e)));
   };
 
+  /** Exports the run as SARIF 2.1.0 so it can feed GitHub code scanning or CI. */
+  const exportSarif = async () => {
+    if (!report) return;
+    const path = await saveDialog({
+      defaultPath: `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}.sarif`,
+      filters: [{ name: "SARIF", extensions: ["sarif", "json"] }],
+    });
+    if (!path) return;
+    await invoke("save_report", {
+      path,
+      json: JSON.stringify(toSarif(report, t), null, 2),
+    }).catch((e) => setError(String(e)));
+  };
+
   const filteredFindings = useMemo(() => {
     if (!report) return [];
     let out = report.findings;
@@ -413,6 +428,14 @@ export default function App() {
         run: exportReport,
       },
       {
+        id: "export-sarif",
+        label: t("Экспорт в SARIF (для CI)"),
+        hint: t("GitHub code scanning и др."),
+        icon: "data_object",
+        when: screen === "results" && !!report,
+        run: exportSarif,
+      },
+      {
         id: "cancel",
         label: t("Отменить сканирование"),
         icon: "stop_circle",
@@ -464,6 +487,7 @@ export default function App() {
       openMyRules,
       openSettings,
       exportReport,
+      exportSarif,
     ]
   );
 
