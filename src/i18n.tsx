@@ -552,6 +552,48 @@ export const EN: Record<string, string> = {
     "The /e modifier makes preg_replace run the replacement as PHP code. On request data this is arbitrary code execution.",
   "Замените на preg_replace_callback() и формируйте результат в функции обратного вызова без eval.":
     "Switch to preg_replace_callback() and build the result inside the callback without eval.",
+  // Ruby/C#/C rules added 16.07.2026 (duplicate titles reuse existing keys)
+  "eval() исполняет строку как код Ruby. Если в неё попадают данные извне, это полная компрометация процесса.":
+    "eval() runs the string as Ruby code. If external data reaches it, the process is fully compromised.",
+  "Уберите eval(). Для выбора поведения используйте хэш-диспетчер или case, для данных — JSON.parse.":
+    "Remove eval(). Use a hash dispatch or case for behaviour, and JSON.parse for data.",
+  "html_safe / raw отключает экранирование во вью": "html_safe / raw disables escaping in the view",
+  "html_safe и raw помечают строку как безопасный HTML, и Rails вставляет её без экранирования. Пользовательский ввод в ней даёт XSS.":
+    "html_safe and raw mark a string as safe HTML, so Rails inserts it without escaping. User input in it becomes XSS.",
+  "Не вызывайте html_safe на пользовательских данных. Для нужной разметки используйте sanitize с белым списком тегов.":
+    "Do not call html_safe on user data. For the markup you need, use sanitize with an allowlist of tags.",
+  "Вызов метода по имени из запроса (send)": "Method called by name from the request (send)",
+  "send/public_send с именем метода из params позволяет вызвать любой метод объекта, включая приватные, — это обход логики и контроля доступа.":
+    "send/public_send with a method name from params can call any method on the object, private ones included — bypassing logic and access control.",
+  "Сверяйте имя метода с белым списком перед вызовом или используйте явный case по допустимым действиям.":
+    "Check the method name against an allowlist before calling, or use an explicit case over the permitted actions.",
+  "Process.Start с cmd.exe, powershell или /bin/sh отдаёт разбор строки шеллу. Подстановка данных извне даёт инъекцию команд.":
+    "Process.Start with cmd.exe, powershell or /bin/sh hands the string to a shell. Injecting external data gives command injection.",
+  "Запускайте программу напрямую через ProcessStartInfo с Arguments-списком и UseShellExecute = false.":
+    "Launch the program directly via ProcessStartInfo with an Arguments list and UseShellExecute = false.",
+  "MD5 и SHA-1 подвержены коллизиям и не годятся для подписей и проверки целостности.":
+    "MD5 and SHA-1 are collision-prone and unfit for signatures or integrity checks.",
+  "Используйте SHA256.Create(). Для паролей — PBKDF2 (Rfc2898DeriveBytes), bcrypt или Argon2.":
+    "Use SHA256.Create(). For passwords, use PBKDF2 (Rfc2898DeriveBytes), bcrypt or Argon2.",
+  "Устаревшая версия TLS/SSL": "Outdated TLS/SSL version",
+  "SSL 3.0 и TLS 1.0/1.1 содержат известные уязвимости (POODLE, BEAST) и выведены из эксплуатации.":
+    "SSL 3.0 and TLS 1.0/1.1 have known vulnerabilities (POODLE, BEAST) and are deprecated.",
+  "Не задавайте SecurityProtocol вручную — пусть ОС выберет актуальную версию, либо укажите Tls12/Tls13.":
+    "Do not set SecurityProtocol by hand — let the OS pick the current version, or specify Tls12/Tls13.",
+  'scanf("%s") без ограничения длины': 'scanf("%s") without a length limit',
+  "%s в scanf/sscanf без ширины поля читает ввод любой длины в буфер фиксированного размера — переполнение буфера.":
+    "%s in scanf/sscanf with no field width reads input of any length into a fixed buffer — a buffer overflow.",
+  'Указывайте максимальную ширину: scanf("%63s", buf) для буфера в 64 байта, либо используйте fgets.':
+    'Give a maximum width: scanf("%63s", buf) for a 64-byte buffer, or use fgets.',
+  "Небезопасное создание временного файла": "Insecure temporary file creation",
+  "tmpnam, tempnam и mktemp возвращают имя, но не создают файл атомарно. Между проверкой и открытием возможна подмена (race, символическая ссылка).":
+    "tmpnam, tempnam and mktemp return a name but do not create the file atomically. Between the check and the open, it can be swapped (a race, a symlink).",
+  "Используйте mkstemp(), который создаёт и открывает файл одним атомарным вызовом.":
+    "Use mkstemp(), which creates and opens the file in one atomic call.",
+  "rand()/random() — предсказуемые PRNG. Токены, ключи и соли, полученные из них, восстанавливаются по нескольким значениям.":
+    "rand()/random() are predictable PRNGs. Tokens, keys and salts drawn from them can be recovered from a few outputs.",
+  "Для безопасности используйте getrandom(2), /dev/urandom или arc4random.":
+    "For anything security-related use getrandom(2), /dev/urandom or arc4random.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",
