@@ -12,7 +12,7 @@ code) — and only when the CVE check is enabled.
 
 ## What it finds
 
-**Code — 102 built-in rules** across 38 languages: command and SQL injection, XSS
+**Code — 111 built-in rules** across 38 languages: command and SQL injection, XSS
 (including `dangerouslySetInnerHTML`), unsafe deserialization (`pickle`,
 `yaml.load`), disabled TLS verification, weak cryptography, path traversal,
 `unsafe` pitfalls in Rust, and misconfigurations in Dockerfiles and GitHub
@@ -80,8 +80,8 @@ result summary.
 
 The interface switches between Russian and English under
 `Ctrl+,` → Appearance → Language; the change applies instantly and is stored in
-`settings.json`. The whole shell **and** the 114-rule catalogue (finding titles,
-descriptions, fixes) are translated.
+`settings.json`. The whole shell **and** the built-in rule catalogue (finding
+titles, descriptions, fixes) are translated.
 
 ## Themes
 
