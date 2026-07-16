@@ -1645,6 +1645,23 @@ kbd,
 .sev-dot.low { background: var(--low); }
 .sev-dot.info { background: var(--info); }
 
+/* Proportional severity strip at the top of the "by severity" card. */
+.sev-split {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin-bottom: var(--sp-4);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--s-3);
+}
+.sev-split-seg { min-width: 8px; transition: flex-grow var(--t-base) var(--ease); }
+.sev-split-seg.critical { background: var(--crit); }
+.sev-split-seg.high { background: var(--high); }
+.sev-split-seg.medium { background: var(--med); }
+.sev-split-seg.low { background: var(--low); }
+.sev-split-seg.info { background: var(--info); }
+
 /* Struck through: these are gone. The card is a record of work done, and it
    should not read like a list of things still to fix. */
 .fx-title {
