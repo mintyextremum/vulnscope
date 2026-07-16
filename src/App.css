@@ -2036,6 +2036,21 @@ kbd,
 .ref-link:hover { background: var(--s-3); }
 .ref-link .material-symbols-outlined { font-size: 14px; flex-shrink: 0; }
 
+/* CWE codes in the classification grid link out to their MITRE definition. */
+.cwe-links { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); }
+.cwe-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--a);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  border-radius: var(--r-1);
+  transition: opacity var(--t-fast) var(--ease);
+}
+.cwe-link:hover { text-decoration: underline; }
+.cwe-link .material-symbols-outlined { font-size: 13px; opacity: 0.65; }
+
 .detail-empty {
   flex: 1;
   display: flex;

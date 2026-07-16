@@ -856,6 +856,7 @@ export const EN: Record<string, string> = {
     "A PyPI token lets someone publish packages as you. A leak compromises the Python supply chain.",
   "Отзовите токен на pypi.org (Account settings → API tokens) и выпустите новый с областью на конкретный проект.":
     "Revoke the token on pypi.org (Account settings → API tokens) and issue a new one scoped to a single project.",
+  "Открыть описание CWE на cwe.mitre.org": "Open the CWE definition on cwe.mitre.org",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",

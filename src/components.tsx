@@ -986,7 +986,24 @@ export function FindingDetail({
             {finding.cwe.length > 0 && (
               <div className="meta-item">
                 <div className="meta-key">CWE</div>
-                <div className="meta-val">{finding.cwe.join(", ")}</div>
+                <div className="meta-val cwe-links">
+                  {finding.cwe.map((c) => {
+                    const num = c.replace(/\D/g, "");
+                    return num ? (
+                      <button
+                        key={c}
+                        className="cwe-link"
+                        onClick={() => openRef(`https://cwe.mitre.org/data/definitions/${num}.html`)}
+                        title={t("Открыть описание CWE на cwe.mitre.org")}
+                      >
+                        {c}
+                        <Icon name="open_in_new" />
+                      </button>
+                    ) : (
+                      <span key={c}>{c}</span>
+                    );
+                  })}
+                </div>
               </div>
             )}
             {finding.owasp && (

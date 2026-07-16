@@ -36,6 +36,7 @@ import {
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
 import { toMarkdown } from "./markdown";
+import { DEMO_REPORT } from "./demo";
 import { toCsv } from "./csv";
 import { toHtml } from "./html";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
@@ -99,6 +100,15 @@ export default function App() {
   const [listW, setListW] = useStoredWidth("vs.listW", 360);
 
   useEffect(() => {
+    // Dev preview: outside Tauri the backend commands reject, so load a sample
+    // report to make the results UI visible. Stripped from production builds.
+    if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
+      setReport(DEMO_REPORT);
+      setSelectedFinding(DEMO_REPORT.findings[0] ?? null);
+      setSelectedFile(DEMO_REPORT.findings[0]?.file ?? null);
+      setScreen("results");
+      return;
+    }
     invoke<ToolsInfo>("get_tools")
       .then((info) => {
         setTools(info);
