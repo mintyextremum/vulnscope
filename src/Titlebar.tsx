@@ -1,7 +1,24 @@
-import { useEffect, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useEffect, useMemo, useState } from "react";
+import { getCurrentWindow, type Window } from "@tauri-apps/api/window";
 import { Icon } from "./components";
 import { useT } from "./i18n";
+
+/**
+ * The Tauri window handle, or null when the app is opened outside Tauri (a plain
+ * browser during development). `getCurrentWindow()` reaches into Tauri internals
+ * and throws when they are absent, which would take the whole shell down — so we
+ * probe for them and degrade to a title bar without OS window controls instead.
+ */
+function tauriWindow(): Window | null {
+  try {
+    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      return getCurrentWindow();
+    }
+  } catch {
+    // Not running under Tauri.
+  }
+  return null;
+}
 
 /**
  * Replaces the OS title bar so the window is one continuous surface.
@@ -13,9 +30,10 @@ import { useT } from "./i18n";
 export function Titlebar({ children }: { children?: React.ReactNode }) {
   const t = useT();
   const [maximized, setMaximized] = useState(false);
-  const win = getCurrentWindow();
+  const win = useMemo(tauriWindow, []);
 
   useEffect(() => {
+    if (!win) return;
     let alive = true;
     win.isMaximized().then((m) => alive && setMaximized(m));
     // The window can also be maximized by dragging to the top edge or by the
@@ -47,6 +65,7 @@ export function Titlebar({ children }: { children?: React.ReactNode }) {
         {children}
       </div>
 
+      {win && (
       <div className="tb-controls">
         <button
           className="tb-btn"
@@ -86,6 +105,7 @@ export function Titlebar({ children }: { children?: React.ReactNode }) {
           </svg>
         </button>
       </div>
+      )}
     </div>
   );
 }
