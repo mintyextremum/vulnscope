@@ -64,9 +64,13 @@ export default function App() {
   const [prevScreen, setPrevScreen] = useState<Screen>("setup");
   const [tab, setTab] = useState<ResultTab>("overview");
 
-  const [mode, setMode] = useState<"local" | "repo">("local");
-  const [localPath, setLocalPath] = useState("");
-  const [repoUrl, setRepoUrl] = useState("");
+  // The last target is remembered so re-scanning the same project is just
+  // launch → Enter, instead of pasting the path every time.
+  const [mode, setMode] = useState<"local" | "repo">(() =>
+    localStorage.getItem("vs.mode") === "repo" ? "repo" : "local"
+  );
+  const [localPath, setLocalPath] = useState(() => localStorage.getItem("vs.localPath") ?? "");
+  const [repoUrl, setRepoUrl] = useState(() => localStorage.getItem("vs.repoUrl") ?? "");
   const [tools, setTools] = useState<ToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +124,13 @@ export default function App() {
     if (!tools) return; // never overwrite the saved set before it is restored
     localStorage.setItem("vs.tools", JSON.stringify([...enabledTools]));
   }, [enabledTools, tools]);
+
+  // Remember the last target and mode across launches (see the state above).
+  useEffect(() => {
+    localStorage.setItem("vs.mode", mode);
+    localStorage.setItem("vs.localPath", localPath);
+    localStorage.setItem("vs.repoUrl", repoUrl);
+  }, [mode, localPath, repoUrl]);
 
   // Appearance settings are applied by writing the tokens the stylesheet reads,
   // so there is one source of truth for colour and spacing.
@@ -1022,6 +1033,10 @@ function SetupScreen(p: SetupProps) {
                   placeholder="D:\Projects\my-app"
                   value={p.localPath}
                   onChange={(e) => p.setLocalPath(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && p.canScan) p.startScan();
+                  }}
+                  autoFocus
                 />
                 <button className="btn btn-ghost" onClick={p.pickFolder}>
                   <Icon name="folder_open" />
@@ -1041,6 +1056,10 @@ function SetupScreen(p: SetupProps) {
                   placeholder="https://github.com/owner/repo"
                   value={p.repoUrl}
                   onChange={(e) => p.setRepoUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && p.canScan) p.startScan();
+                  }}
+                  autoFocus
                 />
               </div>
               <div className="field-hint">
