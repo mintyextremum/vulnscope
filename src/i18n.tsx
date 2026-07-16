@@ -594,6 +594,32 @@ export const EN: Record<string, string> = {
     "rand()/random() are predictable PRNGs. Tokens, keys and salts drawn from them can be recovered from a few outputs.",
   "Для безопасности используйте getrandom(2), /dev/urandom или arc4random.":
     "For anything security-related use getrandom(2), /dev/urandom or arc4random.",
+  // Docker/Shell/CI rules added 16.07.2026
+  "ADD с удалённым URL": "ADD with a remote URL",
+  "ADD с http(s)-адресом скачивает файл при сборке без проверки контрольной суммы. Подмена источника или MITM втягивают чужое содержимое в образ.":
+    "ADD with an http(s) address downloads a file at build time without a checksum. A swapped source or a MITM pulls arbitrary content into the image.",
+  "Скачивайте через RUN curl с проверкой суммы, а для локальных файлов используйте COPY — ADD с URL непрозрачен.":
+    "Download via RUN curl with a checksum check, and use COPY for local files — ADD with a URL is opaque.",
+  "Секрет задан в ENV/ARG": "Secret set in ENV/ARG",
+  "Значение ENV или ARG остаётся в слоях образа и в истории сборки. Пароль или токен, заданный так, достанет любой, у кого есть образ.":
+    "An ENV or ARG value stays in the image layers and build history. A password or token set this way is readable by anyone who has the image.",
+  "Пробрасывайте секреты через RUN --mount=type=secret или переменные окружения при запуске, а не в Dockerfile.":
+    "Pass secrets via RUN --mount=type=secret or as environment variables at run time, not in the Dockerfile.",
+  "Права 0777 через chmod": "0777 permissions via chmod",
+  "chmod 777 даёт чтение, запись и исполнение любому пользователю. Локальный злоумышленник сможет подменить содержимое файла или скрипта.":
+    "chmod 777 grants read, write and execute to every user. A local attacker can replace the file or script's contents.",
+  "Задавайте минимально необходимые права: 0644 для файлов, 0755 для исполняемых, 0600 для секретов.":
+    "Set the least permission needed: 0644 for files, 0755 for executables, 0600 for secrets.",
+  "GitHub Actions: инъекция в run через выражение": "GitHub Actions: run injection via expression",
+  "Подстановка ${{ github.event.*.title/body }} или github.head_ref прямо в run вставляет подконтрольный атакующему текст в шелл-скрипт шага — это инъекция команд в раннер.":
+    "Interpolating ${{ github.event.*.title/body }} or github.head_ref straight into run inserts attacker-controlled text into the step's shell script — command injection on the runner.",
+  'Передавайте значение через env: и обращайтесь к нему как "$VAR" в кавычках — тогда подстановка не парсится шеллом.':
+    'Pass the value through env: and reference it as "$VAR" in quotes, so the interpolation is not parsed by the shell.',
+  "GitHub Actions: permissions write-all": "GitHub Actions: permissions write-all",
+  "write-all выдаёт токену workflow права на запись во все области, включая содержимое репозитория. Скомпрометированный шаг сможет пушить код и менять релизы.":
+    "write-all gives the workflow token write access to every scope, including repository contents. A compromised step can push code and alter releases.",
+  "Задайте минимальные права явно: permissions: { contents: read } на уровне workflow, расширяя точечно там, где нужно.":
+    "Set minimal permissions explicitly: permissions: { contents: read } at the workflow level, widening only where needed.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",

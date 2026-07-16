@@ -1058,6 +1058,38 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/1104.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-DK-005",
+        title: "ADD с удалённым URL",
+        description: "ADD с http(s)-адресом скачивает файл при сборке без проверки контрольной суммы. Подмена источника или MITM втягивают чужое содержимое в образ.",
+        recommendation: "Скачивайте через RUN curl с проверкой суммы, а для локальных файлов используйте COPY — ADD с URL непрозрачен.",
+        severity: Severity::Low,
+        confidence: Confidence::High,
+        category: "Цепочка поставок",
+        languages: &[Language::Dockerfile],
+        pattern: r"(?mi)^\s*ADD\s+https?://",
+        unless_contains: &[],
+        cwe: &["CWE-494"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://docs.docker.com/reference/dockerfile/#add"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-DK-006",
+        title: "Секрет задан в ENV/ARG",
+        description: "Значение ENV или ARG остаётся в слоях образа и в истории сборки. Пароль или токен, заданный так, достанет любой, у кого есть образ.",
+        recommendation: "Пробрасывайте секреты через RUN --mount=type=secret или переменные окружения при запуске, а не в Dockerfile.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Хранение секретов",
+        languages: &[Language::Dockerfile],
+        pattern: r"(?mi)^\s*(?:ENV|ARG)\s+\w*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY)\w*(?:\s*=\s*|\s+)\S",
+        unless_contains: &[],
+        cwe: &["CWE-798"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/798.html"],
+        skip_in_tests: false,
+    },
 
     // ----------------------------------------------------------- Shell / CI
     Rule {
@@ -1074,6 +1106,22 @@ pub static RULES: &[Rule] = &[
         cwe: &["CWE-78"],
         owasp: Some(OWASP_INJECTION),
         references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SH-002",
+        title: "Права 0777 через chmod",
+        description: "chmod 777 даёт чтение, запись и исполнение любому пользователю. Локальный злоумышленник сможет подменить содержимое файла или скрипта.",
+        recommendation: "Задавайте минимально необходимые права: 0644 для файлов, 0755 для исполняемых, 0600 для секретов.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: &[Language::Shell, Language::Dockerfile],
+        pattern: r"(?i)chmod\s+(?:-R\s+)?0?777\b",
+        unless_contains: &[],
+        cwe: &["CWE-276"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/276.html"],
         skip_in_tests: false,
     },
     Rule {
@@ -1106,6 +1154,38 @@ pub static RULES: &[Rule] = &[
         cwe: &["CWE-1357"],
         owasp: Some(OWASP_INTEGRITY),
         references: &["https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CI-003",
+        title: "GitHub Actions: инъекция в run через выражение",
+        description: "Подстановка ${{ github.event.*.title/body }} или github.head_ref прямо в run вставляет подконтрольный атакующему текст в шелл-скрипт шага — это инъекция команд в раннер.",
+        recommendation: "Передавайте значение через env: и обращайтесь к нему как \"$VAR\" в кавычках — тогда подстановка не парсится шеллом.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::Yaml],
+        pattern: r"\$\{\{\s*github\.(?:event\.[\w.]*(?:title|body|message|email)|head_ref)\b",
+        unless_contains: &[],
+        cwe: &["CWE-94"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://securitylab.github.com/resources/github-actions-untrusted-input/"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CI-004",
+        title: "GitHub Actions: permissions write-all",
+        description: "write-all выдаёт токену workflow права на запись во все области, включая содержимое репозитория. Скомпрометированный шаг сможет пушить код и менять релизы.",
+        recommendation: "Задайте минимальные права явно: permissions: { contents: read } на уровне workflow, расширяя точечно там, где нужно.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Yaml],
+        pattern: r"(?mi)^\s*permissions:\s*write-all\b",
+        unless_contains: &[],
+        cwe: &["CWE-269"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://docs.github.com/en/actions/security-guides/automatic-token-authentication"],
         skip_in_tests: false,
     },
 
@@ -2343,6 +2423,32 @@ mod tests {
     fn finds_c_insecure_tempfile() {
         let code = "char *p = tmpnam(NULL);\n";
         assert!(hit_ids(code, Language::C, "t.c").contains(&"VS-C-005"));
+    }
+
+    #[test]
+    fn finds_dockerfile_env_secret() {
+        let code = "ENV DB_PASSWORD=hunter2\n";
+        assert!(hit_ids(code, Language::Dockerfile, "Dockerfile").contains(&"VS-DK-006"));
+        let ok = "ENV APP_PORT=8080\n";
+        assert!(!hit_ids(ok, Language::Dockerfile, "Dockerfile").contains(&"VS-DK-006"));
+    }
+
+    #[test]
+    fn finds_shell_world_writable_chmod() {
+        let code = "chmod -R 777 /var/www\n";
+        assert!(hit_ids(code, Language::Shell, "deploy.sh").contains(&"VS-SH-002"));
+    }
+
+    #[test]
+    fn finds_actions_run_injection() {
+        let code = "        run: echo \"${{ github.event.issue.title }}\"\n";
+        assert!(hit_ids(code, Language::Yaml, ".github/workflows/ci.yml").contains(&"VS-CI-003"));
+    }
+
+    #[test]
+    fn finds_actions_write_all() {
+        let code = "permissions: write-all\n";
+        assert!(hit_ids(code, Language::Yaml, ".github/workflows/ci.yml").contains(&"VS-CI-004"));
     }
 
     #[test]
