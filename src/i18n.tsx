@@ -753,6 +753,47 @@ export const EN: Record<string, string> = {
     "http_tokens = \"optional\" leaves IMDSv1 reachable. With an SSRF on the instance it lets an attacker steal the role's temporary credentials via the metadata service.",
   "Требуйте IMDSv2: в metadata_options задайте http_tokens = \"required\".":
     "Require IMDSv2: set http_tokens = \"required\" in metadata_options.",
+  // Vue/Svelte + Go/Ruby/PHP/C# rules added 16.07.2026
+  "SSH: проверка ключа хоста отключена": "SSH: host key check disabled",
+  "ssh.InsecureIgnoreHostKey принимает любой ключ сервера. Соединение перестаёт защищать от man-in-the-middle.":
+    "ssh.InsecureIgnoreHostKey accepts any server key. The connection no longer protects against man-in-the-middle.",
+  "Используйте ssh.FixedHostKey или knownhosts.New с заранее известными ключами хостов.":
+    "Use ssh.FixedHostKey or knownhosts.New with known host keys.",
+  "Открытый редирект через redirect_to": "Open redirect via redirect_to",
+  "redirect_to с адресом из params уводит пользователя на произвольный внешний сайт — основа фишинга и обхода доверенных доменов.":
+    "redirect_to with an address from params sends the user to an arbitrary external site — the basis of phishing and trusted-domain bypass.",
+  "Разрешайте только относительные пути или проверяйте хост по белому списку; в Rails оставляйте allow_other_host по умолчанию выключенным.":
+    "Allow only relative paths or check the host against an allowlist; in Rails keep allow_other_host off by default.",
+  "Открытый редирект / инъекция заголовка": "Open redirect / header injection",
+  "header(\"Location: ...\") с пользовательским вводом даёт открытый редирект, а перевод строки в значении — расщепление HTTP-ответа (HTTP response splitting).":
+    "header(\"Location: ...\") with user input gives an open redirect, and a newline in the value gives HTTP response splitting.",
+  "Редиректьте только на пути из белого списка и вырезайте переводы строк из значения заголовка.":
+    "Redirect only to allowlisted paths and strip newlines from the header value.",
+  "assert() со строковым аргументом": "assert() with a string argument",
+  "assert() со строкой исполняет её как PHP-код. Пользовательский ввод в этой строке приводит к выполнению произвольного кода.":
+    "assert() with a string runs it as PHP code. User input in that string leads to arbitrary code execution.",
+  "Не передавайте строки в assert(). Проверяйте условия обычными выражениями и бросайте исключения.":
+    "Do not pass strings to assert(). Check conditions with normal expressions and throw exceptions.",
+  "Отключена проверка TLS-сертификата (HttpClient)": "TLS certificate validation disabled (HttpClient)",
+  "ServerCertificateCustomValidationCallback, возвращающий true, или DangerousAcceptAnyServerCertificateValidator заставляют HttpClient принять любой сертификат — соединение уязвимо к MITM.":
+    "A ServerCertificateCustomValidationCallback that returns true, or DangerousAcceptAnyServerCertificateValidator, makes HttpClient accept any certificate — the connection is exposed to MITM.",
+  "Уберите колбэк. Для внутреннего CA добавьте его сертификат в доверенное хранилище.":
+    "Remove the callback. For an internal CA, add its certificate to the trust store.",
+  "Открытый редирект через Response.Redirect": "Open redirect via Response.Redirect",
+  "Response.Redirect с адресом из запроса уводит пользователя на произвольный сайт — вектор фишинга и обхода доверенных доменов.":
+    "Response.Redirect with an address from the request sends the user to an arbitrary site — a phishing and trusted-domain-bypass vector.",
+  "Разрешайте только локальные адреса: проверяйте Url.IsLocalUrl(target) перед редиректом.":
+    "Allow only local addresses: check Url.IsLocalUrl(target) before redirecting.",
+  "Vue: v-html вставляет сырой HTML": "Vue: v-html inserts raw HTML",
+  "Директива v-html рендерит значение как HTML без экранирования. Пользовательские данные в ней приводят к XSS.":
+    "The v-html directive renders the value as HTML without escaping. User data in it leads to XSS.",
+  "Выводите данные через {{ }} — Vue их экранирует. Для доверенной разметки очищайте её DOMPurify перед вставкой.":
+    "Output data with {{ }} — Vue escapes it. For trusted markup, sanitize it with DOMPurify before inserting.",
+  "Svelte: {@html} вставляет сырой HTML": "Svelte: {@html} inserts raw HTML",
+  "Блок {@html expr} рендерит значение как HTML без экранирования. Пользовательские данные в нём приводят к XSS.":
+    "The {@html expr} block renders the value as HTML without escaping. User data in it leads to XSS.",
+  "Выводите данные обычной интерполяцией {expr} — Svelte их экранирует. Для доверенной разметки очищайте её DOMPurify.":
+    "Output data with normal interpolation {expr} — Svelte escapes it. For trusted markup, sanitize it with DOMPurify.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",
