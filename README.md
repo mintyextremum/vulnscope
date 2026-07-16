@@ -12,33 +12,33 @@
 
 ## Что оно находит
 
-**Код — 153 встроенных правила** для 38 языков. Инъекции команд, SQL и NoSQL, XSS и
-SSTI, небезопасная десериализация (`pickle`, `yaml.load`, SnakeYAML, `binary_to_term`),
-отключённая проверка TLS, слабая криптография, path traversal и Zip Slip, обход
-проверки JWT, проблемы `unsafe` в Rust, ошибки конфигурации в Dockerfile, GitHub
-Actions, Terraform и nginx. Каждая находка размечена CWE и категорией OWASP Top 10
-и сопровождается конкретной рекомендацией.
+**Код — 161 встроенное правило** для 38 языков. Инъекции команд, SQL и NoSQL, XSS и
+SSTI, открытые редиректы, небезопасная десериализация (`pickle`, `yaml.load`,
+SnakeYAML, `binary_to_term`), отключённая проверка TLS и ключей SSH, слабая
+криптография, path traversal и Zip Slip, обход проверки JWT, проблемы `unsafe` в
+Rust, ошибки конфигурации в Dockerfile, GitHub Actions, Terraform и nginx. Каждая
+находка размечена CWE и категорией OWASP Top 10 и сопровождается рекомендацией.
 
 | Язык | Правил |
 |---|---|
 | JavaScript / TypeScript / React | 29 |
 | Python | 26 |
 | Rust | 10 |
+| PHP | 10 |
 | Java / Kotlin | 10 |
-| Go | 9 |
-| PHP | 8 |
+| Go | 10 |
+| C# | 8 |
 | Terraform | 7 |
-| Ruby | 6 |
+| Ruby | 7 |
 | Dockerfile | 6 |
-| C# | 6 |
 | C / C++ | 6 |
 | Swift | 4 |
 | Nginx | 4 |
 | Kubernetes | 4 |
 | GitHub Actions | 4 |
-| Scala | 3 |
-| Elixir | 3 |
+| Scala / Elixir | по 3 |
 | Shell / PowerShell / Perl / Lua | по 2 |
+| Vue / Svelte | по 1 |
 
 Языки определяются по расширению и имени файла — Vue, Svelte, GraphQL, SQL и другие
 распознаются и попадают в статистику, даже если специальных правил для них пока нет.

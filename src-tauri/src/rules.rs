@@ -1430,6 +1430,22 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/276.html"],
         skip_in_tests: true,
     },
+    Rule {
+        id: "VS-GO-010",
+        title: "SSH: проверка ключа хоста отключена",
+        description: "ssh.InsecureIgnoreHostKey принимает любой ключ сервера. Соединение перестаёт защищать от man-in-the-middle.",
+        recommendation: "Используйте ssh.FixedHostKey или knownhosts.New с заранее известными ключами хостов.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::Go],
+        pattern: r"ssh\.InsecureIgnoreHostKey\b",
+        unless_contains: &[],
+        cwe: &["CWE-295"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/295.html"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------------------ Java
     Rule {
@@ -1722,6 +1738,38 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/95.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-PH-009",
+        title: "Открытый редирект / инъекция заголовка",
+        description: "header(\"Location: ...\") с пользовательским вводом даёт открытый редирект, а перевод строки в значении — расщепление HTTP-ответа (HTTP response splitting).",
+        recommendation: "Редиректьте только на пути из белого списка и вырезайте переводы строк из значения заголовка.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Открытый редирект",
+        languages: &[Language::Php],
+        pattern: r#"(?i)header\s*\(\s*["']location:[^)]*\$_(?:GET|POST|REQUEST|COOKIE)"#,
+        unless_contains: &[],
+        cwe: &["CWE-601", "CWE-113"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/601.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-010",
+        title: "assert() со строковым аргументом",
+        description: "assert() со строкой исполняет её как PHP-код. Пользовательский ввод в этой строке приводит к выполнению произвольного кода.",
+        recommendation: "Не передавайте строки в assert(). Проверяйте условия обычными выражениями и бросайте исключения.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Php],
+        pattern: r#"\bassert\s*\(\s*["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-95"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/95.html"],
+        skip_in_tests: true,
+    },
 
     // ------------------------------------------------------------------ Ruby
     Rule {
@@ -1820,6 +1868,22 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/749.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-RB-007",
+        title: "Открытый редирект через redirect_to",
+        description: "redirect_to с адресом из params уводит пользователя на произвольный внешний сайт — основа фишинга и обхода доверенных доменов.",
+        recommendation: "Разрешайте только относительные пути или проверяйте хост по белому списку; в Rails оставляйте allow_other_host по умолчанию выключенным.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Открытый редирект",
+        languages: &[Language::Ruby],
+        pattern: r"redirect_to\s+params\b",
+        unless_contains: &[],
+        cwe: &["CWE-601"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/601.html"],
+        skip_in_tests: false,
+    },
 
     // -------------------------------------------------------------------- C#
     Rule {
@@ -1916,6 +1980,38 @@ pub static RULES: &[Rule] = &[
         cwe: &["CWE-326"],
         owasp: Some(OWASP_CRYPTO),
         references: &["https://cwe.mitre.org/data/definitions/326.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-007",
+        title: "Отключена проверка TLS-сертификата (HttpClient)",
+        description: "ServerCertificateCustomValidationCallback, возвращающий true, или DangerousAcceptAnyServerCertificateValidator заставляют HttpClient принять любой сертификат — соединение уязвимо к MITM.",
+        recommendation: "Уберите колбэк. Для внутреннего CA добавьте его сертификат в доверенное хранилище.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::CSharp],
+        pattern: r"ServerCertificateCustomValidationCallback|DangerousAcceptAnyServerCertificateValidator",
+        unless_contains: &[],
+        cwe: &["CWE-295"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/295.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-008",
+        title: "Открытый редирект через Response.Redirect",
+        description: "Response.Redirect с адресом из запроса уводит пользователя на произвольный сайт — вектор фишинга и обхода доверенных доменов.",
+        recommendation: "Разрешайте только локальные адреса: проверяйте Url.IsLocalUrl(target) перед редиректом.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Открытый редирект",
+        languages: &[Language::CSharp],
+        pattern: r"(?i)Response\.Redirect\s*\(\s*(?:Request\.|[\w]*\.QueryString|[\w]*\.Query\b)",
+        unless_contains: &[],
+        cwe: &["CWE-601"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/601.html"],
         skip_in_tests: false,
     },
 
@@ -2315,6 +2411,40 @@ pub static RULES: &[Rule] = &[
         owasp: Some(OWASP_MISCONFIG),
         references: &["https://cwe.mitre.org/data/definitions/548.html"],
         skip_in_tests: false,
+    },
+
+    // ------------------------------------------------------------ Vue / Svelte
+    Rule {
+        id: "VS-VU-001",
+        title: "Vue: v-html вставляет сырой HTML",
+        description: "Директива v-html рендерит значение как HTML без экранирования. Пользовательские данные в ней приводят к XSS.",
+        recommendation: "Выводите данные через {{ }} — Vue их экранирует. Для доверенной разметки очищайте её DOMPurify перед вставкой.",
+        severity: Severity::Medium,
+        confidence: Confidence::Low,
+        category: "XSS",
+        languages: &[Language::Vue],
+        pattern: r"\bv-html\b",
+        unless_contains: &[],
+        cwe: &["CWE-79"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/79.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-SV-001",
+        title: "Svelte: {@html} вставляет сырой HTML",
+        description: "Блок {@html expr} рендерит значение как HTML без экранирования. Пользовательские данные в нём приводят к XSS.",
+        recommendation: "Выводите данные обычной интерполяцией {expr} — Svelte их экранирует. Для доверенной разметки очищайте её DOMPurify.",
+        severity: Severity::Medium,
+        confidence: Confidence::Low,
+        category: "XSS",
+        languages: &[Language::Svelte],
+        pattern: r"\{@html\b",
+        unless_contains: &[],
+        cwe: &["CWE-79"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/79.html"],
+        skip_in_tests: true,
     },
 
     // ------------------------------------------------------------- Terraform
@@ -3004,6 +3134,45 @@ mod tests {
     fn finds_terraform_public_db() {
         let code = "  publicly_accessible = true\n";
         assert!(hit_ids(code, Language::Terraform, "rds.tf").contains(&"VS-TF-006"));
+    }
+
+    #[test]
+    fn finds_vue_v_html() {
+        let code = "<div v-html=\"userBio\"></div>\n";
+        assert!(hit_ids(code, Language::Vue, "Profile.vue").contains(&"VS-VU-001"));
+    }
+
+    #[test]
+    fn finds_svelte_at_html() {
+        let code = "<p>{@html comment}</p>\n";
+        assert!(hit_ids(code, Language::Svelte, "Comment.svelte").contains(&"VS-SV-001"));
+    }
+
+    #[test]
+    fn finds_php_assert_string() {
+        let code = "assert(\"$a == $b\");\n";
+        assert!(hit_ids(code, Language::Php, "check.php").contains(&"VS-PH-010"));
+        // A boolean assert must not trip the string-eval rule.
+        let ok = "assert($a === $b);\n";
+        assert!(!hit_ids(ok, Language::Php, "check.php").contains(&"VS-PH-010"));
+    }
+
+    #[test]
+    fn finds_ruby_open_redirect() {
+        let code = "redirect_to params[:return_to]\n";
+        assert!(hit_ids(code, Language::Ruby, "sessions_controller.rb").contains(&"VS-RB-007"));
+    }
+
+    #[test]
+    fn finds_go_ssh_ignore_hostkey() {
+        let code = "config.HostKeyCallback = ssh.InsecureIgnoreHostKey()\n";
+        assert!(hit_ids(code, Language::Go, "ssh.go").contains(&"VS-GO-010"));
+    }
+
+    #[test]
+    fn finds_csharp_httpclient_cert_bypass() {
+        let code = "handler.ServerCertificateCustomValidationCallback = (m, c, ch, e) => true;\n";
+        assert!(hit_ids(code, Language::CSharp, "Http.cs").contains(&"VS-CS-007"));
     }
 
     #[test]
