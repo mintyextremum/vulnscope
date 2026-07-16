@@ -425,6 +425,9 @@ export const EN: Record<string, string> = {
   "Нет": "No",
   "Экспорт в CSV (для таблиц)": "Export to CSV (for spreadsheets)",
   "для сортировки и триажа": "for sorting and triage",
+  "Экспорт в HTML (для браузера)": "Export to HTML (for a browser)",
+  "открыть или напечатать в PDF": "open it or print to PDF",
+  "Находок нет": "No findings",
   "Показать только новые": "Show new only",
   "Показать все находки": "Show all findings",
 

@@ -37,6 +37,7 @@ import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
+import { toHtml } from "./html";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
 import { RuleEditor } from "./RuleEditor";
@@ -276,6 +277,19 @@ export default function App() {
     );
   };
 
+  /** Exports a self-contained HTML report — open in a browser or print to PDF. */
+  const exportHtml = async () => {
+    if (!report) return;
+    const path = await saveDialog({
+      defaultPath: `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}.html`,
+      filters: [{ name: "HTML", extensions: ["html"] }],
+    });
+    if (!path) return;
+    await invoke("save_report", { path, json: toHtml(report, t) }).catch((e) =>
+      setError(String(e))
+    );
+  };
+
   const filteredFindings = useMemo(() => {
     if (!report) return [];
     let out = report.findings;
@@ -480,6 +494,14 @@ export default function App() {
         run: exportCsv,
       },
       {
+        id: "export-html",
+        label: t("Экспорт в HTML (для браузера)"),
+        hint: t("открыть или напечатать в PDF"),
+        icon: "html",
+        when: screen === "results" && !!report,
+        run: exportHtml,
+      },
+      {
         id: "cancel",
         label: t("Отменить сканирование"),
         icon: "stop_circle",
@@ -534,6 +556,7 @@ export default function App() {
       exportSarif,
       exportMarkdown,
       exportCsv,
+      exportHtml,
     ]
   );
 
