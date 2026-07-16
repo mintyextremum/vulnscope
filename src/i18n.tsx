@@ -825,6 +825,37 @@ export const EN: Record<string, string> = {
     "ProcessBuilder with sh -c, bash -c or cmd /c hands the string to a shell. Injecting external data into such a command gives command injection.",
   "Передавайте программу и аргументы отдельными элементами списка, без sh -c: new ProcessBuilder(\"git\", \"log\", branch).":
     "Pass the program and arguments as separate list elements, without sh -c: new ProcessBuilder(\"git\", \"log\", branch).",
+  // Secret detectors added 17.07.2026
+  "GitLab Personal Access Token": "GitLab Personal Access Token",
+  "Токен GitLab даёт доступ к репозиториям и API в объёме своих scope: чтение приватного кода, пуш, управление проектами и CI/CD.":
+    "A GitLab token grants repository and API access within its scopes: reading private code, pushing, and managing projects and CI/CD.",
+  "Отзовите токен в GitLab (User Settings → Access Tokens) и выпустите новый. Для CI используйте CI/CD-переменные с маскированием.":
+    "Revoke the token in GitLab (User Settings → Access Tokens) and issue a new one. For CI use masked CI/CD variables.",
+  "npm-токен доступа": "npm access token",
+  "Токен npm позволяет публиковать пакеты от вашего имени и читать приватные. Утечка ведёт к компрометации цепочки поставок.":
+    "An npm token lets someone publish packages as you and read private ones. A leak compromises the supply chain.",
+  "Отзовите токен на npmjs.com (Access Tokens) и выпустите новый. Храните его в CI-секретах, а не в .npmrc в репозитории.":
+    "Revoke the token on npmjs.com (Access Tokens) and issue a new one. Keep it in CI secrets, not in a committed .npmrc.",
+  "SendGrid API-ключ": "SendGrid API key",
+  "Ключ SendGrid позволяет отправлять почту от вашего домена — вектор фишинга и порчи репутации отправителя.":
+    "A SendGrid key can send mail from your domain — a phishing and sender-reputation vector.",
+  "Отзовите ключ в панели SendGrid (Settings → API Keys) и выпустите новый с минимальными правами.":
+    "Revoke the key in the SendGrid dashboard (Settings → API Keys) and issue a new one with minimal scope.",
+  "Shopify Access Token": "Shopify Access Token",
+  "Токен доступа Shopify даёт доступ к данным магазина: заказам, клиентам и настройкам через Admin API.":
+    "A Shopify access token exposes store data — orders, customers and settings — through the Admin API.",
+  "Отзовите токен в админке Shopify (Apps → Develop apps) и выпустите новый. Храните его на сервере, а не в клиенте.":
+    "Revoke the token in the Shopify admin (Apps → Develop apps) and issue a new one. Keep it on the server, not in the client.",
+  "DigitalOcean Personal Access Token": "DigitalOcean Personal Access Token",
+  "Токен DigitalOcean управляет вашей инфраструктурой через API: дроплетами, базами, DNS и биллингом.":
+    "A DigitalOcean token controls your infrastructure through the API: droplets, databases, DNS and billing.",
+  "Отзовите токен в панели DigitalOcean (API → Tokens) и выпустите новый. Храните в переменных окружения.":
+    "Revoke the token in the DigitalOcean panel (API → Tokens) and issue a new one. Keep it in environment variables.",
+  "Токен загрузки PyPI": "PyPI upload token",
+  "Токен PyPI позволяет публиковать пакеты от вашего имени. Утечка ведёт к компрометации цепочки поставок Python.":
+    "A PyPI token lets someone publish packages as you. A leak compromises the Python supply chain.",
+  "Отзовите токен на pypi.org (Account settings → API tokens) и выпустите новый с областью на конкретный проект.":
+    "Revoke the token on pypi.org (Account settings → API tokens) and issue a new one scoped to a single project.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",
