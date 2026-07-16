@@ -88,6 +88,8 @@ export default function App() {
   const [focusLine, setFocusLine] = useState<number | null>(null);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const flashTimer = useRef<number | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [treeW, setTreeW] = useStoredWidth("vs.treeW", 280);
   const [listW, setListW] = useStoredWidth("vs.listW", 360);
@@ -275,6 +277,29 @@ export default function App() {
     await invoke("save_report", { path, json: toCsv(report, t) }).catch((e) =>
       setError(String(e))
     );
+  };
+
+  /** Shows a brief confirmation toast (also announced to screen readers). */
+  const showFlash = useCallback((msg: string) => {
+    setFlash(msg);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash(null), 2200);
+  }, []);
+
+  useEffect(() => () => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+  }, []);
+
+  /** Copies the Markdown report to the clipboard, to paste into a PR or chat. */
+  const copyMarkdown = async () => {
+    if (!report) return;
+    try {
+      await navigator.clipboard.writeText(toMarkdown(report, t));
+      showFlash(t("Отчёт скопирован в буфер обмена"));
+    } catch {
+      // Clipboard can refuse (focus/permission); fall back to the Save dialog.
+      showFlash(t("Не удалось скопировать — используйте экспорт в Markdown"));
+    }
   };
 
   /** Exports a self-contained HTML report — open in a browser or print to PDF. */
@@ -502,6 +527,14 @@ export default function App() {
         run: exportHtml,
       },
       {
+        id: "copy-md",
+        label: t("Скопировать отчёт (Markdown)"),
+        hint: t("в буфер обмена — для PR или чата"),
+        icon: "content_copy",
+        when: screen === "results" && !!report,
+        run: copyMarkdown,
+      },
+      {
         id: "cancel",
         label: t("Отменить сканирование"),
         icon: "stop_circle",
@@ -557,6 +590,7 @@ export default function App() {
       exportMarkdown,
       exportCsv,
       exportHtml,
+      copyMarkdown,
     ]
   );
 
@@ -901,6 +935,12 @@ export default function App() {
         </>
       )}
       </ViewTransition>
+      {flash && (
+        <div className="toast" role="status" aria-live="polite">
+          <Icon name="check_circle" />
+          {flash}
+        </div>
+      )}
     </div>
     </LangContext.Provider>
   );
