@@ -624,6 +624,24 @@ export const EN: Record<string, string> = {
     "write-all gives the workflow token write access to every scope, including repository contents. A compromised step can push code and alter releases.",
   "Задайте минимальные права явно: permissions: { contents: read } на уровне workflow, расширяя точечно там, где нужно.":
     "Set minimal permissions explicitly: permissions: { contents: read } at the workflow level, widening only where needed.",
+  // Swift rules added 16.07.2026 (VS-SW-003 reuses the weak-hash title/description)
+  "Использование устаревшего UIWebView": "Use of the deprecated UIWebView",
+  "UIWebView снят с поддержки Apple и не получает исправлений безопасности. Он не изолирует контент от приложения и уязвим к инъекциям.":
+    "UIWebView is deprecated by Apple and no longer gets security fixes. It does not isolate content from the app and is exposed to injection.",
+  "Перейдите на WKWebView: он выполняет контент в отдельном процессе и поддерживает современные политики безопасности.":
+    "Move to WKWebView: it runs content in a separate process and supports modern security policies.",
+  "Инъекция JavaScript во webview": "JavaScript injection into a web view",
+  "stringByEvaluatingJavaScriptFromString и evaluateJavaScript с интерполяцией вставляют данные прямо в исполняемый JS. Пользовательский ввод здесь даёт инъекцию скрипта.":
+    "stringByEvaluatingJavaScriptFromString and evaluateJavaScript with interpolation insert data straight into executable JS. User input here becomes script injection.",
+  "Не собирайте JS из строк. Передавайте данные через WKScriptMessageHandler или postMessage, экранируя значения.":
+    "Do not build JS from strings. Pass data through WKScriptMessageHandler or postMessage, escaping the values.",
+  "Используйте SHA-256 (CryptoKit: SHA256). Для паролей — bcrypt или Argon2 через проверенную библиотеку.":
+    "Use SHA-256 (CryptoKit: SHA256). For passwords, use bcrypt or Argon2 via a vetted library.",
+  "Секрет в UserDefaults": "Secret in UserDefaults",
+  "UserDefaults хранит данные в незашифрованном plist. Пароль, токен или ключ там доступен любому, кто получит устройство или бэкап.":
+    "UserDefaults stores data in an unencrypted plist. A password, token or key there is readable by anyone who gets the device or a backup.",
+  "Храните секреты в Keychain (kSecClassGenericPassword), а не в UserDefaults.":
+    "Store secrets in the Keychain (kSecClassGenericPassword), not in UserDefaults.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",

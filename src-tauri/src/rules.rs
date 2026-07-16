@@ -1905,6 +1905,72 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ----------------------------------------------------------------- Swift
+    Rule {
+        id: "VS-SW-001",
+        title: "Использование устаревшего UIWebView",
+        description: "UIWebView снят с поддержки Apple и не получает исправлений безопасности. Он не изолирует контент от приложения и уязвим к инъекциям.",
+        recommendation: "Перейдите на WKWebView: он выполняет контент в отдельном процессе и поддерживает современные политики безопасности.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Swift],
+        pattern: r"\bUIWebView\b",
+        unless_contains: &[],
+        cwe: &["CWE-1104"],
+        owasp: Some(OWASP_VULN_COMP),
+        references: &["https://cwe.mitre.org/data/definitions/1104.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SW-002",
+        title: "Инъекция JavaScript во webview",
+        description: "stringByEvaluatingJavaScriptFromString и evaluateJavaScript с интерполяцией вставляют данные прямо в исполняемый JS. Пользовательский ввод здесь даёт инъекцию скрипта.",
+        recommendation: "Не собирайте JS из строк. Передавайте данные через WKScriptMessageHandler или postMessage, экранируя значения.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "XSS",
+        languages: &[Language::Swift],
+        pattern: r#"stringByEvaluatingJavaScriptFromString|evaluateJavaScript\s*\(\s*"[^"]*\\\("#,
+        unless_contains: &[],
+        cwe: &["CWE-79"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/79.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SW-003",
+        title: "Слабый хеш (MD5/SHA-1)",
+        description: "MD5 и SHA-1 подвержены коллизиям и не годятся для подписей и проверки целостности.",
+        recommendation: "Используйте SHA-256 (CryptoKit: SHA256). Для паролей — bcrypt или Argon2 через проверенную библиотеку.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::Swift],
+        pattern: r"\bCC_MD5\b|\bCC_SHA1\b|Insecure\.(?:MD5|SHA1)\b",
+        unless_contains: &[],
+        cwe: &["CWE-327", "CWE-328"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-SW-004",
+        title: "Секрет в UserDefaults",
+        description: "UserDefaults хранит данные в незашифрованном plist. Пароль, токен или ключ там доступен любому, кто получит устройство или бэкап.",
+        recommendation: "Храните секреты в Keychain (kSecClassGenericPassword), а не в UserDefaults.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Хранение секретов",
+        languages: &[Language::Swift],
+        pattern: r#"(?i)UserDefaults[^\n]*\.set\s*\([^\n)]*forKey:\s*"[^"]*(?:password|token|secret|apikey|api_key|credential)"#,
+        unless_contains: &[],
+        cwe: &["CWE-312"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/312.html"],
+        skip_in_tests: false,
+    },
+
     // ------------------------------------------------------------- Terraform
     Rule {
         id: "VS-TF-001",
@@ -2449,6 +2515,26 @@ mod tests {
     fn finds_actions_write_all() {
         let code = "permissions: write-all\n";
         assert!(hit_ids(code, Language::Yaml, ".github/workflows/ci.yml").contains(&"VS-CI-004"));
+    }
+
+    #[test]
+    fn finds_swift_uiwebview() {
+        let code = "let web = UIWebView(frame: .zero)\n";
+        assert!(hit_ids(code, Language::Swift, "View.swift").contains(&"VS-SW-001"));
+    }
+
+    #[test]
+    fn finds_swift_userdefaults_secret() {
+        let code = "UserDefaults.standard.set(pw, forKey: \"user_password\")\n";
+        assert!(hit_ids(code, Language::Swift, "Auth.swift").contains(&"VS-SW-004"));
+        let ok = "UserDefaults.standard.set(theme, forKey: \"app_theme\")\n";
+        assert!(!hit_ids(ok, Language::Swift, "Auth.swift").contains(&"VS-SW-004"));
+    }
+
+    #[test]
+    fn finds_swift_js_injection() {
+        let code = "webView.evaluateJavaScript(\"show('\\(name)')\")\n";
+        assert!(hit_ids(code, Language::Swift, "Web.swift").contains(&"VS-SW-002"));
     }
 
     #[test]
