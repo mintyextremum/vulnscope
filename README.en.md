@@ -59,7 +59,9 @@ GitHub code scanning and CI dashboards — with rule dedup, severity mapping and
 stable fingerprints), **Markdown** (a readable report for a PR, issue, or chat),
 **CSV** (one row per finding for sorting and triage in a spreadsheet, with a
 formula-injection guard), and **HTML** (a single self-contained file you open in
-a browser or print to PDF). All of them follow the language on screen.
+a browser or print to PDF). All of them follow the language on screen. The
+Markdown report can also be copied straight to the clipboard (`Ctrl+K` → Copy
+report) to paste into a PR or chat without a save dialog.
 
 ## Accessibility
 
