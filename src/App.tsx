@@ -36,6 +36,7 @@ import {
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
 import { toMarkdown } from "./markdown";
+import { toCsv } from "./csv";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
 import { RuleEditor } from "./RuleEditor";
@@ -262,6 +263,19 @@ export default function App() {
     );
   };
 
+  /** Exports findings as a CSV table, for sorting and triage in a spreadsheet. */
+  const exportCsv = async () => {
+    if (!report) return;
+    const path = await saveDialog({
+      defaultPath: `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}.csv`,
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    });
+    if (!path) return;
+    await invoke("save_report", { path, json: toCsv(report, t) }).catch((e) =>
+      setError(String(e))
+    );
+  };
+
   const filteredFindings = useMemo(() => {
     if (!report) return [];
     let out = report.findings;
@@ -458,6 +472,14 @@ export default function App() {
         run: exportMarkdown,
       },
       {
+        id: "export-csv",
+        label: t("Экспорт в CSV (для таблиц)"),
+        hint: t("для сортировки и триажа"),
+        icon: "table_view",
+        when: screen === "results" && !!report,
+        run: exportCsv,
+      },
+      {
         id: "cancel",
         label: t("Отменить сканирование"),
         icon: "stop_circle",
@@ -511,6 +533,7 @@ export default function App() {
       exportReport,
       exportSarif,
       exportMarkdown,
+      exportCsv,
     ]
   );
 
