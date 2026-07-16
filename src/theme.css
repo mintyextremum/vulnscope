@@ -1,0 +1,190 @@
+/**
+ * Design tokens.
+ *
+ * Two ideas drive this file:
+ *
+ * 1. Seams come from borders. Panels are separated by a shift in surface
+ *    brightness and a soft shadow, not by a 1px line drawn between them. Lines
+ *    are reserved for cases where an edge carries meaning.
+ * 2. Every size comes from one scale. Ad-hoc values (9px here, 11px there) are
+ *    what make an interface feel assembled rather than designed.
+ */
+
+:root {
+  /* ---- surfaces: each step is a lift toward the viewer ---------------- */
+  --s-0: #090b11; /* window backdrop */
+  --s-1: #0d1017; /* app canvas */
+  --s-2: #12161f; /* panels */
+  --s-3: #171c27; /* raised cards */
+  --s-4: #1e2531; /* controls */
+  --s-5: #262f3f; /* hover */
+
+  /* Hairlines, used sparingly and always low-contrast. */
+  --line: #1c2230;
+  --line-strong: #2a3446;
+
+  /* ---- text: a real hierarchy, not three greys ----------------------- */
+  --t-1: #eef2f8; /* primary */
+  --t-2: #a7b2c4; /* secondary */
+  --t-3: #7a8698; /* tertiary / meta — 4.9:1 on panels, WCAG AA */
+  --t-4: #4a5566; /* disabled */
+
+  /* ---- accent -------------------------------------------------------- */
+  --a: #5b8def;
+  --a-hi: #7aa5f5;
+  --a-lo: #2f5bb0;
+  --a-ghost: rgba(91, 141, 239, 0.12);
+  --a-ring: rgba(91, 141, 239, 0.35);
+  /* Second accent: the far end of every gradient (progress ring, brand mark,
+     ambient light). A theme that only moved --a used to leave these violet. */
+  --a2: #8b5cf6;
+  --a2-hi: #a78bfa;
+  --a2-ghost: rgba(139, 92, 246, 0.14);
+  /* Text drawn on top of an accent or severity fill, never on a surface. */
+  --on-a: #ffffff;
+  /* A wash over an accent fill (hint chips inside the selected palette row).
+     Tied to --on-a so a light scheme can darken it instead. */
+  --on-a-wash: rgba(255, 255, 255, 0.15);
+
+  /* ---- severity ------------------------------------------------------ */
+  --crit: #ff5470;
+  --crit-hi: #ff8fa3;
+  --crit-bg: rgba(255, 84, 112, 0.11);
+  --crit-bg-2: rgba(255, 84, 112, 0.2);
+  --crit-ring: rgba(255, 84, 112, 0.3);
+  --high: #ff9147;
+  --high-bg: rgba(255, 145, 71, 0.11);
+  --med: #ffc857;
+  --med-bg: rgba(255, 200, 87, 0.11);
+  --low: #58c4f5;
+  --low-bg: rgba(88, 196, 245, 0.11);
+  --info: #8792a6;
+  --info-bg: rgba(135, 146, 166, 0.11);
+  --ok: #3fd68a;
+  --ok-hi: #9fe9c4;
+  --ok-bg: rgba(63, 214, 138, 0.11);
+  --danger: #e5484d;
+  --high-hi: #ffdfa0;
+  --high-ring: rgba(255, 145, 71, 0.3);
+  --ok-ring: rgba(63, 214, 138, 0.3);
+  --crit-pulse: rgba(255, 84, 112, 0.45);
+  /* Scrim behind modals: darker than any surface, so it reads as "behind". */
+  --scrim: rgba(5, 7, 11, 0.6);
+
+  /* Ink for text sitting on a solid severity fill (tree badges). Each is a
+     very dark shade of its own hue, so it stays legible on that fill. */
+  --crit-ink: #240309;
+  --high-ink: #240d00;
+  --med-ink: #241a00;
+  --low-ink: #001d26;
+  --info-ink: #0d1017;
+
+  /* Line highlight in the code viewer, per severity: nearly black, tinted. */
+  --crit-line: #240309;
+  --high-line: #240d00;
+  --med-line: #241a00;
+  --low-line: #001d26;
+  --info-line: #0d1017;
+  --crit-deep: #1b0a10;
+
+  /* ---- syntax highlighting ------------------------------------------- */
+  /* highlight.js ships fixed palettes; these tokens put the code viewer under
+     the same theme as everything else, so a light scheme does not leave the
+     code in dark-theme colours. Defaults follow GitHub Dark. */
+  --syn-text: #c9d1d9;
+  --syn-keyword: #ff7b72;
+  --syn-string: #a5d6ff;
+  --syn-number: #79c0ff;
+  --syn-comment: #8b949e;
+  --syn-func: #d2a8ff;
+  --syn-type: #7ee787;
+  --syn-var: #ffa657;
+  --syn-attr: #79c0ff;
+  --syn-meta: #79c0ff;
+  --syn-punct: #c9d1d9;
+  --syn-add: #aff5b4;
+  --syn-add-bg: #033a16;
+  --syn-del: #ffdcd7;
+  --syn-del-bg: #67060c;
+
+  /* ---- spacing: 4px base, no values outside it ----------------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* ---- radii --------------------------------------------------------- */
+  --r-1: 6px;
+  --r-2: 8px;
+  --r-3: 12px;
+  --r-4: 16px;
+  --r-full: 999px;
+
+  /* ---- type: 1.2 ratio, tabular numerals where numbers align --------- */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 17px;
+  --fs-xl: 21px;
+  --fs-2xl: 26px;
+  --fs-3xl: 32px;
+
+  --lh-tight: 1.3;
+  --lh-base: 1.55;
+  --lh-loose: 1.7;
+
+  --fw-normal: 400;
+  --fw-med: 500;
+  --fw-semi: 600;
+  --fw-bold: 680;
+
+  /* ---- elevation: what replaces borders ------------------------------ */
+  --e-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --e-2: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --e-3: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --e-4: 0 16px 48px rgba(0, 0, 0, 0.55);
+
+  /* ---- motion -------------------------------------------------------- */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 120ms;
+  --t-base: 200ms;
+  --t-slow: 320ms;
+
+  --font: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, monospace;
+
+  --titlebar-h: 40px;
+
+  color-scheme: dark;
+}
+
+/* Motion is decoration; never let it get in the way of someone who has asked
+   the OS to stop it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* A single visible focus treatment, shown only for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--a);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}

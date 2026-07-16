@@ -1,0 +1,1570 @@
+use crate::baseline;
+use crate::deps;
+use crate::external::{self, Tool, ToolStatus};
+use crate::git;
+use crate::model::*;
+use crate::osv::OsvClient;
+use crate::rules;
+use crate::secrets;
+use crate::settings;
+use crate::userrules;
+use crate::walk::{self, WalkOptions};
+use anyhow::{Context, Result};
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Instant;
+use tauri::{AppHandle, Emitter};
+
+/// How many context lines surround the offending line in a finding's snippet.
+const SNIPPET_CONTEXT: u32 = 3;
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanOptions {
+    /// Local directory path, or a repository URL when `is_repo` is set.
+    pub target: String,
+    #[serde(default)]
+    pub is_repo: bool,
+    #[serde(default = "default_true")]
+    pub respect_gitignore: bool,
+    #[serde(default)]
+    pub include_vendor: bool,
+    #[serde(default = "default_true")]
+    pub check_secrets: bool,
+    #[serde(default = "default_true")]
+    pub check_dependencies: bool,
+    #[serde(default)]
+    pub external_tools: Vec<Tool>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Maps a byte offset in a file to a 1-based line/column, and pulls snippets.
+struct LineIndex<'a> {
+    content: &'a str,
+    /// Byte offset where each line starts.
+    starts: Vec<usize>,
+}
+
+impl<'a> LineIndex<'a> {
+    fn new(content: &'a str) -> LineIndex<'a> {
+        let mut starts = vec![0usize];
+        starts.extend(content.match_indices('\n').map(|(i, _)| i + 1));
+        LineIndex { content, starts }
+    }
+
+    fn line_count(&self) -> u32 {
+        self.starts.len() as u32
+    }
+
+    /// Returns 1-based (line, column).
+    fn locate(&self, offset: usize) -> (u32, u32) {
+        let line_idx = match self.starts.binary_search(&offset) {
+            Ok(i) => i,
+            Err(i) => i.saturating_sub(1),
+        };
+        let col = offset.saturating_sub(self.starts[line_idx]) + 1;
+        ((line_idx + 1) as u32, col as u32)
+    }
+
+    fn line_text(&self, line: u32) -> &'a str {
+        let idx = (line as usize).saturating_sub(1);
+        let Some(&start) = self.starts.get(idx) else {
+            return "";
+        };
+        let end = self
+            .starts
+            .get(idx + 1)
+            .map(|&e| e.saturating_sub(1))
+            .unwrap_or(self.content.len());
+        self.content[start..end.max(start)].trim_end_matches('\r')
+    }
+
+    /// Byte offset where `line` (1-based) starts.
+    fn line_start(&self, line: u32) -> usize {
+        self.starts
+            .get((line as usize).saturating_sub(1))
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// The text of `line` with the byte range `[value_start, value_end)`
+    /// replaced by `mask`. Used so a credential never reaches the report.
+    fn redacted_line(&self, line: u32, value_start: usize, value_end: usize, mask: &str) -> String {
+        let text = self.line_text(line);
+        let base = self.line_start(line);
+
+        // Offsets are absolute in the file; rebase them onto the line, and bail
+        // out to a fully masked line if anything looks off rather than risk
+        // leaking the value.
+        let (Some(s), Some(e)) = (value_start.checked_sub(base), value_end.checked_sub(base)) else {
+            return mask.to_string();
+        };
+        if s > e || e > text.len() || !text.is_char_boundary(s) || !text.is_char_boundary(e) {
+            return mask.to_string();
+        }
+
+        format!("{}{}{}", &text[..s], mask, &text[e..]).trim().to_string()
+    }
+
+    /// Snippet with surrounding context; returns the text and its first line number.
+    fn snippet(&self, line: u32) -> (String, u32) {
+        let first = line.saturating_sub(SNIPPET_CONTEXT).max(1);
+        let last = (line + SNIPPET_CONTEXT).min(self.line_count());
+        let text = (first..=last)
+            .map(|l| self.line_text(l))
+            .collect::<Vec<_>>()
+            .join("\n");
+        (text, first)
+    }
+}
+
+/// Runs the user's own rules over a file.
+///
+/// Kept beside the built-in pass and sharing its comment/test-path suppression,
+/// so a custom rule behaves exactly like a shipped one — a rule that fires
+/// differently depending on who wrote it would be impossible to reason about.
+fn scan_user_rules(
+    content: &str,
+    index: &LineIndex,
+    rel: &str,
+    lang: Language,
+    user_rules: &[userrules::CompiledUserRule],
+) -> Vec<Finding> {
+    if user_rules.is_empty() {
+        return Vec::new();
+    }
+
+    let in_tests = rules::path_is_test(rel);
+    let mut out = Vec::new();
+
+    for cr in user_rules {
+        if !cr.applies_to(lang) {
+            continue;
+        }
+        if in_tests && cr.rule.skip_in_tests {
+            continue;
+        }
+
+        for m in cr.regex.find_iter(content) {
+            let (line, column) = index.locate(m.start());
+            let (end_line, end_column) = index.locate(m.end());
+            let line_text = index.line_text(line);
+
+            if !cr.rule.unless_contains.is_empty() {
+                let hay = format!("{} {}", m.as_str(), line_text).to_ascii_lowercase();
+                if cr
+                    .rule
+                    .unless_contains
+                    .iter()
+                    .any(|n| !n.is_empty() && hay.contains(&n.to_ascii_lowercase()))
+                {
+                    continue;
+                }
+            }
+
+            if rules::is_comment_line(line_text, lang) {
+                continue;
+            }
+
+            let (snippet, snippet_start_line) = index.snippet(line);
+            out.push(Finding {
+                id: format!("{}:{}:{}:{}", cr.rule.id, rel, line, column),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: cr.rule.id.clone(),
+                title: cr.rule.title.clone(),
+                description: cr.rule.description.clone(),
+                recommendation: cr.rule.recommendation.clone(),
+                severity: cr.rule.severity,
+                confidence: cr.rule.confidence,
+                source: FindingSource::Custom,
+                source_label: FindingSource::Custom.label().to_string(),
+                category: cr.rule.category.clone(),
+                file: rel.to_string(),
+                line,
+                end_line,
+                column,
+                end_column,
+                snippet,
+                snippet_start_line,
+                cwe: cr.rule.cwe.clone(),
+                owasp: cr.rule.owasp.clone(),
+                cve: Vec::new(),
+                references: cr.rule.references.clone(),
+                package: None,
+            });
+        }
+    }
+
+    out
+}
+
+fn scan_one_file(
+    abs: &Path,
+    rel: &str,
+    lang: Language,
+    check_secrets: bool,
+    user_rules: &[userrules::CompiledUserRule],
+    max_findings: usize,
+) -> Option<(Vec<Finding>, u32, u64)> {
+    let bytes = std::fs::read(abs).ok()?;
+    let size = bytes.len() as u64;
+    // Files that survived the binary sniff can still be non-UTF-8 further in.
+    let content = String::from_utf8(bytes).ok()?;
+    let index = LineIndex::new(&content);
+    let lines = index.line_count();
+
+    let mut findings = Vec::new();
+
+    for hit in rules::scan_content(&content, lang, rel) {
+        let (line, column) = index.locate(hit.start);
+        let (end_line, end_column) = index.locate(hit.end);
+        let (snippet, snippet_start_line) = index.snippet(line);
+        let rule = hit.rule;
+
+        findings.push(Finding {
+            id: format!("{}:{}:{}:{}", rule.id, rel, line, column),
+            fingerprint: String::new(),
+            suppressed: false,
+            suppression_reason: None,
+            is_new: false,
+            rule_id: rule.id.to_string(),
+            title: rule.title.to_string(),
+            description: rule.description.to_string(),
+            recommendation: rule.recommendation.to_string(),
+            severity: rule.severity,
+            confidence: rule.confidence,
+            source: FindingSource::Builtin,
+            source_label: FindingSource::Builtin.label().to_string(),
+            category: rule.category.to_string(),
+            file: rel.to_string(),
+            line,
+            end_line,
+            column,
+            end_column,
+            snippet,
+            snippet_start_line,
+            cwe: rule.cwe.iter().map(|s| s.to_string()).collect(),
+            owasp: rule.owasp.map(|s| s.to_string()),
+            cve: Vec::new(),
+            references: rule.references.iter().map(|s| s.to_string()).collect(),
+            package: None,
+        });
+    }
+
+    if check_secrets {
+        for hit in secrets::scan_secrets(&content, rel) {
+            let (line, column) = index.locate(hit.start);
+            let (end_line, end_column) = index.locate(hit.end);
+            let rule = hit.rule;
+            // Replace the secret *inside* the line with its mask. Appending the
+            // mask to the untouched line would leave the live credential in the
+            // snippet, and therefore in the UI and in exported reports.
+            let snippet = index.redacted_line(line, hit.value_start, hit.value_end, &hit.masked);
+
+            findings.push(Finding {
+                id: format!("{}:{}:{}:{}", rule.id, rel, line, column),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: rule.id.to_string(),
+                title: rule.title.to_string(),
+                description: rule.description.to_string(),
+                recommendation: rule.recommendation.to_string(),
+                severity: rule.severity,
+                confidence: rule.confidence,
+                source: FindingSource::Secrets,
+                source_label: FindingSource::Secrets.label().to_string(),
+                category: "Секрет в коде".to_string(),
+                file: rel.to_string(),
+                line,
+                end_line,
+                column,
+                end_column,
+                snippet,
+                snippet_start_line: line,
+                cwe: rule.cwe.iter().map(|s| s.to_string()).collect(),
+                owasp: Some("A07:2021 – Identification and Authentication Failures".to_string()),
+                cve: Vec::new(),
+                references: Vec::new(),
+                package: None,
+            });
+        }
+    }
+
+    findings.extend(scan_user_rules(&content, &index, rel, lang, user_rules));
+
+    findings.truncate(max_findings);
+    Some((findings, lines, size))
+}
+
+struct Progress {
+    app: AppHandle,
+    scan_id: String,
+    started: Instant,
+    processed: AtomicU32,
+    total: AtomicU32,
+    findings: AtomicU32,
+    last_emit_ms: AtomicU64,
+}
+
+impl Progress {
+    fn emit(&self, phase: ScanPhase, current_file: &str, force: bool) {
+        let elapsed_ms = self.started.elapsed().as_millis() as u64;
+
+        // Throttle: the UI cannot use more than ~15 updates/sec, and emitting per
+        // file on a large repo costs more than the scan itself.
+        if !force {
+            let last = self.last_emit_ms.load(Ordering::Relaxed);
+            if elapsed_ms.saturating_sub(last) < 66 {
+                return;
+            }
+            self.last_emit_ms.store(elapsed_ms, Ordering::Relaxed);
+        }
+
+        let processed = self.processed.load(Ordering::Relaxed);
+        let total = self.total.load(Ordering::Relaxed);
+        let secs = elapsed_ms as f32 / 1000.0;
+        let files_per_sec = if secs > 0.0 { processed as f32 / secs } else { 0.0 };
+
+        // Only extrapolate once there is a real sample; a guess from 2 files is
+        // worse than showing nothing.
+        let eta_ms = if processed >= 20 && total > processed && files_per_sec > 0.0 {
+            Some((((total - processed) as f32 / files_per_sec) * 1000.0) as u64)
+        } else {
+            None
+        };
+
+        let _ = self.app.emit(
+            "scan-progress",
+            ScanProgress {
+                scan_id: self.scan_id.clone(),
+                phase,
+                phase_label: phase.label().to_string(),
+                current_file: current_file.to_string(),
+                processed,
+                total,
+                findings_so_far: self.findings.load(Ordering::Relaxed),
+                elapsed_ms,
+                eta_ms,
+                files_per_sec,
+            },
+        );
+    }
+}
+
+fn now_iso() -> String {
+    chrono::Utc::now().to_rfc3339()
+}
+
+pub async fn run_scan(
+    app: AppHandle,
+    scan_id: String,
+    opts: ScanOptions,
+    cancel: Arc<AtomicBool>,
+    tool_statuses: Vec<ToolStatus>,
+) -> Result<ScanReport> {
+    let cfg = settings::load();
+    let started = Instant::now();
+    let started_at = now_iso();
+    let mut warnings: Vec<String> = Vec::new();
+    let mut engines: Vec<String> = vec!["Встроенные правила".to_string()];
+
+    let progress = Progress {
+        app: app.clone(),
+        scan_id: scan_id.clone(),
+        started,
+        processed: AtomicU32::new(0),
+        total: AtomicU32::new(0),
+        findings: AtomicU32::new(0),
+        last_emit_ms: AtomicU64::new(0),
+    };
+
+    progress.emit(ScanPhase::Preparing, "", true);
+
+    // ---------------------------------------------------------- resolve target
+    let mut cloned_path: Option<PathBuf> = None;
+    let (root, target_label) = if opts.is_repo {
+        progress.emit(ScanPhase::Cloning, &opts.target, true);
+        let repo = git::parse_repo_url(&opts.target)?;
+        let path = git::shallow_clone(&repo).await?;
+        // Reclaim earlier clones now that this one has replaced them.
+        git::purge_other_clones(&path);
+        cloned_path = Some(path.clone());
+        (path, repo.label())
+    } else {
+        let path = PathBuf::from(&opts.target);
+        if !path.is_dir() {
+            anyhow::bail!("каталог не найден: {}", opts.target);
+        }
+        let label = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| opts.target.clone());
+        (path, label)
+    };
+
+    // Removes the clone if a later phase fails; disarmed once a report exists.
+    let mut cleanup = CloneGuard(cloned_path.clone());
+
+    if cancel.load(Ordering::Relaxed) {
+        progress.emit(ScanPhase::Cancelled, "", true);
+        return Ok(cancelled_report(scan_id, &root, target_label, started_at, started));
+    }
+
+    // -------------------------------------------------------------- discovery
+    progress.emit(ScanPhase::Discovering, "", true);
+    let walk_opts = WalkOptions {
+        respect_gitignore: opts.respect_gitignore,
+        include_vendor: opts.include_vendor,
+        follow_symlinks: false,
+        // Sanitised on save, so these are safe to trust here.
+        max_file_size: cfg.max_file_size_mb as u64 * 1024 * 1024,
+        minified_line_len: cfg.minified_line_len as usize,
+    };
+    let discovery = {
+        let root = root.clone();
+        tokio::task::spawn_blocking(move || walk::discover(&root, &walk_opts))
+            .await
+            .context("обход файлов прерван")?
+    };
+
+    // A broken user rule must not sink the scan: skip it, warn, keep going.
+    let (compiled_user, mut rule_warnings) = match userrules::load() {
+        Ok(rules) => {
+            let (compiled, warns) = userrules::compile(&rules);
+            if !compiled.is_empty() {
+                engines.push(format!("Свои правила ({})", compiled.len()));
+            }
+            (compiled, warns)
+        }
+        Err(e) => (Vec::new(), vec![format!("Свои правила не загружены: {e}")]),
+    };
+    warnings.append(&mut rule_warnings);
+
+    progress.total.store(discovery.candidates.len() as u32, Ordering::Relaxed);
+    progress.emit(ScanPhase::ScanningCode, "", true);
+
+    // --------------------------------------------------------- scan the files
+    let check_secrets = opts.check_secrets;
+    let lines_total = AtomicU64::new(0);
+    let bytes_total = AtomicU64::new(0);
+
+    let max_findings = cfg.max_findings_per_file as usize;
+    let scan_results: Vec<(String, Language, Vec<Finding>, u32, u64)> = {
+        let candidates = &discovery.candidates;
+        let cancel = cancel.clone();
+
+        tokio::task::block_in_place(|| {
+            candidates
+                .par_iter()
+                .filter_map(|c| {
+                    if cancel.load(Ordering::Relaxed) {
+                        return None;
+                    }
+
+                    let out = scan_one_file(
+                        &c.abs_path,
+                        &c.rel_path,
+                        c.language,
+                        check_secrets,
+                        &compiled_user,
+                        max_findings,
+                    );
+
+                    progress.processed.fetch_add(1, Ordering::Relaxed);
+                    match out {
+                        Some((findings, lines, size)) => {
+                            progress
+                                .findings
+                                .fetch_add(findings.len() as u32, Ordering::Relaxed);
+                            lines_total.fetch_add(lines as u64, Ordering::Relaxed);
+                            bytes_total.fetch_add(size, Ordering::Relaxed);
+                            progress.emit(ScanPhase::ScanningCode, &c.rel_path, false);
+                            Some((c.rel_path.clone(), c.language, findings, lines, size))
+                        }
+                        None => {
+                            progress.emit(ScanPhase::ScanningCode, &c.rel_path, false);
+                            None
+                        }
+                    }
+                })
+                .collect()
+        })
+    };
+
+    if cancel.load(Ordering::Relaxed) {
+        progress.emit(ScanPhase::Cancelled, "", true);
+        return Ok(cancelled_report(scan_id, &root, target_label, started_at, started));
+    }
+
+    let mut findings: Vec<Finding> = Vec::new();
+    let mut files: Vec<FileSummary> = Vec::new();
+    let mut lang_files: std::collections::HashMap<Language, (u32, u64)> = Default::default();
+
+    for (rel_path, language, file_findings, lines, size) in scan_results {
+        let mut counts = SeverityCounts::default();
+        for f in &file_findings {
+            counts.add(f.severity);
+        }
+        let max_severity = file_findings.iter().map(|f| f.severity).max();
+
+        let entry = lang_files.entry(language).or_insert((0, 0));
+        entry.0 += 1;
+        entry.1 += lines as u64;
+
+        files.push(FileSummary {
+            path: rel_path,
+            language,
+            language_label: language.label().to_string(),
+            size,
+            lines,
+            counts,
+            max_severity,
+        });
+        findings.extend(file_findings);
+    }
+
+    // ------------------------------------------------------- dependencies/CVE
+    let mut dependencies_checked = 0u32;
+    if opts.check_dependencies {
+        progress.emit(ScanPhase::ResolvingDependencies, "", true);
+
+        let mut all_deps = Vec::new();
+        for c in discovery.candidates.iter().filter(|c| c.is_manifest) {
+            if let Ok(content) = std::fs::read_to_string(&c.abs_path) {
+                all_deps.extend(deps::parse_manifest(&c.rel_path, &content));
+            }
+        }
+        let all_deps = deps::dedupe(all_deps);
+        dependencies_checked = all_deps.len() as u32;
+
+        if !all_deps.is_empty() && !cancel.load(Ordering::Relaxed) {
+            progress.emit(ScanPhase::QueryingOsv, "", true);
+            let client = OsvClient::new();
+            match client.query(&all_deps).await {
+                Ok(results) => {
+                    engines.push("OSV.dev".to_string());
+                    for r in results {
+                        for adv in r.advisories {
+                            findings.push(advisory_to_finding(&r.dependency, &adv));
+                        }
+                    }
+                }
+                Err(e) => warnings.push(format!(
+                    "Проверка CVE не выполнена ({e}). Код проанализирован, уязвимости зависимостей — нет."
+                )),
+            }
+        }
+    }
+
+    // ------------------------------------------------------- external tools
+    if !opts.external_tools.is_empty() && !cancel.load(Ordering::Relaxed) {
+        progress.emit(ScanPhase::RunningExternalTools, "", true);
+
+        // Discovery already walked the tree, so reuse it rather than searching
+        // the filesystem a second time.
+        let cargo_lockfiles: Vec<String> = discovery
+            .candidates
+            .iter()
+            .filter(|c| c.rel_path.eq_ignore_ascii_case("Cargo.lock") || c.rel_path.ends_with("/Cargo.lock"))
+            .map(|c| c.rel_path.clone())
+            .collect();
+
+        let dockerfiles: Vec<String> = discovery
+            .candidates
+            .iter()
+            .filter(|c| c.language == Language::Dockerfile)
+            .map(|c| c.rel_path.clone())
+            .collect();
+
+        let npm_lockfiles: Vec<String> = discovery
+            .candidates
+            .iter()
+            .filter(|c| {
+                c.rel_path.eq_ignore_ascii_case("package-lock.json")
+                    || c.rel_path.ends_with("/package-lock.json")
+            })
+            .map(|c| c.rel_path.clone())
+            .collect();
+
+        let mut ext = external::run_available(
+            &root,
+            &tool_statuses,
+            &opts.external_tools,
+            &cargo_lockfiles,
+            &dockerfiles,
+            &npm_lockfiles,
+            &cancel,
+        )
+        .await;
+        findings.append(&mut ext.findings);
+        warnings.append(&mut ext.warnings);
+        engines.extend(ext.engines);
+    }
+
+    // Cancelling now kills the running scanner, which means we get here with a
+    // half-run set of engines. Falling through would hand back a report that
+    // looks complete — the worst outcome for a security tool — so it has to be
+    // reported as cancelled, like every other cancellation point.
+    if cancel.load(Ordering::Relaxed) {
+        progress.emit(ScanPhase::Cancelled, "", true);
+        return Ok(cancelled_report(scan_id, &root, target_label, started_at, started));
+    }
+
+    // ------------------------------------------------------------- assemble
+    progress.emit(ScanPhase::Finalizing, "", true);
+
+    // Findings from external tools land on files the per-file pass already
+    // summarised, so severity rollups must be recomputed from the merged set.
+    findings.sort_by(|a, b| {
+        b.severity
+            .cmp(&a.severity)
+            .then_with(|| a.file.cmp(&b.file))
+            .then_with(|| a.line.cmp(&b.line))
+    });
+    findings.dedup_by(|a, b| a.id == b.id);
+    findings = merge_duplicate_advisories(findings);
+
+    // Fingerprint first: suppression and comparison both key off it.
+    for f in &mut findings {
+        f.fingerprint = baseline::fingerprint(f);
+    }
+
+    let (ignores, ignore_warning) = baseline::load_ignores(&root);
+    if let Some(w) = ignore_warning {
+        warnings.push(w);
+    }
+
+    for f in &mut findings {
+        if let Some(s) = baseline::match_suppression(f, &f.fingerprint.clone(), &ignores) {
+            f.suppressed = true;
+            f.suppression_reason = Some(s.reason.clone());
+        }
+    }
+
+    let suppressed_count = findings.iter().filter(|f| f.suppressed).count() as u32;
+
+    // Taken from the findings rather than the ignore file: a whole-file rule
+    // silences findings whose fingerprints were never written down.
+    let suppressed_fps: std::collections::HashSet<String> = findings
+        .iter()
+        .filter(|f| f.suppressed)
+        .map(|f| f.fingerprint.clone())
+        .collect();
+
+    // Compare only what the user actually sees; a suppressed finding coming
+    // back should not read as new work.
+    let active: Vec<(String, &Finding)> = findings
+        .iter()
+        .filter(|f| !f.suppressed)
+        .map(|f| (f.fingerprint.clone(), f))
+        .collect();
+
+    let previous = baseline::load_snapshot(&root);
+    let (delta, statuses) = baseline::compare(&active, previous.as_ref(), &suppressed_fps);
+
+    let snapshot = baseline::to_snapshot(&target_label, &now_iso(), &active);
+    if let Err(e) = baseline::save_snapshot(&root, &snapshot) {
+        warnings.push(format!("не удалось сохранить историю сканов: {e}"));
+    }
+
+    for f in &mut findings {
+        if matches!(
+            statuses.get(&f.fingerprint),
+            Some(baseline::FindingStatus::New)
+        ) {
+            f.is_new = true;
+        }
+    }
+
+    // Counts describe what needs attention, so suppressed findings stay out.
+    let mut counts = SeverityCounts::default();
+    for f in findings.iter().filter(|f| !f.suppressed) {
+        counts.add(f.severity);
+    }
+
+    let mut per_file: std::collections::HashMap<&str, SeverityCounts> = Default::default();
+    for f in findings.iter().filter(|f| !f.suppressed) {
+        per_file.entry(f.file.as_str()).or_default().add(f.severity);
+    }
+    for file in &mut files {
+        if let Some(c) = per_file.get(file.path.as_str()) {
+            file.counts = c.clone();
+            file.max_severity = findings
+                .iter()
+                .filter(|f| f.file == file.path && !f.suppressed)
+                .map(|f| f.severity)
+                .max();
+        }
+    }
+    files.sort_by(|a, b| {
+        b.max_severity
+            .cmp(&a.max_severity)
+            .then_with(|| b.counts.total().cmp(&a.counts.total()))
+            .then_with(|| a.path.cmp(&b.path))
+    });
+
+    let mut languages: Vec<LanguageStat> = lang_files
+        .into_iter()
+        .map(|(language, (files, lines))| LanguageStat {
+            language,
+            label: language.label().to_string(),
+            files,
+            lines,
+        })
+        .collect();
+    languages.sort_by(|a, b| b.files.cmp(&a.files));
+
+    let report = ScanReport {
+        id: scan_id,
+        root: root.to_string_lossy().to_string(),
+        target_label,
+        started_at,
+        finished_at: now_iso(),
+        duration_ms: started.elapsed().as_millis() as u64,
+        cancelled: false,
+        delta,
+        suppressed_count,
+        files_scanned: files.len() as u32,
+        files_skipped: discovery.skipped.len() as u32,
+        lines_scanned: lines_total.load(Ordering::Relaxed),
+        bytes_scanned: bytes_total.load(Ordering::Relaxed),
+        counts,
+        findings,
+        files,
+        skipped: discovery.skipped,
+        languages,
+        dependencies_checked,
+        engines_used: engines,
+        warnings,
+    };
+
+    // The report is usable and points at the clone, so it must outlive this
+    // call. A cancelled run keeps the guard armed: its report has no files.
+    cleanup.disarm();
+
+    progress.emit(ScanPhase::Done, "", true);
+    Ok(report)
+}
+
+/// Identifiers that name the same underlying vulnerability: the advisory's own
+/// id plus every CVE/GHSA alias it carries.
+fn advisory_identity(f: &Finding) -> Vec<String> {
+    let mut ids: Vec<String> = f.cve.clone();
+    ids.push(f.rule_id.clone());
+    ids.iter_mut().for_each(|s| *s = s.to_ascii_uppercase());
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+/// OSV and cargo-audit both cover crates.io, so a single vulnerable crate is
+/// reported twice — once as GHSA-x, once as RUSTSEC-y — even though they are the
+/// same advisory. Reporting both inflates the count and makes the user chase a
+/// fix they already have. Collapse entries that name the same package version
+/// and share any identifier, keeping the richest one.
+fn merge_duplicate_advisories(findings: Vec<Finding>) -> Vec<Finding> {
+    let mut out: Vec<Finding> = Vec::with_capacity(findings.len());
+
+    for f in findings {
+        // Only dependency findings can collide this way.
+        let Some(pkg) = f.package.clone() else {
+            out.push(f);
+            continue;
+        };
+
+        let ids = advisory_identity(&f);
+        let existing = out.iter_mut().find(|o| {
+            o.package
+                .as_ref()
+                .map(|p| p.name == pkg.name && p.version == pkg.version)
+                .unwrap_or(false)
+                && advisory_identity(o).iter().any(|i| ids.contains(i))
+        });
+
+        match existing {
+            Some(keep) => {
+                // Union the identifiers so the surviving entry names every id the
+                // user might search for.
+                for c in f.cve {
+                    if !keep.cve.contains(&c) {
+                        keep.cve.push(c);
+                    }
+                }
+                keep.cve.sort();
+                for r in f.references {
+                    if !keep.references.contains(&r) {
+                        keep.references.push(r);
+                    }
+                }
+                for c in f.cwe {
+                    if !keep.cwe.contains(&c) {
+                        keep.cwe.push(c);
+                    }
+                }
+                // Keep the worst severity: a source that scored it higher may
+                // know something the other did not.
+                if f.severity > keep.severity {
+                    keep.severity = f.severity;
+                }
+                // Prefer a concrete fixed version over none.
+                if let (Some(kp), Some(fp)) = (keep.package.as_mut(), pkg.fixed_version.clone()) {
+                    if kp.fixed_version.is_none() {
+                        kp.fixed_version = Some(fp);
+                        keep.recommendation = f.recommendation;
+                    }
+                }
+            }
+            None => out.push(f),
+        }
+    }
+
+    out
+}
+
+fn advisory_to_finding(dep: &deps::Dependency, adv: &crate::osv::Advisory) -> Finding {
+    let cve = adv.cve_ids();
+    let display_id = cve.first().cloned().unwrap_or_else(|| adv.id.clone());
+
+    let recommendation = match &adv.fixed_version {
+        Some(fixed) => format!(
+            "Обновите {} с {} до {} или новее.",
+            dep.name, dep.version, fixed
+        ),
+        None => format!(
+            "Исправленной версии пока нет. Проверьте описание {} и рассмотрите замену пакета или временные меры.",
+            adv.id
+        ),
+    };
+
+    let summary = if adv.summary.is_empty() {
+        adv.id.clone()
+    } else {
+        adv.summary.clone()
+    };
+
+    Finding {
+        id: format!("osv:{}:{}:{}", dep.name, dep.version, adv.id),
+        fingerprint: String::new(),
+        suppressed: false,
+        suppression_reason: None,
+        is_new: false,
+        rule_id: adv.id.clone(),
+        title: format!("{} {} — {}", dep.name, dep.version, display_id),
+        description: format!(
+            "{}\n\n{}",
+            summary,
+            adv.details.chars().take(800).collect::<String>()
+        )
+        .trim()
+        .to_string(),
+        recommendation,
+        severity: adv.severity,
+        confidence: Confidence::High,
+        source: FindingSource::Osv,
+        source_label: FindingSource::Osv.label().to_string(),
+        category: "Уязвимая зависимость".to_string(),
+        file: dep.manifest.clone(),
+        line: dep.line,
+        end_line: dep.line,
+        column: 0,
+        end_column: 0,
+        snippet: format!("{} {}", dep.name, dep.version),
+        snippet_start_line: dep.line,
+        cwe: adv.cwe.clone(),
+        owasp: Some("A06:2021 – Vulnerable and Outdated Components".to_string()),
+        cve,
+        references: adv.references.clone(),
+        package: Some(PackageInfo {
+            name: dep.name.clone(),
+            version: dep.version.clone(),
+            ecosystem: dep.ecosystem.clone(),
+            fixed_version: adv.fixed_version.clone(),
+        }),
+    }
+}
+
+fn cancelled_report(
+    scan_id: String,
+    root: &Path,
+    target_label: String,
+    started_at: String,
+    started: Instant,
+) -> ScanReport {
+    ScanReport {
+        id: scan_id,
+        root: root.to_string_lossy().to_string(),
+        target_label,
+        started_at,
+        finished_at: now_iso(),
+        duration_ms: started.elapsed().as_millis() as u64,
+        cancelled: true,
+        delta: Default::default(),
+        suppressed_count: 0,
+        findings: Vec::new(),
+        files: Vec::new(),
+        skipped: Vec::new(),
+        counts: SeverityCounts::default(),
+        files_scanned: 0,
+        files_skipped: 0,
+        lines_scanned: 0,
+        bytes_scanned: 0,
+        languages: Vec::new(),
+        dependencies_checked: 0,
+        engines_used: Vec::new(),
+        warnings: vec!["Сканирование отменено пользователем.".to_string()],
+    }
+}
+
+/// Removes a cloned repository if the scan does not reach a usable report.
+///
+/// On success the clone must stay: the report points at it and the code viewer
+/// reads source from disk. `disarm` is called once a report exists; the clone is
+/// then reclaimed by `purge_other_clones` at the start of the next repo scan.
+struct CloneGuard(Option<PathBuf>);
+
+impl CloneGuard {
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for CloneGuard {
+    fn drop(&mut self) {
+        if let Some(p) = &self.0 {
+            git::cleanup_clone(p);
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsInfo {
+    pub tools: Vec<ToolStatus>,
+    pub git_available: bool,
+}
+
+pub async fn tools_info() -> ToolsInfo {
+    ToolsInfo {
+        tools: external::detect_tools().await,
+        git_available: git::git_available(),
+    }
+}
+
+/// Emits a terminal `Failed` progress event after a scan errors out.
+pub fn emit_failed(app: &AppHandle, scan_id: &str) {
+    let _ = app.emit(
+        "scan-progress",
+        ScanProgress {
+            scan_id: scan_id.to_string(),
+            phase: ScanPhase::Failed,
+            phase_label: ScanPhase::Failed.label().to_string(),
+            current_file: String::new(),
+            processed: 0,
+            total: 0,
+            findings_so_far: 0,
+            elapsed_ms: 0,
+            eta_ms: None,
+            files_per_sec: 0.0,
+        },
+    );
+}
+
+/// Shared cancel flag for the scan currently in flight.
+pub struct ScanState {
+    pub cancel: Arc<AtomicBool>,
+}
+
+impl Default for ScanState {
+    fn default() -> Self {
+        ScanState {
+            cancel: Arc::new(AtomicBool::new(false)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn line_index_locates_offsets() {
+        let content = "alpha\nbeta\ngamma\n";
+        let idx = LineIndex::new(content);
+        assert_eq!(idx.locate(0), (1, 1));
+        assert_eq!(idx.locate(6), (2, 1));
+        assert_eq!(idx.locate(8), (2, 3));
+        assert_eq!(idx.locate(11), (3, 1));
+    }
+
+    #[test]
+    fn line_index_counts_and_reads_lines() {
+        let idx = LineIndex::new("a\nbb\nccc");
+        assert_eq!(idx.line_text(1), "a");
+        assert_eq!(idx.line_text(2), "bb");
+        assert_eq!(idx.line_text(3), "ccc");
+        assert_eq!(idx.line_text(99), "");
+    }
+
+    #[test]
+    fn line_index_handles_crlf() {
+        let idx = LineIndex::new("a\r\nb\r\n");
+        assert_eq!(idx.line_text(1), "a");
+        assert_eq!(idx.line_text(2), "b");
+    }
+
+    #[test]
+    fn line_index_handles_empty_content() {
+        let idx = LineIndex::new("");
+        assert_eq!(idx.locate(0), (1, 1));
+        assert_eq!(idx.line_count(), 1);
+    }
+
+    #[test]
+    fn snippet_includes_context_and_clamps_at_file_start() {
+        let content = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n";
+        let idx = LineIndex::new(content);
+
+        let (text, first) = idx.snippet(5);
+        assert_eq!(first, 2);
+        assert_eq!(text, "l2\nl3\nl4\nl5\nl6\nl7\nl8");
+
+        // Near the top the window must not underflow past line 1.
+        let (text, first) = idx.snippet(1);
+        assert_eq!(first, 1);
+        assert!(text.starts_with("l1"));
+    }
+
+    #[test]
+    fn redacted_line_replaces_only_the_secret() {
+        let content = "DATABASE_URL = \"postgres://admin:hunter2pass@db:5432/prod\"\n";
+        let idx = LineIndex::new(content);
+        let start = content.find("hunter2pass").unwrap();
+        let out = idx.redacted_line(1, start, start + "hunter2pass".len(), "hunt****ss");
+
+        assert!(!out.contains("hunter2pass"), "secret survived redaction: {out}");
+        assert!(out.contains("hunt****ss"));
+        // The surrounding code must stay readable, or the finding is useless.
+        assert!(out.contains("DATABASE_URL"));
+        assert!(out.contains("db:5432/prod"));
+    }
+
+    #[test]
+    fn redaction_falls_back_to_full_mask_on_bad_offsets() {
+        let idx = LineIndex::new("key = \"abc\"\n");
+        // Offsets pointing outside the line must never yield the raw line.
+        assert_eq!(idx.redacted_line(1, 9999, 10001, "****"), "****");
+        assert_eq!(idx.redacted_line(1, 5, 2, "****"), "****");
+    }
+
+    /// The whole point of masking: a scan report must be shareable. This walks
+    /// the real pipeline, because the bug it guards against was a snippet that
+    /// appended the mask to an untouched line.
+    #[test]
+    fn secret_values_never_reach_the_finding() {
+        let dir = std::env::temp_dir().join("vulnscope-test-secret-leak");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let password = "kJ8m2NpQ4rT";
+        let token = "ghp_kJ8m2NpQ4rT7sV1wXy3zAb6cDe9fGh0iJk2L";
+        let path = dir.join("config.py");
+        std::fs::write(
+            &path,
+            format!(
+                "DATABASE_URL = \"postgresql://admin:{password}@db.internal:5432/prod\"\n\
+                 GITHUB_TOKEN = \"{token}\"\n"
+            ),
+        )
+        .unwrap();
+
+        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, &[], 200).unwrap();
+        let secret_findings: Vec<_> = findings
+            .iter()
+            .filter(|f| f.source == FindingSource::Secrets)
+            .collect();
+        assert!(!secret_findings.is_empty(), "no secrets detected at all");
+
+        for f in &secret_findings {
+            let blob = format!(
+                "{} {} {} {}",
+                f.snippet, f.title, f.description, f.recommendation
+            );
+            assert!(
+                !blob.contains(password),
+                "raw password leaked into finding {}: {}",
+                f.rule_id,
+                f.snippet
+            );
+            assert!(
+                !blob.contains(token),
+                "raw token leaked into finding {}: {}",
+                f.rule_id,
+                f.snippet
+            );
+            assert!(f.snippet.contains('*'), "snippet shows no mask: {}", f.snippet);
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn advisory_becomes_finding_with_cve_and_fix() {
+        let dep = deps::Dependency {
+            name: "lodash".into(),
+            version: "4.17.20".into(),
+            ecosystem: "npm".into(),
+            manifest: "package.json".into(),
+            line: 5,
+            direct: true,
+        };
+        let adv = crate::osv::Advisory {
+            id: "GHSA-35jh-r3h4-6jhm".into(),
+            summary: "Command Injection in lodash".into(),
+            details: "details".into(),
+            aliases: vec!["CVE-2021-23337".into()],
+            severity: Severity::High,
+            cvss_score: Some(7.2),
+            cvss_vector: None,
+            cwe: vec!["CWE-77".into()],
+            references: vec![],
+            fixed_version: Some("4.17.21".into()),
+            published: None,
+        };
+
+        let f = advisory_to_finding(&dep, &adv);
+        assert!(f.title.contains("CVE-2021-23337"));
+        assert!(f.recommendation.contains("4.17.21"));
+        assert_eq!(f.severity, Severity::High);
+        assert_eq!(f.file, "package.json");
+        assert_eq!(f.line, 5);
+        let pkg = f.package.unwrap();
+        assert_eq!(pkg.fixed_version.as_deref(), Some("4.17.21"));
+    }
+
+    #[test]
+    fn advisory_without_fix_says_so() {
+        let dep = deps::Dependency {
+            name: "x".into(),
+            version: "1.0.0".into(),
+            ecosystem: "npm".into(),
+            manifest: "package.json".into(),
+            line: 0,
+            direct: true,
+        };
+        let adv = crate::osv::Advisory {
+            id: "GHSA-yyyy".into(),
+            summary: "s".into(),
+            details: String::new(),
+            aliases: vec![],
+            severity: Severity::Medium,
+            cvss_score: None,
+            cvss_vector: None,
+            cwe: vec![],
+            references: vec![],
+            fixed_version: None,
+            published: None,
+        };
+        let f = advisory_to_finding(&dep, &adv);
+        assert!(f.recommendation.contains("Исправленной версии пока нет"));
+        // With no CVE alias, the advisory id is what the user sees.
+        assert!(f.title.contains("GHSA-yyyy"));
+    }
+
+    /// Builds a throwaway project on disk so discovery, binary filtering and the
+    /// rule pass are exercised against real files rather than in-memory strings.
+    fn make_fixture(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("vulnscope-test-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::create_dir_all(dir.join("node_modules/lodash")).unwrap();
+
+        std::fs::write(
+            dir.join("src/app.py"),
+            "import subprocess\n\
+             def run(cmd):\n\
+             \x20   subprocess.run(cmd, shell=True)\n\
+             def q(conn, uid):\n\
+             \x20   conn.execute(f\"SELECT * FROM users WHERE id = {uid}\")\n",
+        )
+        .unwrap();
+
+        std::fs::write(
+            dir.join("src/safe.py"),
+            "def add(a, b):\n    return a + b\n",
+        )
+        .unwrap();
+
+        std::fs::write(
+            dir.join("package.json"),
+            r#"{"dependencies":{"lodash":"4.17.20"}}"#,
+        )
+        .unwrap();
+
+        // A real binary: must be skipped, never regex-scanned.
+        std::fs::write(dir.join("tool.exe"), b"MZ\x90\x00\x03\x00\x00\x00\x04\x00").unwrap();
+        // Text extension but binary content: only the sniffer catches this.
+        std::fs::write(dir.join("src/data.txt"), b"abc\x00\x01\x02def").unwrap();
+        // Third-party code: pruned by default.
+        std::fs::write(
+            dir.join("node_modules/lodash/index.js"),
+            "eval(userInput);\n",
+        )
+        .unwrap();
+
+        dir
+    }
+
+    #[test]
+    fn end_to_end_discovery_and_scan_on_real_files() {
+        let dir = make_fixture("e2e");
+        let discovery = walk::discover(&dir, &WalkOptions::default());
+
+        let scanned: Vec<&str> = discovery
+            .candidates
+            .iter()
+            .map(|c| c.rel_path.as_str())
+            .collect();
+
+        assert!(scanned.contains(&"src/app.py"));
+        assert!(scanned.contains(&"package.json"));
+        // The .exe and the NUL-containing .txt must not reach the rule engine.
+        assert!(!scanned.contains(&"tool.exe"));
+        assert!(!scanned.contains(&"src/data.txt"));
+        // node_modules is pruned unless the user opts in.
+        assert!(!scanned.iter().any(|p| p.contains("node_modules")));
+
+        let skipped: Vec<(&str, SkipReason)> = discovery
+            .skipped
+            .iter()
+            .map(|s| (s.path.as_str(), s.reason))
+            .collect();
+        assert!(skipped.contains(&("tool.exe", SkipReason::BinaryExtension)));
+        assert!(skipped.contains(&("src/data.txt", SkipReason::BinaryContent)));
+
+        // Every skip carries a human-readable reason for the UI.
+        assert!(discovery.skipped.iter().all(|s| !s.reason_label.is_empty()));
+
+        let app = discovery
+            .candidates
+            .iter()
+            .find(|c| c.rel_path == "src/app.py")
+            .unwrap();
+        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, &[], 200).unwrap();
+
+        assert!(lines >= 5);
+        assert!(size > 0);
+        let ids: Vec<&str> = findings.iter().map(|f| f.rule_id.as_str()).collect();
+        assert!(ids.contains(&"VS-PY-003"), "shell=True not found: {ids:?}");
+        assert!(ids.contains(&"VS-PY-008"), "SQL f-string not found: {ids:?}");
+
+        // Findings must point at real lines and carry a snippet.
+        for f in &findings {
+            assert!(f.line >= 1 && f.line <= lines, "line {} out of range", f.line);
+            assert!(!f.snippet.is_empty());
+            assert!(!f.recommendation.is_empty());
+        }
+
+        let safe = discovery
+            .candidates
+            .iter()
+            .find(|c| c.rel_path == "src/safe.py")
+            .unwrap();
+        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, &[], 200).unwrap();
+        assert!(clean.is_empty(), "clean file produced findings: {clean:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn vendor_directories_are_scanned_when_requested() {
+        let dir = make_fixture("vendor");
+        let opts = WalkOptions {
+            include_vendor: true,
+            ..Default::default()
+        };
+        let discovery = walk::discover(&dir, &opts);
+        assert!(discovery
+            .candidates
+            .iter()
+            .any(|c| c.rel_path.contains("node_modules")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn manifests_are_discovered_and_parsed() {
+        let dir = make_fixture("manifest");
+        let discovery = walk::discover(&dir, &WalkOptions::default());
+        let manifest = discovery
+            .candidates
+            .iter()
+            .find(|c| c.is_manifest)
+            .expect("package.json should be flagged as a manifest");
+
+        let content = std::fs::read_to_string(&manifest.abs_path).unwrap();
+        let parsed = deps::parse_manifest(&manifest.rel_path, &content);
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].name, "lodash");
+        assert_eq!(parsed[0].version, "4.17.20");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn dep_finding(
+        rule_id: &str,
+        cve: &[&str],
+        pkg: &str,
+        ver: &str,
+        sev: Severity,
+        source: FindingSource,
+        fixed: Option<&str>,
+    ) -> Finding {
+        Finding {
+            id: format!("{source:?}:{rule_id}"),
+            fingerprint: String::new(),
+            suppressed: false,
+            suppression_reason: None,
+            is_new: false,
+            rule_id: rule_id.into(),
+            title: format!("{pkg} {ver}"),
+            description: String::new(),
+            recommendation: format!("Обновите {pkg} до {}", fixed.unwrap_or("—")),
+            severity: sev,
+            confidence: Confidence::High,
+            source,
+            source_label: source.label().into(),
+            category: "Уязвимая зависимость".into(),
+            file: "Cargo.lock".into(),
+            line: 0,
+            end_line: 0,
+            column: 0,
+            end_column: 0,
+            snippet: String::new(),
+            snippet_start_line: 0,
+            cwe: vec![],
+            owasp: None,
+            cve: cve.iter().map(|s| s.to_string()).collect(),
+            references: vec![],
+            package: Some(PackageInfo {
+                name: pkg.into(),
+                version: ver.into(),
+                ecosystem: "crates.io".into(),
+                fixed_version: fixed.map(|s| s.into()),
+            }),
+        }
+    }
+
+    #[test]
+    fn collapses_the_same_advisory_from_osv_and_cargo_audit() {
+        // Both tools cover crates.io and reported the same smallvec bug under
+        // different ids, linked by the shared CVE.
+        let findings = vec![
+            dep_finding(
+                "GHSA-43w2-9j62-hq99",
+                &["CVE-2021-25900"],
+                "smallvec",
+                "1.6.0",
+                Severity::Critical,
+                FindingSource::Osv,
+                Some("1.6.1"),
+            ),
+            dep_finding(
+                "RUSTSEC-2021-0003",
+                &["CVE-2021-25900"],
+                "smallvec",
+                "1.6.0",
+                Severity::High,
+                FindingSource::CargoAudit,
+                None,
+            ),
+        ];
+        let out = merge_duplicate_advisories(findings);
+        assert_eq!(out.len(), 1, "duplicate advisory was not merged");
+        assert_eq!(out[0].severity, Severity::Critical, "worst severity must win");
+        assert_eq!(out[0].cve, vec!["CVE-2021-25900"]);
+        assert_eq!(
+            out[0].package.as_ref().unwrap().fixed_version.as_deref(),
+            Some("1.6.1")
+        );
+    }
+
+    #[test]
+    fn merging_keeps_the_concrete_fix_when_the_first_entry_lacks_one() {
+        let findings = vec![
+            dep_finding(
+                "RUSTSEC-2021-0003",
+                &["CVE-2021-25900"],
+                "smallvec",
+                "1.6.0",
+                Severity::High,
+                FindingSource::CargoAudit,
+                None,
+            ),
+            dep_finding(
+                "GHSA-43w2-9j62-hq99",
+                &["CVE-2021-25900"],
+                "smallvec",
+                "1.6.0",
+                Severity::High,
+                FindingSource::Osv,
+                Some("1.6.1"),
+            ),
+        ];
+        let out = merge_duplicate_advisories(findings);
+        assert_eq!(out.len(), 1);
+        let pkg = out[0].package.as_ref().unwrap();
+        assert_eq!(pkg.fixed_version.as_deref(), Some("1.6.1"));
+        assert!(out[0].recommendation.contains("1.6.1"));
+    }
+
+    #[test]
+    fn different_advisories_on_one_package_stay_separate() {
+        // hyper 0.14.7 genuinely has more than one advisory; collapsing them
+        // would hide real work.
+        let findings = vec![
+            dep_finding(
+                "RUSTSEC-2021-0078",
+                &["CVE-2021-32715"],
+                "hyper",
+                "0.14.7",
+                Severity::Medium,
+                FindingSource::CargoAudit,
+                Some("0.14.10"),
+            ),
+            dep_finding(
+                "RUSTSEC-2021-0079",
+                &["CVE-2021-32714"],
+                "hyper",
+                "0.14.7",
+                Severity::Critical,
+                FindingSource::CargoAudit,
+                Some("0.14.10"),
+            ),
+        ];
+        assert_eq!(merge_duplicate_advisories(findings).len(), 2);
+    }
+
+    #[test]
+    fn same_advisory_on_different_versions_stays_separate() {
+        let findings = vec![
+            dep_finding(
+                "GHSA-x",
+                &["CVE-2021-1"],
+                "lodash",
+                "4.17.20",
+                Severity::High,
+                FindingSource::Osv,
+                Some("4.17.21"),
+            ),
+            dep_finding(
+                "GHSA-x",
+                &["CVE-2021-1"],
+                "lodash",
+                "3.0.0",
+                Severity::High,
+                FindingSource::Osv,
+                Some("4.17.21"),
+            ),
+        ];
+        assert_eq!(merge_duplicate_advisories(findings).len(), 2);
+    }
+
+    #[test]
+    fn code_findings_are_never_merged() {
+        let mut a = dep_finding("VS-PY-001", &[], "x", "1", Severity::High, FindingSource::Builtin, None);
+        a.package = None;
+        let mut b = a.clone();
+        b.id = "other".into();
+        assert_eq!(merge_duplicate_advisories(vec![a, b]).len(), 2);
+    }
+
+    fn user_rule(id: &str, pattern: &str, langs: &[&str]) -> userrules::UserRule {
+        userrules::UserRule {
+            id: id.into(),
+            title: "Своё правило".into(),
+            description: "d".into(),
+            recommendation: "r".into(),
+            severity: Severity::High,
+            confidence: Confidence::Medium,
+            category: "Своё".into(),
+            languages: langs.iter().map(|s| s.to_string()).collect(),
+            pattern: pattern.into(),
+            unless_contains: vec![],
+            cwe: vec!["CWE-1".into()],
+            owasp: None,
+            references: vec![],
+            skip_in_tests: false,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn user_rules_fire_through_the_real_scan_path() {
+        let dir = std::env::temp_dir().join("vulnscope-test-userrule");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("app.py");
+        std::fs::write(&path, "import os\nbanned_call(1)\nok()\n").unwrap();
+
+        let (compiled, warns) = userrules::compile(&[user_rule("MY-001", r"banned_call\s*\(", &["python"])]);
+        assert!(warns.is_empty());
+
+        let (findings, _, _) =
+            scan_one_file(&path, "app.py", Language::Python, false, &compiled, 200).unwrap();
+
+        let mine: Vec<_> = findings
+            .iter()
+            .filter(|f| f.source == FindingSource::Custom)
+            .collect();
+        assert_eq!(mine.len(), 1, "custom rule did not fire");
+        assert_eq!(mine[0].rule_id, "MY-001");
+        assert_eq!(mine[0].line, 2);
+        assert_eq!(mine[0].cwe, vec!["CWE-1"]);
+        assert_eq!(mine[0].source_label, "Своё правило");
+        assert!(!mine[0].snippet.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn user_rules_respect_language_scope_and_comments() {
+        let dir = std::env::temp_dir().join("vulnscope-test-userrule-scope");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Commented-out hit must be ignored, exactly like a built-in rule.
+        let py = dir.join("a.py");
+        std::fs::write(&py, "# banned_call(1)\n").unwrap();
+        let (compiled, _) = userrules::compile(&[user_rule("MY-001", r"banned_call\s*\(", &["python"])]);
+        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, &compiled, 200).unwrap();
+        assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
+
+        // A python-scoped rule must not fire on Rust.
+        let rs = dir.join("b.rs");
+        std::fs::write(&rs, "fn f() { banned_call(1); }\n").unwrap();
+        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, &compiled, 200).unwrap();
+        assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn severity_counts_roll_up() {
+        let mut c = SeverityCounts::default();
+        c.add(Severity::Critical);
+        c.add(Severity::Critical);
+        c.add(Severity::Low);
+        assert_eq!(c.critical, 2);
+        assert_eq!(c.low, 1);
+        assert_eq!(c.total(), 3);
+    }
+}
