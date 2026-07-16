@@ -642,6 +642,66 @@ export const EN: Record<string, string> = {
     "UserDefaults stores data in an unencrypted plist. A password, token or key there is readable by anyone who gets the device or a backup.",
   "Храните секреты в Keychain (kSecClassGenericPassword), а не в UserDefaults.":
     "Store secrets in the Keychain (kSecClassGenericPassword), not in UserDefaults.",
+  // Scala/Perl/Lua/Elixir/Nginx rules added 16.07.2026 (SC-002/003 reuse Java keys)
+  "SQL-запрос собирается s-интерполяцией": "SQL query built with s-interpolation",
+  "Интерполятор s\"...$x...\" просто вставляет значение в строку, не экранируя его. Переданный так в запрос пользовательский ввод меняет структуру SQL.":
+    "The s\"...$x...\" interpolator just drops the value into the string without escaping it. Passed to a query this way, user input changes the SQL structure.",
+  "Используйте параметризованные запросы фреймворка: интерполятор sql\"...\" в Slick/Doobie/Anorm подставляет значения как параметры.":
+    "Use the framework's parameterized queries: the sql\"...\" interpolator in Slick/Doobie/Anorm binds values as parameters.",
+  "Команда с интерполяцией в шелл": "Command interpolated into a shell",
+  "Обратные кавычки, system и qx выполняют строку через шелл. Интерполяция переменной в неё даёт инъекцию команд.":
+    "Backticks, system and qx run the string through a shell. Interpolating a variable into it gives command injection.",
+  "Вызывайте system списком аргументов: system(\"git\", \"log\", $branch) — тогда шелл не участвует.":
+    "Call system with an argument list: system(\"git\", \"log\", $branch) — then no shell is involved.",
+  "Двухаргументный open с переменной": "Two-argument open with a variable",
+  "open(FH, $path) в двухаргументной форме трактует спецсимволы в $path: ведущий или замыкающий | запускает команду, а > < меняют режим. Это инъекция команд и обход доступа.":
+    "open(FH, $path) in the two-argument form interprets special characters in $path: a leading or trailing | runs a command, and > < change the mode. That is command injection and access bypass.",
+  "Используйте трёхаргументный open с явным режимом: open(my $fh, \"<\", $path).":
+    "Use the three-argument open with an explicit mode: open(my $fh, \"<\", $path).",
+  "Команда через os.execute / io.popen": "Command via os.execute / io.popen",
+  "os.execute и io.popen запускают строку через шелл. Склейка пользовательских данных в неё приводит к инъекции команд.":
+    "os.execute and io.popen run the string through a shell. Concatenating user data into it leads to command injection.",
+  "Избегайте os.execute с собранной строкой. Проверяйте ввод по белому списку и не передавайте его в шелл.":
+    "Avoid os.execute with a built string. Validate input against an allowlist and do not pass it to a shell.",
+  "Динамический код через load / loadstring": "Dynamic code via load / loadstring",
+  "load и loadstring компилируют строку в функцию. Если в строку попадают внешние данные, это выполнение произвольного кода.":
+    "load and loadstring compile a string into a function. If external data reaches the string, it is arbitrary code execution.",
+  "Не компилируйте код из данных. Для конфигурации используйте разбор JSON, для поведения — таблицу-диспетчер.":
+    "Do not compile code from data. Use JSON parsing for configuration and a dispatch table for behaviour.",
+  "Команда через шелл (:os.cmd / System.shell)": "Command via a shell (:os.cmd / System.shell)",
+  ":os.cmd и System.shell выполняют строку через системный шелл, интерпретируя метасимволы. Пользовательский ввод в ней даёт инъекцию команд.":
+    ":os.cmd and System.shell run the string through the system shell, interpreting metacharacters. User input in it gives command injection.",
+  "Используйте System.cmd(\"git\", [\"log\", branch]) со списком аргументов — он не запускает шелл.":
+    "Use System.cmd(\"git\", [\"log\", branch]) with an argument list — it starts no shell.",
+  "Выполнение кода через Code.eval_string": "Code execution via Code.eval_string",
+  "Code.eval_string и Code.eval_quoted компилируют и исполняют переданный код. Внешние данные в аргументе означают выполнение произвольного кода.":
+    "Code.eval_string and Code.eval_quoted compile and run the passed code. External data in the argument means arbitrary code execution.",
+  "Не выполняйте код из данных. Для динамического выбора используйте apply/3 по проверенному белому списку функций.":
+    "Do not run code from data. For a dynamic choice use apply/3 over a vetted allowlist of functions.",
+  "Небезопасная десериализация binary_to_term": "Unsafe binary_to_term deserialization",
+  ":erlang.binary_to_term без опции :safe воссоздаёт произвольные термы, включая функции и атомы, что ведёт к исчерпанию атомов и выполнению кода.":
+    ":erlang.binary_to_term without the :safe option recreates arbitrary terms, including functions and atoms, leading to atom exhaustion and code execution.",
+  "Передавайте опцию [:safe]: binary_to_term(data, [:safe]). Недоверенные данные так десериализовать нельзя вовсе.":
+    "Pass the [:safe] option: binary_to_term(data, [:safe]). Untrusted data must not be deserialized this way at all.",
+  "server_tokens включён": "server_tokens enabled",
+  "server_tokens on раскрывает точную версию nginx в заголовках и на страницах ошибок, упрощая подбор известных эксплойтов под неё.":
+    "server_tokens on reveals the exact nginx version in headers and error pages, making it easier to match known exploits to it.",
+  "Задайте server_tokens off в блоке http.": "Set server_tokens off in the http block.",
+  "Устаревшие протоколы TLS": "Outdated TLS protocols",
+  "SSLv3 и TLS 1.0/1.1 содержат известные уязвимости (POODLE, BEAST) и выведены из эксплуатации.":
+    "SSLv3 and TLS 1.0/1.1 have known vulnerabilities (POODLE, BEAST) and are deprecated.",
+  "Оставьте только современные версии: ssl_protocols TLSv1.2 TLSv1.3;":
+    "Keep only modern versions: ssl_protocols TLSv1.2 TLSv1.3;",
+  "Слабые TLS-шифры": "Weak TLS ciphers",
+  "Наборы с NULL, RC4, DES, MD5, EXPORT или aNULL не обеспечивают конфиденциальности и целостности соединения.":
+    "Suites with NULL, RC4, DES, MD5, EXPORT or aNULL do not provide confidentiality or integrity for the connection.",
+  "Ограничьте ssl_ciphers современными AEAD-наборами и включите ssl_prefer_server_ciphers on.":
+    "Restrict ssl_ciphers to modern AEAD suites and enable ssl_prefer_server_ciphers on.",
+  "Включён листинг каталога (autoindex)": "Directory listing enabled (autoindex)",
+  "autoindex on отдаёт список файлов каталога без index-файла, раскрывая структуру и файлы, которые не предназначались для публикации.":
+    "autoindex on returns the directory's file list when there is no index file, exposing the structure and files that were not meant to be public.",
+  "Уберите autoindex on там, где листинг не нужен намеренно.":
+    "Remove autoindex on where a listing is not deliberately wanted.",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",

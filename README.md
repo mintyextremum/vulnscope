@@ -12,33 +12,35 @@
 
 ## Что оно находит
 
-**Код — 129 встроенных правил** для 38 языков. Инъекции команд и SQL, XSS (включая
+**Код — 143 встроенных правила** для 38 языков. Инъекции команд и SQL, XSS (включая
 `dangerouslySetInnerHTML`), небезопасная десериализация (`pickle`, `yaml.load`),
 отключённая проверка TLS, слабая криптография, path traversal, проблемы `unsafe` в
-Rust, ошибки конфигурации в Dockerfile и GitHub Actions. Каждая находка размечена
-CWE и категорией OWASP Top 10 и сопровождается конкретной рекомендацией.
+Rust, ошибки конфигурации в Dockerfile, GitHub Actions и nginx. Каждая находка
+размечена CWE и категорией OWASP Top 10 и сопровождается конкретной рекомендацией.
 
 | Язык | Правил |
 |---|---|
 | JavaScript / TypeScript / React | 28 |
 | Python | 21 |
 | Rust | 10 |
-| Java / Kotlin | 6 |
-| Go | 6 |
-| PHP | 5 |
+| Java / Kotlin | 9 |
+| Go | 9 |
+| PHP | 8 |
+| Ruby | 6 |
+| Dockerfile | 6 |
+| C# | 6 |
+| C / C++ | 6 |
 | Terraform | 4 |
+| Swift | 4 |
+| Nginx | 4 |
 | Kubernetes | 4 |
-| Dockerfile | 4 |
-| Ruby | 3 |
-| C# | 3 |
-| C / C++ | 3 |
-| PowerShell | 2 |
-| GitHub Actions | 2 |
-| Shell | 1 |
+| GitHub Actions | 4 |
+| Scala | 3 |
+| Elixir | 3 |
+| Shell / PowerShell / Perl / Lua | по 2 |
 
-Языки определяются по расширению и имени файла — Swift, Scala, Perl, Lua, Elixir,
-Vue, Svelte, GraphQL и другие распознаются и попадают в статистику, даже если
-специальных правил для них пока нет.
+Языки определяются по расширению и имени файла — Vue, Svelte, GraphQL, SQL и другие
+распознаются и попадают в статистику, даже если специальных правил для них пока нет.
 
 Полный список с описаниями и рекомендациями открывается в приложении по кнопке
 «Правила» (Ctrl+R).

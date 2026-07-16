@@ -1971,6 +1971,240 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: false,
     },
 
+    // ----------------------------------------------------------------- Scala
+    Rule {
+        id: "VS-SC-001",
+        title: "SQL-запрос собирается s-интерполяцией",
+        description: "Интерполятор s\"...$x...\" просто вставляет значение в строку, не экранируя его. Переданный так в запрос пользовательский ввод меняет структуру SQL.",
+        recommendation: "Используйте параметризованные запросы фреймворка: интерполятор sql\"...\" в Slick/Doobie/Anorm подставляет значения как параметры.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "SQL-инъекция",
+        languages: &[Language::Scala],
+        pattern: r#"(?i)s"[^"]*(?:select |insert |update |delete )[^"]*\$"#,
+        unless_contains: &[],
+        cwe: &["CWE-89"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/89.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SC-002",
+        title: "Слабый хеш (MD5/SHA-1)",
+        description: "MD5 и SHA-1 подвержены коллизиям, их нельзя применять для подписей и проверки целостности.",
+        recommendation: "Берите MessageDigest.getInstance(\"SHA-256\"). Для паролей — BCrypt или Argon2.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::Scala],
+        pattern: r#"MessageDigest\.getInstance\s*\(\s*["'](?:MD5|SHA-?1)["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-327", "CWE-328"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-SC-003",
+        title: "Десериализация через ObjectInputStream",
+        description: "readObject() восстанавливает произвольные классы и вызывает их методы. На недоверенных данных это классический вектор RCE в Java.",
+        recommendation: "Не десериализуйте недоверенные данные. Используйте JSON с явной схемой или ObjectInputFilter с белым списком классов.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Небезопасная десериализация",
+        languages: &[Language::Scala],
+        pattern: r"new\s+ObjectInputStream\s*\(|\.readObject\s*\(\s*\)",
+        unless_contains: &["ObjectInputFilter", "setObjectInputFilter"],
+        cwe: &["CWE-502"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://cwe.mitre.org/data/definitions/502.html"],
+        skip_in_tests: false,
+    },
+
+    // ------------------------------------------------------------------ Perl
+    Rule {
+        id: "VS-PL-001",
+        title: "Команда с интерполяцией в шелл",
+        description: "Обратные кавычки, system и qx выполняют строку через шелл. Интерполяция переменной в неё даёт инъекцию команд.",
+        recommendation: "Вызывайте system списком аргументов: system(\"git\", \"log\", $branch) — тогда шелл не участвует.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::Perl],
+        pattern: r#"`[^`]*\$[\w{]|\b(?:system|exec)\s*\(?\s*["'][^"']*\$|\bqx[\(\{/\[]"#,
+        unless_contains: &[],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PL-002",
+        title: "Двухаргументный open с переменной",
+        description: "open(FH, $path) в двухаргументной форме трактует спецсимволы в $path: ведущий или замыкающий | запускает команду, а > < меняют режим. Это инъекция команд и обход доступа.",
+        recommendation: "Используйте трёхаргументный open с явным режимом: open(my $fh, \"<\", $path).",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::Perl],
+        pattern: r"\bopen\s*\(\s*\*?\w+\s*,\s*\$\w+\s*\)",
+        unless_contains: &[],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+
+    // ------------------------------------------------------------------- Lua
+    Rule {
+        id: "VS-LU-001",
+        title: "Команда через os.execute / io.popen",
+        description: "os.execute и io.popen запускают строку через шелл. Склейка пользовательских данных в неё приводит к инъекции команд.",
+        recommendation: "Избегайте os.execute с собранной строкой. Проверяйте ввод по белому списку и не передавайте его в шелл.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::Lua],
+        pattern: r"\bos\.execute\s*\(|\bio\.popen\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-LU-002",
+        title: "Динамический код через load / loadstring",
+        description: "load и loadstring компилируют строку в функцию. Если в строку попадают внешние данные, это выполнение произвольного кода.",
+        recommendation: "Не компилируйте код из данных. Для конфигурации используйте разбор JSON, для поведения — таблицу-диспетчер.",
+        severity: Severity::High,
+        confidence: Confidence::Low,
+        category: "Выполнение кода",
+        languages: &[Language::Lua],
+        pattern: r"\bloadstring\s*\(|\bload\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-95"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/95.html"],
+        skip_in_tests: true,
+    },
+
+    // ---------------------------------------------------------------- Elixir
+    Rule {
+        id: "VS-EX-001",
+        title: "Команда через шелл (:os.cmd / System.shell)",
+        description: ":os.cmd и System.shell выполняют строку через системный шелл, интерпретируя метасимволы. Пользовательский ввод в ней даёт инъекцию команд.",
+        recommendation: "Используйте System.cmd(\"git\", [\"log\", branch]) со списком аргументов — он не запускает шелл.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::Elixir],
+        pattern: r":os\.cmd\s*\(|System\.shell\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-EX-002",
+        title: "Выполнение кода через Code.eval_string",
+        description: "Code.eval_string и Code.eval_quoted компилируют и исполняют переданный код. Внешние данные в аргументе означают выполнение произвольного кода.",
+        recommendation: "Не выполняйте код из данных. Для динамического выбора используйте apply/3 по проверенному белому списку функций.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Elixir],
+        pattern: r"Code\.eval_(?:string|quoted)\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-95"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/95.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-EX-003",
+        title: "Небезопасная десериализация binary_to_term",
+        description: ":erlang.binary_to_term без опции :safe воссоздаёт произвольные термы, включая функции и атомы, что ведёт к исчерпанию атомов и выполнению кода.",
+        recommendation: "Передавайте опцию [:safe]: binary_to_term(data, [:safe]). Недоверенные данные так десериализовать нельзя вовсе.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Небезопасная десериализация",
+        languages: &[Language::Elixir],
+        pattern: r"binary_to_term\s*\(",
+        unless_contains: &[":safe"],
+        cwe: &["CWE-502"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://cwe.mitre.org/data/definitions/502.html"],
+        skip_in_tests: false,
+    },
+
+    // ----------------------------------------------------------------- Nginx
+    Rule {
+        id: "VS-NG-001",
+        title: "server_tokens включён",
+        description: "server_tokens on раскрывает точную версию nginx в заголовках и на страницах ошибок, упрощая подбор известных эксплойтов под неё.",
+        recommendation: "Задайте server_tokens off в блоке http.",
+        severity: Severity::Low,
+        confidence: Confidence::High,
+        category: "Утечка данных",
+        languages: &[Language::Nginx],
+        pattern: r"(?mi)^\s*server_tokens\s+on\b",
+        unless_contains: &[],
+        cwe: &["CWE-200"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/200.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-NG-002",
+        title: "Устаревшие протоколы TLS",
+        description: "SSLv3 и TLS 1.0/1.1 содержат известные уязвимости (POODLE, BEAST) и выведены из эксплуатации.",
+        recommendation: "Оставьте только современные версии: ssl_protocols TLSv1.2 TLSv1.3;",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::Nginx],
+        pattern: r"(?mi)^\s*ssl_protocols\s+[^;]*(?:SSLv2|SSLv3|TLSv1\.1|TLSv1[\s;])",
+        unless_contains: &[],
+        cwe: &["CWE-326"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/326.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-NG-003",
+        title: "Слабые TLS-шифры",
+        description: "Наборы с NULL, RC4, DES, MD5, EXPORT или aNULL не обеспечивают конфиденциальности и целостности соединения.",
+        recommendation: "Ограничьте ssl_ciphers современными AEAD-наборами и включите ssl_prefer_server_ciphers on.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Криптография",
+        languages: &[Language::Nginx],
+        pattern: r"(?mi)^\s*ssl_ciphers\s+[^;]*(?:NULL|RC4|3?DES|MD5|EXPORT|aNULL|eNULL)",
+        unless_contains: &[],
+        cwe: &["CWE-327"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-NG-004",
+        title: "Включён листинг каталога (autoindex)",
+        description: "autoindex on отдаёт список файлов каталога без index-файла, раскрывая структуру и файлы, которые не предназначались для публикации.",
+        recommendation: "Уберите autoindex on там, где листинг не нужен намеренно.",
+        severity: Severity::Low,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Nginx],
+        pattern: r"(?mi)^\s*autoindex\s+on\b",
+        unless_contains: &[],
+        cwe: &["CWE-548"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/548.html"],
+        skip_in_tests: false,
+    },
+
     // ------------------------------------------------------------- Terraform
     Rule {
         id: "VS-TF-001",
@@ -2535,6 +2769,40 @@ mod tests {
     fn finds_swift_js_injection() {
         let code = "webView.evaluateJavaScript(\"show('\\(name)')\")\n";
         assert!(hit_ids(code, Language::Swift, "Web.swift").contains(&"VS-SW-002"));
+    }
+
+    #[test]
+    fn finds_nginx_weak_tls() {
+        let bad = "ssl_protocols TLSv1 TLSv1.1 TLSv1.2;\n";
+        assert!(hit_ids(bad, Language::Nginx, "nginx.conf").contains(&"VS-NG-002"));
+        let ok = "ssl_protocols TLSv1.2 TLSv1.3;\n";
+        assert!(!hit_ids(ok, Language::Nginx, "nginx.conf").contains(&"VS-NG-002"));
+    }
+
+    #[test]
+    fn finds_elixir_binary_to_term() {
+        let bad = "term = :erlang.binary_to_term(data)\n";
+        assert!(hit_ids(bad, Language::Elixir, "lib/x.ex").contains(&"VS-EX-003"));
+        let ok = "term = :erlang.binary_to_term(data, [:safe])\n";
+        assert!(!hit_ids(ok, Language::Elixir, "lib/x.ex").contains(&"VS-EX-003"));
+    }
+
+    #[test]
+    fn finds_perl_two_arg_open() {
+        let code = "open(FH, $path) or die;\n";
+        assert!(hit_ids(code, Language::Perl, "cgi.pl").contains(&"VS-PL-002"));
+    }
+
+    #[test]
+    fn finds_scala_sql_interpolation() {
+        let code = "val q = s\"SELECT * FROM users WHERE id = $id\"\n";
+        assert!(hit_ids(code, Language::Scala, "Repo.scala").contains(&"VS-SC-001"));
+    }
+
+    #[test]
+    fn finds_lua_os_execute() {
+        let code = "os.execute(\"rm \" .. name)\n";
+        assert!(hit_ids(code, Language::Lua, "build.lua").contains(&"VS-LU-001"));
     }
 
     #[test]
