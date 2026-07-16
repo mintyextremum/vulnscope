@@ -404,6 +404,8 @@ export const EN: Record<string, string> = {
   "создать и изменить": "create and edit",
   "Экспорт отчёта в JSON": "Export report to JSON",
   "Отменить сканирование": "Cancel scan",
+  "Экспорт в SARIF (для CI)": "Export to SARIF (for CI)",
+  "GitHub code scanning и др.": "GitHub code scanning and more",
   "Показать только новые": "Show new only",
   "Показать все находки": "Show all findings",
 

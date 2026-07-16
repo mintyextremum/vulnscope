@@ -154,7 +154,7 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
         {byCategory.map(([category, items]) => (
           <div key={category} className="rule-group">
             <div className="rule-group-head">
-              {category}
+              {t(category)}
               <span className="count">{items.length}</span>
             </div>
             {items.map((r) => {
@@ -167,7 +167,7 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
                   >
                     <Icon name={SEVERITY_SYMBOL[r.severity]} className={`sev-${r.severity}`} />
                     <span className="rule-id">{r.id}</span>
-                    <span className="rule-title">{r.title}</span>
+                    <span className="rule-title">{t(r.title)}</span>
                     <div className="rule-tags">
                       {r.languages.slice(0, 3).map((l) => (
                         <span key={l} className="tag">
@@ -187,9 +187,9 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
                   </div>
                   {open && (
                     <div className="rule-detail">
-                      <p>{r.description}</p>
+                      <p>{t(r.description)}</p>
                       <div className="fix-box" style={{ marginTop: 10 }}>
-                        <p>{r.recommendation}</p>
+                        <p>{t(r.recommendation)}</p>
                       </div>
                       <div className="rule-meta">
                         {r.cwe.map((c) => (
