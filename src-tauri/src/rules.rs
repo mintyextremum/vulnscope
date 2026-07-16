@@ -1608,6 +1608,38 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/502.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-JV-011",
+        title: "XXE в dom4j/JDOM (SAXReader/SAXBuilder)",
+        description: "SAXReader (dom4j) и SAXBuilder (JDOM) по умолчанию раскрывают внешние сущности XML, что даёт чтение локальных файлов и SSRF.",
+        recommendation: "Отключите внешние сущности: setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true) на парсере.",
+        severity: Severity::High,
+        confidence: Confidence::Low,
+        category: "XXE",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"new\s+(?:SAXReader|SAXBuilder)\s*\(",
+        unless_contains: &["disallow-doctype-decl", "setFeature"],
+        cwe: &["CWE-611"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/611.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-012",
+        title: "ProcessBuilder запускает шелл",
+        description: "ProcessBuilder с sh -c, bash -c или cmd /c отдаёт разбор строки шеллу. Подстановка данных извне в такую команду даёт инъекцию.",
+        recommendation: "Передавайте программу и аргументы отдельными элементами списка, без sh -c: new ProcessBuilder(\"git\", \"log\", branch).",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"(?i)new\s+ProcessBuilder\s*\([^)]*["'](?:/bin/)?(?:sh|bash|zsh|cmd(?:\.exe)?)["']\s*,\s*["'](?:-c|/c)["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------------------- PHP
     Rule {
@@ -2447,6 +2479,72 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ------------------------------------------------------------------- SQL
+    Rule {
+        id: "VS-SQL-001",
+        title: "xp_cmdshell — выполнение команды ОС",
+        description: "xp_cmdshell в SQL Server запускает команды операционной системы с правами службы БД. Это прямой путь от SQL-инъекции к захвату сервера.",
+        recommendation: "Держите xp_cmdshell отключённым. Для интеграций используйте отдельный сервис, а не команды ОС из БД.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Выполнение кода",
+        languages: &[Language::Sql],
+        pattern: r"(?i)\bxp_cmdshell\b",
+        unless_contains: &[],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SQL-002",
+        title: "GRANT ALL — избыточные привилегии",
+        description: "GRANT ALL PRIVILEGES выдаёт учётной записи полный набор прав. Компрометация такого аккаунта означает полный контроль над базой.",
+        recommendation: "Выдавайте только нужные права (SELECT/INSERT/UPDATE) на конкретные объекты — принцип наименьших привилегий.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Контроль доступа",
+        languages: &[Language::Sql],
+        pattern: r"(?i)\bGRANT\s+ALL\b",
+        unless_contains: &[],
+        cwe: &["CWE-732"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/732.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SQL-003",
+        title: "Пароль в открытом виде в SQL",
+        description: "IDENTIFIED BY / PASSWORD со строковым литералом сохраняет пароль в тексте миграции и в истории репозитория.",
+        recommendation: "Заводите учётные записи вне версионируемых миграций или подставляйте пароль из секрет-хранилища при развёртывании.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Хранение секретов",
+        languages: &[Language::Sql],
+        pattern: r#"(?i)(?:IDENTIFIED\s+BY|PASSWORD)\s+'[^']+'"#,
+        unless_contains: &[],
+        cwe: &["CWE-798"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/798.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SQL-004",
+        title: "Чтение или запись файла из SQL",
+        description: "INTO OUTFILE/DUMPFILE и LOAD_FILE в MySQL пишут и читают файлы на сервере БД. В связке с инъекцией это ведёт к раскрытию данных и загрузке веб-шелла.",
+        recommendation: "Отзовите привилегию FILE у прикладных учёток и не используйте файловые операции в запросах приложения.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Работа с файлами",
+        languages: &[Language::Sql],
+        pattern: r"(?i)\bINTO\s+(?:OUT|DUMP)FILE\b|\bLOAD_FILE\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-73"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/73.html"],
+        skip_in_tests: false,
+    },
+
     // ------------------------------------------------------------- Terraform
     Rule {
         id: "VS-TF-001",
@@ -3173,6 +3271,34 @@ mod tests {
     fn finds_csharp_httpclient_cert_bypass() {
         let code = "handler.ServerCertificateCustomValidationCallback = (m, c, ch, e) => true;\n";
         assert!(hit_ids(code, Language::CSharp, "Http.cs").contains(&"VS-CS-007"));
+    }
+
+    #[test]
+    fn finds_sql_xp_cmdshell() {
+        let code = "EXEC xp_cmdshell 'whoami';\n";
+        assert!(hit_ids(code, Language::Sql, "proc.sql").contains(&"VS-SQL-001"));
+    }
+
+    #[test]
+    fn finds_sql_grant_all_and_password() {
+        let g = "GRANT ALL PRIVILEGES ON app.* TO 'svc'@'%';\n";
+        assert!(hit_ids(g, Language::Sql, "grants.sql").contains(&"VS-SQL-002"));
+        let p = "CREATE USER 'svc'@'%' IDENTIFIED BY 'hunter2';\n";
+        assert!(hit_ids(p, Language::Sql, "users.sql").contains(&"VS-SQL-003"));
+    }
+
+    #[test]
+    fn finds_java_processbuilder_shell() {
+        let code = "new ProcessBuilder(\"sh\", \"-c\", cmd).start();\n";
+        assert!(hit_ids(code, Language::Java, "Run.java").contains(&"VS-JV-012"));
+        let ok = "new ProcessBuilder(\"git\", \"log\", branch).start();\n";
+        assert!(!hit_ids(ok, Language::Java, "Run.java").contains(&"VS-JV-012"));
+    }
+
+    #[test]
+    fn finds_java_dom4j_xxe() {
+        let code = "SAXReader reader = new SAXReader();\n";
+        assert!(hit_ids(code, Language::Java, "Xml.java").contains(&"VS-JV-011"));
     }
 
     #[test]
