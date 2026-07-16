@@ -35,6 +35,7 @@ import {
 } from "./components";
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
+import { toMarkdown } from "./markdown";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
 import { RuleEditor } from "./RuleEditor";
@@ -248,6 +249,19 @@ export default function App() {
     }).catch((e) => setError(String(e)));
   };
 
+  /** Exports a human-readable Markdown report, for a PR, issue, or chat. */
+  const exportMarkdown = async () => {
+    if (!report) return;
+    const path = await saveDialog({
+      defaultPath: `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}.md`,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!path) return;
+    await invoke("save_report", { path, json: toMarkdown(report, t) }).catch((e) =>
+      setError(String(e))
+    );
+  };
+
   const filteredFindings = useMemo(() => {
     if (!report) return [];
     let out = report.findings;
@@ -436,6 +450,14 @@ export default function App() {
         run: exportSarif,
       },
       {
+        id: "export-md",
+        label: t("Экспорт в Markdown"),
+        hint: t("для PR, issue или чата"),
+        icon: "article",
+        when: screen === "results" && !!report,
+        run: exportMarkdown,
+      },
+      {
         id: "cancel",
         label: t("Отменить сканирование"),
         icon: "stop_circle",
@@ -488,6 +510,7 @@ export default function App() {
       openSettings,
       exportReport,
       exportSarif,
+      exportMarkdown,
     ]
   );
 
