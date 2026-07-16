@@ -12,20 +12,21 @@
 
 ## Что оно находит
 
-**Код — 161 встроенное правило** для 38 языков. Инъекции команд, SQL и NoSQL, XSS и
+**Код — 167 встроенных правил** для 38 языков. Инъекции команд, SQL и NoSQL, XSS и
 SSTI, открытые редиректы, небезопасная десериализация (`pickle`, `yaml.load`,
 SnakeYAML, `binary_to_term`), отключённая проверка TLS и ключей SSH, слабая
-криптография, path traversal и Zip Slip, обход проверки JWT, проблемы `unsafe` в
-Rust, ошибки конфигурации в Dockerfile, GitHub Actions, Terraform и nginx. Каждая
-находка размечена CWE и категорией OWASP Top 10 и сопровождается рекомендацией.
+криптография, path traversal и Zip Slip, обход проверки JWT, `xp_cmdshell` и
+файловые операции в SQL, проблемы `unsafe` в Rust, ошибки конфигурации в Dockerfile,
+GitHub Actions, Terraform и nginx. Каждая находка размечена CWE и категорией OWASP
+Top 10 и сопровождается рекомендацией.
 
 | Язык | Правил |
 |---|---|
 | JavaScript / TypeScript / React | 29 |
 | Python | 26 |
+| Java / Kotlin | 12 |
 | Rust | 10 |
 | PHP | 10 |
-| Java / Kotlin | 10 |
 | Go | 10 |
 | C# | 8 |
 | Terraform | 7 |
@@ -33,6 +34,7 @@ Rust, ошибки конфигурации в Dockerfile, GitHub Actions, Terra
 | Dockerfile | 6 |
 | C / C++ | 6 |
 | Swift | 4 |
+| SQL | 4 |
 | Nginx | 4 |
 | Kubernetes | 4 |
 | GitHub Actions | 4 |

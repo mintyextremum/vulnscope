@@ -794,6 +794,37 @@ export const EN: Record<string, string> = {
     "The {@html expr} block renders the value as HTML without escaping. User data in it leads to XSS.",
   "Выводите данные обычной интерполяцией {expr} — Svelte их экранирует. Для доверенной разметки очищайте её DOMPurify.":
     "Output data with normal interpolation {expr} — Svelte escapes it. For trusted markup, sanitize it with DOMPurify.",
+  // SQL + Java XXE/ProcessBuilder rules added 17.07.2026
+  "xp_cmdshell — выполнение команды ОС": "xp_cmdshell — OS command execution",
+  "xp_cmdshell в SQL Server запускает команды операционной системы с правами службы БД. Это прямой путь от SQL-инъекции к захвату сервера.":
+    "xp_cmdshell in SQL Server runs operating-system commands with the database service's privileges. It is a direct path from SQL injection to server takeover.",
+  "Держите xp_cmdshell отключённым. Для интеграций используйте отдельный сервис, а не команды ОС из БД.":
+    "Keep xp_cmdshell disabled. For integrations use a separate service rather than OS commands from the database.",
+  "GRANT ALL — избыточные привилегии": "GRANT ALL — excessive privileges",
+  "GRANT ALL PRIVILEGES выдаёт учётной записи полный набор прав. Компрометация такого аккаунта означает полный контроль над базой.":
+    "GRANT ALL PRIVILEGES gives the account the full set of rights. Compromising such an account means full control over the database.",
+  "Выдавайте только нужные права (SELECT/INSERT/UPDATE) на конкретные объекты — принцип наименьших привилегий.":
+    "Grant only the rights needed (SELECT/INSERT/UPDATE) on specific objects — least privilege.",
+  "Пароль в открытом виде в SQL": "Cleartext password in SQL",
+  "IDENTIFIED BY / PASSWORD со строковым литералом сохраняет пароль в тексте миграции и в истории репозитория.":
+    "IDENTIFIED BY / PASSWORD with a string literal keeps the password in the migration text and in the repository history.",
+  "Заводите учётные записи вне версионируемых миграций или подставляйте пароль из секрет-хранилища при развёртывании.":
+    "Create accounts outside versioned migrations, or inject the password from a secret store at deploy time.",
+  "Чтение или запись файла из SQL": "File read or write from SQL",
+  "INTO OUTFILE/DUMPFILE и LOAD_FILE в MySQL пишут и читают файлы на сервере БД. В связке с инъекцией это ведёт к раскрытию данных и загрузке веб-шелла.":
+    "INTO OUTFILE/DUMPFILE and LOAD_FILE in MySQL write and read files on the database server. Combined with injection this leads to data disclosure and web-shell upload.",
+  "Отзовите привилегию FILE у прикладных учёток и не используйте файловые операции в запросах приложения.":
+    "Revoke the FILE privilege from application accounts and do not use file operations in application queries.",
+  "XXE в dom4j/JDOM (SAXReader/SAXBuilder)": "XXE in dom4j/JDOM (SAXReader/SAXBuilder)",
+  "SAXReader (dom4j) и SAXBuilder (JDOM) по умолчанию раскрывают внешние сущности XML, что даёт чтение локальных файлов и SSRF.":
+    "SAXReader (dom4j) and SAXBuilder (JDOM) resolve external XML entities by default, which allows local file reads and SSRF.",
+  "Отключите внешние сущности: setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true) на парсере.":
+    "Disable external entities: setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true) on the parser.",
+  "ProcessBuilder запускает шелл": "ProcessBuilder starts a shell",
+  "ProcessBuilder с sh -c, bash -c или cmd /c отдаёт разбор строки шеллу. Подстановка данных извне в такую команду даёт инъекцию.":
+    "ProcessBuilder with sh -c, bash -c or cmd /c hands the string to a shell. Injecting external data into such a command gives command injection.",
+  "Передавайте программу и аргументы отдельными элементами списка, без sh -c: new ProcessBuilder(\"git\", \"log\", branch).":
+    "Pass the program and arguments as separate list elements, without sh -c: new ProcessBuilder(\"git\", \"log\", branch).",
   "Вызов eval() с динамическими данными": "eval() call with dynamic data",
   "Вызов exec() с динамическими данными": "exec() call with dynamic data",
   "subprocess с shell=True": "subprocess with shell=True",
