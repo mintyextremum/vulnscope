@@ -178,6 +178,78 @@ pub static SECRET_RULES: &[SecretRule] = &[
         min_entropy: 0.0,
         cwe: &["CWE-798"],
     },
+    SecretRule {
+        id: "VS-SEC-014",
+        title: "GitLab Personal Access Token",
+        description: "Токен GitLab даёт доступ к репозиториям и API в объёме своих scope: чтение приватного кода, пуш, управление проектами и CI/CD.",
+        recommendation: "Отзовите токен в GitLab (User Settings → Access Tokens) и выпустите новый. Для CI используйте CI/CD-переменные с маскированием.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        pattern: r"\b(glpat-[0-9A-Za-z_-]{20})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-015",
+        title: "npm-токен доступа",
+        description: "Токен npm позволяет публиковать пакеты от вашего имени и читать приватные. Утечка ведёт к компрометации цепочки поставок.",
+        recommendation: "Отзовите токен на npmjs.com (Access Tokens) и выпустите новый. Храните его в CI-секретах, а не в .npmrc в репозитории.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        pattern: r"\b(npm_[0-9A-Za-z]{36})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-016",
+        title: "SendGrid API-ключ",
+        description: "Ключ SendGrid позволяет отправлять почту от вашего домена — вектор фишинга и порчи репутации отправителя.",
+        recommendation: "Отзовите ключ в панели SendGrid (Settings → API Keys) и выпустите новый с минимальными правами.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        pattern: r"\b(SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-017",
+        title: "Shopify Access Token",
+        description: "Токен доступа Shopify даёт доступ к данным магазина: заказам, клиентам и настройкам через Admin API.",
+        recommendation: "Отзовите токен в админке Shopify (Apps → Develop apps) и выпустите новый. Храните его на сервере, а не в клиенте.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        pattern: r"\b(shp(?:at|ss|ca|pa)_[0-9a-fA-F]{32})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-018",
+        title: "DigitalOcean Personal Access Token",
+        description: "Токен DigitalOcean управляет вашей инфраструктурой через API: дроплетами, базами, DNS и биллингом.",
+        recommendation: "Отзовите токен в панели DigitalOcean (API → Tokens) и выпустите новый. Храните в переменных окружения.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        pattern: r"\b(dop_v1_[0-9a-f]{64})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-019",
+        title: "Токен загрузки PyPI",
+        description: "Токен PyPI позволяет публиковать пакеты от вашего имени. Утечка ведёт к компрометации цепочки поставок Python.",
+        recommendation: "Отзовите токен на pypi.org (Account settings → API tokens) и выпустите новый с областью на конкретный проект.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        pattern: r"\b(pypi-AgEIcHlwaS[A-Za-z0-9_-]{50,})",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
 ];
 
 /// Substrings that mark a value as a placeholder rather than a live credential.
@@ -334,6 +406,20 @@ mod tests {
     #[test]
     fn finds_private_key_block() {
         assert!(ids("-----BEGIN RSA PRIVATE KEY-----", "id_rsa").contains(&"VS-SEC-004"));
+    }
+
+    #[test]
+    fn finds_gitlab_and_npm_tokens() {
+        assert!(ids("t = \"glpat-aB3dE6fH9jK2mN5pQ8rT\"", "c.rb").contains(&"VS-SEC-014"));
+        let npm = "//registry.npmjs.org/:_authToken=npm_aB3dE6fH9jK2mN5pQ8rT4vW7xY0zC1dF2gH5";
+        assert!(ids(npm, ".npmrc").contains(&"VS-SEC-015"));
+    }
+
+    #[test]
+    fn finds_shopify_and_digitalocean_tokens() {
+        assert!(ids("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", "app.rb").contains(&"VS-SEC-017"));
+        let dop = "token = \"dop_v1_deadbeefcafebabefeedfacedeadc0dedeadbeefcafebabefeedfacedeadc0de\"";
+        assert!(ids(dop, "main.go").contains(&"VS-SEC-018"));
     }
 
     #[test]

@@ -19,10 +19,11 @@ code) — and only when the CVE check is enabled.
 Actions. Every finding is tagged with a CWE and an OWASP Top 10 category and
 comes with a concrete fix.
 
-**Secrets — 13 patterns**: AWS keys, private keys (RSA/EC/OpenSSH/PGP), Slack,
-Stripe, Google, Telegram, OpenAI/Anthropic keys, database connection strings,
-hardcoded passwords, JWTs. Secret values are **masked** everywhere — in the UI
-and in every export — so the report never leaks the thing it found.
+**Secrets — 19 patterns**: AWS keys, GitHub/GitLab/npm/PyPI tokens, private keys
+(RSA/EC/OpenSSH/PGP), Slack, Stripe, Google, SendGrid, Shopify, DigitalOcean,
+Telegram, OpenAI/Anthropic keys, database connection strings, hardcoded
+passwords, JWTs. Secret values are **masked** everywhere — in the UI and in every
+export — so the report never leaks the thing it found.
 
 **Dependencies — known CVEs** via OSV.dev for npm, PyPI, crates.io, Go modules
 and more, with CVSS scoring and a 7-day local cache.
