@@ -353,18 +353,30 @@ export default function App() {
     if (!showSuppressed) out = out.filter((f) => !f.suppressed);
     if (findingQuery.trim()) {
       const q = findingQuery.trim().toLowerCase();
-      out = out.filter(
-        (f) =>
-          f.title.toLowerCase().includes(q) ||
-          f.file.toLowerCase().includes(q) ||
-          f.ruleId.toLowerCase().includes(q) ||
-          f.snippet.toLowerCase().includes(q) ||
-          f.cve.some((c) => c.toLowerCase().includes(q))
+      // Search what the row shows. CWE and the category are printed on every
+      // finding, so typing one back has to work; and the title is rendered
+      // translated, so matching only the Russian source made search useless in
+      // English. Both forms are matched — in Russian they are the same string.
+      out = out.filter((f) =>
+        [
+          f.title,
+          t(f.title),
+          f.category,
+          t(f.category),
+          f.file,
+          f.ruleId,
+          f.snippet,
+          f.owasp ?? "",
+          ...f.cwe,
+          ...f.cve,
+        ].some((s) => s.toLowerCase().includes(q))
       );
     }
     if (selectedFile && tab === "findings") out = out.filter((f) => f.file === selectedFile);
     return out;
-  }, [report, sevFilter, selectedFile, tab, onlyNew, showSuppressed, findingQuery]);
+    // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report, sevFilter, selectedFile, tab, onlyNew, showSuppressed, findingQuery, lang]);
 
   const fileFindings = useMemo(
     () => (report && selectedFile ? report.findings.filter((f) => f.file === selectedFile) : []),
