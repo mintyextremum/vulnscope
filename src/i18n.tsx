@@ -198,6 +198,7 @@ export const EN: Record<string, string> = {
   "Поиск: название, путь, категория, CWE, CVE, код": "Search: title, path, category, CWE, CVE, code",
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
+  "Показать файл в проводнике": "Reveal the file in the file manager",
   // Keybind actions and their groups: backend strings rendered on the settings
   // screen, which used to print them raw and so stayed Russian in English.
   "Командная палитра": "Command palette",

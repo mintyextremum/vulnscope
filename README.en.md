@@ -204,6 +204,9 @@ says so plainly instead of showing a green shield. A file picked in the tree
 narrows the list too — it shows as a chip with a ×, so the narrowing is never
 invisible.
 
+The viewer shows the code, but fixing it happens in an editor — so the button
+next to the path on a finding's card reveals the file in the system file manager.
+
 | Keys | Action |
 |---|---|
 | `Ctrl+K` | Command palette |

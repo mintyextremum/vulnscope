@@ -979,12 +979,29 @@ export function FindingDetail({
           </div>
         )}
         <div className="detail-title">{t(finding.title)}</div>
-        <div className="detail-loc" onClick={() => onOpenFile(finding.file, finding.line)}>
-          <Icon name="open_in_new" />
-          <span>
-            {finding.file}
-            {finding.line > 0 ? `:${finding.line}` : ""}
-          </span>
+        <div className="detail-loc-row">
+          <div className="detail-loc" onClick={() => onOpenFile(finding.file, finding.line)}>
+            <Icon name="open_in_new" />
+            <span>
+              {finding.file}
+              {finding.line > 0 ? `:${finding.line}` : ""}
+            </span>
+          </div>
+          {/* The viewer shows the code, but fixing it happens in an editor — and
+              the path there starts at the file itself. The opener plugin
+              highlights it in the system file manager. */}
+          <button
+            className="loc-reveal"
+            onClick={() =>
+              invoke("plugin:opener|reveal_item_in_dir", {
+                paths: [`${root}/${finding.file}`],
+              }).catch(() => {})
+            }
+            title={t("Показать файл в проводнике")}
+            aria-label={t("Показать файл в проводнике")}
+          >
+            <Icon name="folder_open" />
+          </button>
         </div>
       </div>
 

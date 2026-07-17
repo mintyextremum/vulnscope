@@ -1883,6 +1883,28 @@ kbd,
   margin-bottom: var(--sp-3);
 }
 
+.detail-loc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* Reveals the file in the system file manager; kept an icon so the row stays
+   about the location, not about the buttons around it. */
+.loc-reveal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-1);
+  color: var(--t-4);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.loc-reveal:hover { color: var(--t-1); background: var(--s-3); }
+.loc-reveal .material-symbols-outlined { font-size: 16px; }
+
 .detail-loc {
   display: inline-flex;
   align-items: center;
