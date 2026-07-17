@@ -36,7 +36,6 @@ import {
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
 import { toMarkdown } from "./markdown";
-import { DEMO_REPORT } from "./demo";
 import { toCsv } from "./csv";
 import { toHtml } from "./html";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
@@ -101,12 +100,20 @@ export default function App() {
 
   useEffect(() => {
     // Dev preview: outside Tauri the backend commands reject, so load a sample
-    // report to make the results UI visible. Stripped from production builds.
+    // report to make the results UI visible.
+    //
+    // The import is dynamic on purpose. A static one kept the fixture in the
+    // production bundle even though this branch is dead there: the module builds
+    // its findings by calling a helper, and rollup cannot prove those calls are
+    // side-effect free, so it keeps them — strings and all. `import.meta.env.DEV`
+    // is inlined as false, so the whole branch, this import included, is dropped.
     if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
-      setReport(DEMO_REPORT);
-      setSelectedFinding(DEMO_REPORT.findings[0] ?? null);
-      setSelectedFile(DEMO_REPORT.findings[0]?.file ?? null);
-      setScreen("results");
+      void import("./demo").then(({ DEMO_REPORT }) => {
+        setReport(DEMO_REPORT);
+        setSelectedFinding(DEMO_REPORT.findings[0] ?? null);
+        setSelectedFile(DEMO_REPORT.findings[0]?.file ?? null);
+        setScreen("results");
+      });
       return;
     }
     invoke<ToolsInfo>("get_tools")

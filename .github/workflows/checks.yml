@@ -33,6 +33,11 @@ jobs:
         run: npm run audit:contrast
       - name: Localization completeness
         run: npm run audit:i18n
+      # `tsc --noEmit` says the types hold; it says nothing about whether the
+      # bundle builds. Rollup's tree-shaking, env inlining and asset handling
+      # only happen here.
+      - name: Production build
+        run: npm run build
 
   backend:
     # Windows is what this ships on, and the code knows it: PATHEXT resolution
