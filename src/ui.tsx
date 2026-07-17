@@ -201,6 +201,10 @@ export function ViewTransition({
   useLayoutEffect(() => {
     if (view === current) {
       setRendered(children);
+      // If the view flipped away and back before the fade-out timer fired, the
+      // pending change is cancelled but the phase is still "out" — which is
+      // opacity 0. Snap it back to visible, or the screen stays blank.
+      setPhase("in");
       return;
     }
     setPhase("out");
