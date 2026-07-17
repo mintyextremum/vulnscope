@@ -108,8 +108,9 @@ export default function App() {
     // side-effect free, so it keeps them — strings and all. `import.meta.env.DEV`
     // is inlined as false, so the whole branch, this import included, is dropped.
     if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
-      void import("./demo").then(({ DEMO_REPORT }) => {
+      void import("./demo").then(({ DEMO_REPORT, DEMO_SETTINGS }) => {
         setReport(DEMO_REPORT);
+        setSettings(DEMO_SETTINGS);
         setSelectedFinding(DEMO_REPORT.findings[0] ?? null);
         setSelectedFile(DEMO_REPORT.findings[0]?.file ?? null);
         setScreen("results");
@@ -1033,6 +1034,7 @@ export default function App() {
                   onOpenFile={openFileAt}
                   root={report.root}
                   onSuppressionChanged={rescan}
+                  editorCommand={settings?.editorCommand ?? ""}
                 />
               </div>
             </div>

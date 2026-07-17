@@ -344,6 +344,31 @@ fn get_settings() -> settings::Settings {
     settings::load()
 }
 
+/// Opens a finding in the editor the user configured (`editor_command` in the
+/// settings, with `{file}`/`{line}` placeholders). The command comes from the
+/// user's own config on their own machine; argv goes to the OS directly, no
+/// shell. The executable is resolved through PATHEXT because editor launchers
+/// on Windows are `.cmd` shims (`code`, `subl`) that CreateProcess alone
+/// cannot start.
+#[tauri::command]
+fn open_in_editor(path: String, line: u32) -> Result<(), String> {
+    let template = settings::load().editor_command;
+    if template.trim().is_empty() {
+        return Err("Команда редактора не задана — укажите её в настройках".into());
+    }
+    let argv = settings::editor_argv(&template, &path, line);
+    let Some(program) = argv.first() else {
+        return Err("Команда редактора пуста".into());
+    };
+    let resolved = pkgmgr::resolve_program(program)
+        .ok_or_else(|| format!("Редактор не найден: {program}"))?;
+    std::process::Command::new(resolved)
+        .args(&argv[1..])
+        .spawn()
+        .map_err(|e| format!("Не удалось запустить редактор: {e}"))?;
+    Ok(())
+}
+
 /// Clamps before writing, so a value typed into the settings screen can never
 /// leave the scanner in a state where it silently checks nothing.
 #[tauri::command]
@@ -420,6 +445,7 @@ pub fn run() {
             get_settings,
             save_settings,
             reset_settings,
+            open_in_editor,
             get_keybind_actions,
             check_keybind_conflicts,
             get_settings_path,

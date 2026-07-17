@@ -199,6 +199,11 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  "Открыть в редакторе на этой строке": "Open in the editor at this line",
+  "Редактор": "Editor",
+  "Команда открытия находки": "Command to open a finding",
+  "{file} и {line} подставляются. Пусто — кнопка скрыта. Например: code -g {file}:{line}":
+    "{file} and {line} are substituted. Empty hides the button. E.g.: code -g {file}:{line}",
   "Экспорт отфильтрованного в Markdown": "Export filtered to Markdown",
   "Экспорт отфильтрованного в CSV": "Export filtered to CSV",
   "Экспорт отфильтрованного в HTML": "Export filtered to HTML",

@@ -213,6 +213,9 @@ invisible.
 
 The viewer shows the code, but fixing it happens in an editor — so the button
 next to the path on a finding's card reveals the file in the system file manager.
+And if you set an editor command in the settings (say, `code -g {file}:{line}`),
+a second button opens the finding right in it, at the line. Which editor is your
+call: the command is configured with placeholders, not baked into the app.
 
 | Keys | Action |
 |---|---|

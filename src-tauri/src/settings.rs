@@ -80,6 +80,12 @@ pub struct Settings {
     pub skip_noisy_in_tests: bool,
     /// Ignore matches on lines that are entirely a comment.
     pub ignore_comments: bool,
+    /// Command that opens a finding in the user's editor; `{file}` and `{line}`
+    /// are substituted. Empty means the feature is off. It is the user's own
+    /// machine and their own config file — which editor they run is their call,
+    /// e.g. `code -g {file}:{line}` or `subl {file}:{line}`.
+    #[serde(default)]
+    pub editor_command: String,
 
     /// Action id -> key combo, e.g. "palette" -> "mod+k".
     pub keybinds: std::collections::BTreeMap<String, String>,
@@ -112,6 +118,7 @@ impl Default for Settings {
             max_highlight_lines: 6000,
             skip_noisy_in_tests: true,
             ignore_comments: true,
+            editor_command: String::new(),
             keybinds: default_keybinds(),
         }
     }
@@ -169,6 +176,36 @@ pub fn action_labels() -> Vec<(&'static str, &'static str, &'static str)> {
         ("openInCode", "Открыть находку в коде", "Находки"),
         ("focusSearch", "Поиск по файлам", "Находки"),
     ]
+}
+
+/// Splits the configured editor command into argv, substituting `{file}` and
+/// `{line}`. Double quotes group a token, so a path like
+/// `"C:\Program Files\Microsoft VS Code\Code.exe"` stays one argument. The
+/// substitution happens per token, after splitting — a path with spaces in
+/// `{file}` can never turn into two arguments.
+pub fn editor_argv(template: &str, file: &str, line: u32) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut in_quotes = false;
+    for c in template.chars() {
+        match c {
+            '"' => in_quotes = !in_quotes,
+            c if c.is_whitespace() && !in_quotes => {
+                if !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                }
+            }
+            c => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    // Line 0 means "the file, not a spot in it"; editors treat :1 as that.
+    let line = line.max(1).to_string();
+    out.into_iter()
+        .map(|a| a.replace("{file}", file).replace("{line}", &line))
+        .collect()
 }
 
 pub fn settings_path() -> Result<PathBuf> {
@@ -315,6 +352,37 @@ fn is_color(v: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn editor_argv_substitutes_and_splits() {
+        let argv = editor_argv("code -g {file}:{line}", "D:/proj/app.py", 42);
+        assert_eq!(argv, vec!["code", "-g", "D:/proj/app.py:42"]);
+    }
+
+    #[test]
+    fn editor_argv_quotes_keep_a_spaced_path_together() {
+        let argv = editor_argv(
+            r#""C:\Program Files\Microsoft VS Code\Code.exe" -g {file}:{line}"#,
+            "a.rs",
+            7,
+        );
+        assert_eq!(argv[0], r"C:\Program Files\Microsoft VS Code\Code.exe");
+        assert_eq!(argv.len(), 3);
+    }
+
+    #[test]
+    fn editor_argv_spaced_file_stays_one_argument() {
+        // The substitution runs after splitting, so a space in the path cannot
+        // break the token apart.
+        let argv = editor_argv("subl {file}:{line}", "D:/my project/main.go", 3);
+        assert_eq!(argv, vec!["subl", "D:/my project/main.go:3"]);
+    }
+
+    #[test]
+    fn editor_argv_line_zero_becomes_one() {
+        let argv = editor_argv("vim +{line} {file}", "x.c", 0);
+        assert_eq!(argv, vec!["vim", "+1", "x.c"]);
+    }
 
     #[test]
     fn theme_keeps_real_colours() {
