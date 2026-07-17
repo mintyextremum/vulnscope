@@ -196,6 +196,7 @@ export const EN: Record<string, string> = {
 
   // -- findings list & filters
   "Поиск: название, путь, категория, CWE, CVE, код": "Search: title, path, category, CWE, CVE, code",
+  "показать находки во всех файлах": "show findings from every file",
   Очистить: "Clear",
   "Только новые": "New only",
   Подавленные: "Suppressed",
