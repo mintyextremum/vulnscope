@@ -506,6 +506,17 @@ export default function App() {
         run: () => setScreen("setup"),
       },
       {
+        // The loop after a finding is fix → check. Going through the setup
+        // screen to re-run the same target made that two steps for nothing.
+        id: "rescan",
+        label: t("Пересканировать"),
+        hint: report?.targetLabel,
+        icon: "refresh",
+        keys: "Ctrl Shift R",
+        when: screen === "results" && !!report,
+        run: rescan,
+      },
+      {
         id: "rules",
         label: t("Каталог правил"),
         hint: t("встроенные"),
@@ -637,6 +648,7 @@ export default function App() {
       exportCsv,
       exportHtml,
       copyMarkdown,
+      rescan,
     ]
   );
 
@@ -673,6 +685,12 @@ export default function App() {
     on("newScan", "mod+n", (e) => {
       e.preventDefault();
       if (screen === "results" || screen === "rules") setScreen("setup");
+    });
+    on("rescan", "mod+shift+r", (e) => {
+      if (screen === "results" && report) {
+        e.preventDefault();
+        rescan();
+      }
     });
     on("export", "mod+s", (e) => {
       if (screen === "results" && report) {
@@ -727,6 +745,7 @@ export default function App() {
     openSettings,
     openFileAt,
     exportReport,
+    rescan,
   ]);
 
   useHotkeys(hotkeys, [hotkeys]);

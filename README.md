@@ -213,6 +213,7 @@ GitHub code scanning и CI — с дедупликацией правил, ма�
 | `Ctrl+E` | Свои правила |
 | `Ctrl+,` | Настройки |
 | `Ctrl+N` | Новое сканирование |
+| `Ctrl+Shift+R` | Пересканировать ту же цель |
 | `Ctrl+S` | Экспорт отчёта |
 | `1`–`4` | Вкладки: обзор / находки / код / пропущено |
 | `J`, `K`, `↑`, `↓` | Переход по находкам |
@@ -301,6 +302,7 @@ Material Symbols тоже `aria-hidden` — иначе диктор читал �
 | `src/**` | литералы `t(...)` / `tr(...)` |
 | `rules.rs`, `secrets.rs` | `title`, `description`, `recommendation`, `category` каждого правила |
 | `model.rs` | метки `sourceLabel`, `reasonLabel`, `phaseLabel` (match-армы `label()`) |
+| `settings.rs` | названия действий и групп для настройки клавиш (`action_labels()`) |
 
 Так новое правило или новая фаза скана не уедут в релиз без перевода. Строки без
 кириллицы (`Path traversal`, `Semgrep`, `document.write()`) пропускаются: откат к
