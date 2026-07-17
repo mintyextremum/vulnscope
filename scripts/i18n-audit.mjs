@@ -29,6 +29,7 @@ const SRC = join(ROOT, "src");
 const DICT_FILE = join(SRC, "i18n.tsx");
 const RULES_FILE = join(ROOT, "src-tauri", "src", "rules.rs");
 const SECRETS_FILE = join(ROOT, "src-tauri", "src", "secrets.rs");
+const MODEL_FILE = join(ROOT, "src-tauri", "src", "model.rs");
 
 function walk(dir) {
   const out = [];
@@ -86,6 +87,35 @@ function catalogueKeys(file, splitOn, fields, label) {
   return keys;
 }
 
+/** The body of `impl <name> { … }`, found by matching braces from its opening. */
+function implBlock(src, name) {
+  const start = src.indexOf(`impl ${name} {`);
+  if (start < 0) return "";
+  let depth = 0;
+  for (let i = src.indexOf("{", start); i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}" && --depth === 0) return src.slice(start, i + 1);
+  }
+  return src.slice(start);
+}
+
+/**
+ * Labels the backend attaches to a finding, a skipped file or a scan phase.
+ * They are `match` arms on an enum rather than struct fields, and they reach the
+ * UI as `sourceLabel` / `reasonLabel` / `phaseLabel` — rendered through `t(...)`
+ * like the catalogue, so they need dictionary entries just the same.
+ */
+function labelKeys(file, enums) {
+  const keys = new Map();
+  const src = readFileSync(file, "utf8");
+  for (const name of enums) {
+    for (const m of implBlock(src, name).matchAll(/=>\s*"((?:[^"\\]|\\.)*)"/g)) {
+      add(keys, unesc(m[1]), name);
+    }
+  }
+  return keys;
+}
+
 /**
  * Re-escapes a runtime string into the form it is written as inside a source
  * literal delimited by `q`, so it can be matched against the dictionary text.
@@ -139,6 +169,10 @@ const groups = [
   {
     name: "Детекторы секретов (secrets.rs)",
     keys: catalogueKeys(SECRETS_FILE, "SecretRule {", ["title", "description", "recommendation"], "секрет"),
+  },
+  {
+    name: "Метки времени выполнения (model.rs)",
+    keys: labelKeys(MODEL_FILE, ["FindingSource", "SkipReason", "ScanPhase"]),
   },
 ];
 
