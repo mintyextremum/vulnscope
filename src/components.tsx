@@ -450,7 +450,7 @@ export function FindingList({
           <input
             value={filters.query}
             onChange={(e) => filters.setQuery(e.target.value)}
-            placeholder={t("Поиск: название, путь, CVE, код")}
+            placeholder={t("Поиск: название, путь, категория, CWE, CVE, код")}
           />
           {filters.query && (
             <button className="lf-clear" onClick={() => filters.setQuery("")} title={t("Очистить")}>

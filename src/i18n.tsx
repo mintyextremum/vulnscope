@@ -195,7 +195,7 @@ export const EN: Record<string, string> = {
   "Проверка не завершена": "Scan not finished",
 
   // -- findings list & filters
-  "Поиск: название, путь, CVE, код": "Search: title, path, CVE, code",
+  "Поиск: название, путь, категория, CWE, CVE, код": "Search: title, path, category, CWE, CVE, code",
   Очистить: "Clear",
   "Только новые": "New only",
   Подавленные: "Suppressed",
