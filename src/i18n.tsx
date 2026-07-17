@@ -199,6 +199,72 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Compromise indicators + swallowed-error rules added 17.07.2026
+  "Индикатор компрометации": "Compromise indicator",
+  "Веб-шелл: выполнение данных запроса": "Web shell: executing request data",
+  "eval/system/exec/shell_exec поверх $_GET/$_POST/$_REQUEST — это команда «выполни то, что я пришлю». Классический веб-шелл: сервер уже под контролем атакующего.":
+    "eval/system/exec/shell_exec over $_GET/$_POST/$_REQUEST means \"run whatever I send\". A classic web shell: the server is already under the attacker's control.",
+  "Удалите файл и считайте сервер скомпрометированным: смените пароли и ключи, проверьте логи и остальные файлы на закладки.":
+    "Delete the file and treat the server as compromised: rotate passwords and keys, review the logs and the rest of the files for implants.",
+  "Веб-шелл: вызов функции по имени из запроса": "Web shell: function called by name from the request",
+  "$_GET['x']($_GET['y']) вызывает любую функцию PHP с любыми аргументами из запроса. Это диспетчер веб-шелла, замаскированный под безобидную индексацию массива.":
+    "$_GET['x']($_GET['y']) calls any PHP function with any arguments from the request. It is a web-shell dispatcher disguised as harmless array indexing.",
+  "Удалите файл и считайте сервер скомпрометированным. Динамический вызов функции из ввода недопустим.":
+    "Delete the file and treat the server as compromised. Calling a function by name from input is never acceptable.",
+  "Обфусцированный eval (упакованный веб-шелл)": "Obfuscated eval (packed web shell)",
+  "eval поверх base64_decode/gzinflate/str_rot13 распаковывает и исполняет спрятанный код. Так пакуют веб-шеллы, чтобы пройти мимо беглого взгляда и простых сигнатур.":
+    "eval over base64_decode/gzinflate/str_rot13 unpacks and runs hidden code. This is how web shells are packed to slip past a glance and simple signatures.",
+  "Удалите файл и считайте сервер скомпрометированным. Легитимный код не прячет исполняемое за слоями декодирования.":
+    "Delete the file and treat the server as compromised. Legitimate code does not hide executable content behind layers of decoding.",
+  "Реверс-шелл через /dev/tcp": "Reverse shell via /dev/tcp",
+  "Перенаправление в /dev/tcp/host/port открывает bash обратное соединение на машину атакующего. Это канонический однострочный реверс-шелл.":
+    "Redirecting to /dev/tcp/host/port opens a bash connection back to the attacker's machine. This is the canonical one-line reverse shell.",
+  "Немедленно разберитесь, откуда это в коде: реверс-шелл в репозитории — признак взлома или злонамеренной вставки.":
+    "Find out at once how this got into the code: a reverse shell in the repository is a sign of a breach or a malicious insertion.",
+  "Реверс-шелл через netcat / mkfifo": "Reverse shell via netcat / mkfifo",
+  "netcat с -e или backpipe через mkfifo отдаёт интерактивную оболочку по сети. Ещё один стандартный реверс-шелл из шпаргалок пентестера.":
+    "netcat with -e, or a mkfifo backpipe, hands an interactive shell over the network. Another standard reverse shell from the pentester's cheatsheet.",
+  "Разберитесь, откуда это: намеренный бэкдор или чужая вставка. В обычном коде такого быть не должно.":
+    "Find out how this got here: a deliberate backdoor or someone else's insertion. Ordinary code should never contain it.",
+  "Реверс-шелл на Python (pty/dup2 на сокет)": "Reverse shell in Python (pty/dup2 onto a socket)",
+  "pty.spawn после подключения сокета или os.dup2 файлового дескриптора сокета на stdin/stdout — это интерактивный реверс-шелл на Python.":
+    "pty.spawn after a socket connect, or os.dup2 of a socket file descriptor onto stdin/stdout, is an interactive Python reverse shell.",
+  "Разберитесь, откуда это в коде: реверс-шелл — признак взлома или злонамеренной вставки.":
+    "Find out how this got into the code: a reverse shell is a sign of a breach or a malicious insertion.",
+  "Исполнение декодированного кода (упакованный пейлоад)": "Executing decoded code (packed payload)",
+  "exec/eval поверх base64.b64decode, bytes.fromhex, zlib.decompress или __import__ распаковывает и запускает спрятанный код — приём упаковки вредоносной нагрузки.":
+    "exec/eval over base64.b64decode, bytes.fromhex, zlib.decompress or __import__ unpacks and runs hidden code — a way malicious payloads are packed.",
+  "Проверьте, что именно исполняется: легитимный код не прячет логику за слоями декодирования. При сомнении считайте файл вредоносным.":
+    "Check what is actually executed: legitimate code does not hide logic behind layers of decoding. When in doubt, treat the file as malicious.",
+  "eval(atob(...)) или Function(atob(...)) распаковывает base64 и тут же исполняет — приём упаковки вредоносного JS, чтобы спрятать его от беглого просмотра.":
+    "eval(atob(...)) or Function(atob(...)) unpacks base64 and runs it immediately — a way malicious JS is packed to hide it from a quick read.",
+  "Проверьте, что именно исполняется. eval над декодированной строкой в проде почти всегда либо обфускация, либо закладка.":
+    "Check what is actually executed. eval over a decoded string in production is almost always either obfuscation or an implant.",
+  "PowerShell download-cradle (скачать и выполнить)": "PowerShell download cradle (fetch and run)",
+  "IEX/Invoke-Expression поверх DownloadString/Invoke-WebRequest скачивает код с сети и сразу исполняет его в памяти. Это стандартный первый этап заражения на Windows.":
+    "IEX/Invoke-Expression over DownloadString/Invoke-WebRequest fetches code from the network and runs it in memory at once. A standard first stage of a Windows infection.",
+  "Разберитесь, откуда это в коде. Скачивание и выполнение кода из сети в памяти — признак вредоносной активности.":
+    "Find out how this got into the code. Fetching and running code from the network in memory is a sign of malicious activity.",
+  "PowerShell: скрытый закодированный запуск": "PowerShell: hidden encoded launch",
+  "-EncodedCommand с base64 (часто вместе с -WindowStyle Hidden / -NoProfile) прячет исполняемую команду от глаз и логов. Типичная упаковка вредоносного запуска.":
+    "-EncodedCommand with base64 (often with -WindowStyle Hidden / -NoProfile) hides the executed command from eyes and logs. A typical packing of a malicious launch.",
+  "Раскодируйте и проверьте команду. Скрытый закодированный запуск в коде — сильный признак вредоносной вставки.":
+    "Decode and inspect the command. A hidden encoded launch in the code is a strong sign of a malicious insertion.",
+  "Пустой except: исключение проглатывается": "Empty except: the exception is swallowed",
+  "except с одним pass гасит любую ошибку без следа. Если так подавлена проверка прав или валидация, сбой пройдёт незаметно, и код продолжит работу как ни в чём не бывало.":
+    "An except with a bare pass silences any error without a trace. If a permission or validation check is suppressed this way, the failure goes unnoticed and the code carries on as if nothing happened.",
+  "Ловите конкретный тип исключения и хотя бы логируйте его. Пустой except почти всегда прячет проблему, а не решает её.":
+    "Catch the specific exception type and at least log it. An empty except almost always hides a problem rather than handling it.",
+  "Пустой catch: ошибка проглатывается": "Empty catch: the error is swallowed",
+  "Пустой блок catch гасит исключение без следа. Упавшая проверка или сетевой сбой пройдут незаметно, и выполнение продолжится с неполными данными.":
+    "An empty catch block silences the exception without a trace. A failed check or a network error goes unnoticed, and execution continues with incomplete data.",
+  "Обработайте ошибку или хотя бы залогируйте её. Пустой catch превращает сбой в тихий баг.":
+    "Handle the error or at least log it. An empty catch turns a failure into a silent bug.",
+  "Пустой catch: исключение проглатывается": "Empty catch: the exception is swallowed",
+  "Пустой блок catch гасит исключение молча. Сбой проверки или операции пройдёт незамеченным, а код продолжит работу с неопределённым состоянием.":
+    "An empty catch block silences the exception. A failed check or operation goes unnoticed, and the code continues in an undefined state.",
+  "Обработайте или прокиньте исключение и залогируйте его. Пустой catch скрывает проблему вместо её решения.":
+    "Handle or rethrow the exception and log it. An empty catch hides the problem instead of solving it.",
   "Открыть в редакторе на этой строке": "Open in the editor at this line",
   "Редактор": "Editor",
   "Команда открытия находки": "Command to open a finding",

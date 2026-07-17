@@ -14,7 +14,7 @@
 
 ## Что оно находит
 
-**Код — 167 встроенных правил** для 38 языков. Инъекции команд, SQL и NoSQL, XSS и
+**Код — 181 встроенное правило** для 38 языков. Инъекции команд, SQL и NoSQL, XSS и
 SSTI, открытые редиректы, небезопасная десериализация (`pickle`, `yaml.load`,
 SnakeYAML, `binary_to_term`), отключённая проверка TLS и ключей SSH, слабая
 криптография, path traversal и Zip Slip, обход проверки JWT, `xp_cmdshell` и
@@ -22,26 +22,37 @@ SnakeYAML, `binary_to_term`), отключённая проверка TLS и к�
 GitHub Actions, Terraform и nginx. Каждая находка размечена CWE и категорией OWASP
 Top 10 и сопровождается рекомендацией.
 
+**Индикаторы компрометации.** Отдельная категория ловит не «рискованные приёмы», а
+то, что оставляет атакующий: PHP-веб-шеллы (`eval($_POST[...])`, вызов функции по
+имени из запроса, упакованные `eval(base64_decode(...))`), реверс-шеллы
+(`/dev/tcp/…`, netcat/mkfifo, `pty.spawn` на сокет), download-cradle PowerShell
+(`IEX (…).DownloadString`) и упакованные пейлоады (`eval(atob(…))`,
+`exec(base64.b64decode(…))`). Всё это помечается как **критическое** с высокой
+достоверностью: обычный код так не делает, а живой веб-шелл в дереве означает, что
+машина уже под контролем.
+
 | Язык | Правил |
 |---|---|
-| JavaScript / TypeScript / React | 29 |
-| Python | 26 |
-| Java / Kotlin | 12 |
+| JavaScript / TypeScript / React | 31 |
+| Python | 29 |
+| PHP | 13 |
+| Java / Kotlin | 13 |
 | Rust | 10 |
-| PHP | 10 |
 | Go | 10 |
-| C# | 8 |
+| C# | 9 |
 | Terraform | 7 |
 | Ruby | 7 |
 | Dockerfile | 6 |
 | C / C++ | 6 |
 | Swift | 4 |
 | SQL | 4 |
+| Shell | 4 |
+| PowerShell | 4 |
 | Nginx | 4 |
 | Kubernetes | 4 |
 | GitHub Actions | 4 |
 | Scala / Elixir | по 3 |
-| Shell / PowerShell / Perl / Lua | по 2 |
+| Perl / Lua | по 2 |
 | Vue / Svelte | по 1 |
 
 Языки определяются по расширению и имени файла — Vue, Svelte, GraphQL, SQL и другие
