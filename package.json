@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "audit:contrast": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/contrast-audit.mjs"
+    "audit:contrast": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/contrast-audit.mjs",
+    "audit:i18n": "node scripts/i18n-audit.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

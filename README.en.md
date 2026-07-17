@@ -86,6 +86,12 @@ The interface switches between Russian and English under
 `settings.json`. The whole shell **and** the built-in rule catalogue (finding
 titles, descriptions, fixes) are translated.
 
+A missing key falls back to the Russian source rather than failing, which is
+convenient but silent — the English UI just shows Russian, and only someone who
+switches the language would notice. So completeness is checked on its own:
+`npm run audit:i18n` collects every literal `t(...)` under `src/` and fails on
+any the dictionary has no entry for.
+
 ## Themes
 
 Every colour comes from one token file (`src/theme.css`) — nothing is hardcoded
@@ -102,7 +108,8 @@ npm run tauri build    # bundle
 ```
 
 Rust + Tauri 2 core, React + TypeScript webview. Tests: `cargo test` in
-`src-tauri/`, `npm run audit:contrast` for the theme audit.
+`src-tauri/`, `npm run audit:contrast` for the theme audit, `npm run audit:i18n`
+for localization completeness.
 
 ## How it works
 
