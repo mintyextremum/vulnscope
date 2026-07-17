@@ -1,24 +1,34 @@
 /**
  * Localization completeness audit.
  *
- * Every user-visible string is wrapped in `t("...")`, and the English dictionary
- * in src/i18n.tsx is keyed by the Russian source. A key that is missing from the
- * dictionary does not fail loudly — `translate` falls back to the source, so the
- * English UI silently shows Russian. That is invisible in review and only shows
- * up if someone actually switches the language, which is exactly why it needs a
- * check that runs on its own.
+ * Every user-visible string is keyed by its Russian source in the `EN`
+ * dictionary (src/i18n.tsx). A missing key does not fail loudly — `translate`
+ * falls back to the source, so the English UI silently shows Russian. That is
+ * invisible in review and only surfaces if someone switches the language, which
+ * is exactly why it needs a check of its own.
  *
- * This walks the frontend for literal `t(...)`/`tr(...)` arguments and reports
- * the ones the dictionary has no entry for. Non-literal calls — `t(f.title)`,
- * `t(SEVERITY_LABEL[s])` — carry backend content and are checked separately.
+ * Two sources feed the UI, so both are checked:
+ *
+ *  1. Shell strings — literal `t(...)`/`tr(...)` arguments across `src/`.
+ *  2. The rule catalogue — title/description/recommendation/category on every
+ *     `Rule` in rules.rs and every `SecretRule` in secrets.rs. These are Rust
+ *     constants rendered through `t(finding.title)` and friends, so a new rule
+ *     without a dictionary entry shows up in Russian for English users.
+ *
+ * Not covered: labels built at runtime (OSV messages with `{}` placeholders) and
+ * the assorted `*Label` mappings in the scanner — those are not parseable from a
+ * literal and would false-positive here.
  *
  * Usage: npm run audit:i18n
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, extname } from "node:path";
 
-const SRC = new URL("../src/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const ROOT = new URL("../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const SRC = join(ROOT, "src");
 const DICT_FILE = join(SRC, "i18n.tsx");
+const RULES_FILE = join(ROOT, "src-tauri", "src", "rules.rs");
+const SECRETS_FILE = join(ROOT, "src-tauri", "src", "secrets.rs");
 
 function walk(dir) {
   const out = [];
@@ -30,70 +40,128 @@ function walk(dir) {
   return out;
 }
 
-/** Unescapes a JS string literal body. */
+/** Unescapes a JS/Rust string literal body. */
 function unesc(s) {
   return s.replace(/\\(["'\\])/g, "$1").replace(/\\n/g, "\n");
 }
 
+/** Adds `key` to the map, recording where it came from. */
+function add(map, key, where) {
+  if (!key) return;
+  if (!map.has(key)) map.set(key, new Set());
+  map.get(key).add(where);
+}
+
 /** Literal keys passed to t(...) / tr(...) across the frontend. */
-function usedKeys(files) {
-  const keys = new Map(); // key -> Set(file)
+function shellKeys(files) {
+  const keys = new Map();
   const re = /(?<![\w.])tr?\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')/g;
   for (const f of files) {
-    const src = readFileSync(f, "utf8");
-    for (const m of src.matchAll(re)) {
+    for (const m of readFileSync(f, "utf8").matchAll(re)) {
       const raw = m[1] ?? m[2];
-      if (raw === undefined || raw === "") continue;
-      const key = unesc(raw);
-      if (!keys.has(key)) keys.set(key, new Set());
-      keys.get(key).add(f.slice(SRC.length));
+      if (raw === undefined) continue;
+      add(keys, unesc(raw), f.slice(SRC.length + 1));
     }
   }
   return keys;
 }
 
+function field(block, name) {
+  const m = block.match(new RegExp(name + '\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"'));
+  return m ? unesc(m[1]) : null;
+}
+
 /**
- * Re-escapes a runtime string back into the form it is written as in source, so
- * it can be matched against the dictionary text. Without this a key containing a
- * newline is searched for as a real line break while the file spells it `\n`.
+ * Translatable strings on each rule struct. `splitOn` is the struct literal that
+ * opens an entry; the `pub struct` definition has no `id`, so it drops out.
  */
-function toSourceLiteral(s) {
-  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+function catalogueKeys(file, splitOn, fields, label) {
+  const keys = new Map();
+  const src = readFileSync(file, "utf8");
+  for (const block of src.split(splitOn)) {
+    const id = block.match(/id\s*:\s*"([^"]+)"/);
+    if (!id || !id[1].startsWith("VS-")) continue;
+    for (const f of fields) add(keys, field(block, f), `${label} ${id[1]}`);
+  }
+  return keys;
+}
+
+/**
+ * Re-escapes a runtime string into the form it is written as inside a source
+ * literal delimited by `q`, so it can be matched against the dictionary text.
+ * Without this a key containing a newline is searched for as a real line break
+ * while the file spells it `\n`, and a key containing a quote never matches.
+ */
+function toSourceLiteral(s, q) {
+  return s
+    .replace(/\\/g, "\\\\")
+    .replace(new RegExp(q, "g"), "\\" + q)
+    .replace(/\n/g, "\\n");
 }
 
 const reEscape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * True when the dictionary declares `key`. Entries appear either quoted
- * ("Файл": "File") or as a bare identifier (Подавленные: "Suppressed"), so both
- * forms have to be accepted.
+ * True when the dictionary declares `key`. An entry is written in whichever
+ * quote keeps it readable — "Файл": "File", but 'scanf("%s")…' switches to
+ * single quotes because the key itself contains double ones — and short keys may
+ * be bare identifiers (Подавленные: "Suppressed"). All three forms count.
  */
 function dictHas(dict, key) {
-  const quoted = reEscape(toSourceLiteral(key));
-  if (new RegExp('\\n\\s*"' + quoted + '"\\s*:').test(dict)) return true;
-  // Bare identifier keys: only possible when the key is a valid identifier.
+  for (const q of ['"', "'"]) {
+    const lit = reEscape(toSourceLiteral(key, q));
+    if (new RegExp("\\n\\s*" + q + lit + q + "\\s*:").test(dict)) return true;
+  }
   if (/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(key)) {
     if (new RegExp("\\n\\s*" + reEscape(key) + "\\s*:").test(dict)) return true;
   }
   return false;
 }
 
+/**
+ * The dictionary is keyed by the Russian source, so a string with no Cyrillic in
+ * it — a rule id, a code fragment, an English term like "Path traversal" — needs
+ * no entry: falling back to the source already yields the right English.
+ */
+const needsTranslation = (s) => /[Ѐ-ӿ]/.test(s);
+
 const dict = readFileSync(DICT_FILE, "utf8");
-const files = walk(SRC).filter((f) => !f.endsWith("i18n.tsx") && !f.endsWith("demo.ts"));
-const used = usedKeys(files);
 
-const missing = [...used.entries()].filter(([k]) => !dictHas(dict, k));
+const groups = [
+  {
+    name: "Оболочка (t(...) в src/)",
+    keys: shellKeys(walk(SRC).filter((f) => !f.endsWith("i18n.tsx") && !f.endsWith("demo.ts"))),
+  },
+  {
+    name: "Каталог правил (rules.rs)",
+    keys: catalogueKeys(RULES_FILE, "Rule {", ["title", "description", "recommendation", "category"], "правило"),
+  },
+  {
+    name: "Детекторы секретов (secrets.rs)",
+    keys: catalogueKeys(SECRETS_FILE, "SecretRule {", ["title", "description", "recommendation"], "секрет"),
+  },
+];
 
-console.log(`Строк в коде через t(): ${used.size}`);
-if (missing.length === 0) {
-  console.log("✓ Все строки интерфейса есть в словаре EN — фоллбэков на русский нет.");
+let failed = 0;
+for (const g of groups) {
+  const checked = [...g.keys.entries()].filter(([k]) => needsTranslation(k));
+  const missing = checked.filter(([k]) => !dictHas(dict, k));
+  const mark = missing.length === 0 ? "✓" : "✗";
+  const skipped = g.keys.size - checked.length;
+  console.log(
+    `${mark} ${g.name}: ${checked.length - missing.length}/${checked.length}` +
+      (skipped ? ` (${skipped} без кириллицы — перевод не нужен)` : "")
+  );
+  for (const [k, where] of missing) {
+    console.log(`    ${JSON.stringify(k.length > 66 ? k.slice(0, 66) + "…" : k)}`);
+    console.log(`        ${[...where].slice(0, 4).join(", ")}`);
+  }
+  failed += missing.length;
+}
+
+if (failed === 0) {
+  console.log("\nВсе строки есть в словаре EN — фоллбэков на русский нет.");
   process.exit(0);
 }
-
-console.log(`\n✗ Нет в словаре EN: ${missing.length}\n`);
-for (const [k, where] of missing) {
-  console.log(`  ${JSON.stringify(k.length > 70 ? k.slice(0, 70) + "…" : k)}`);
-  console.log(`      ${[...where].join(", ")}`);
-}
-console.log("\nВ EN-режиме эти строки покажутся по-русски. Добавьте их в словарь EN (src/i18n.tsx).");
+console.log(`\nБез перевода: ${failed}. В EN-режиме покажутся по-русски — добавьте в словарь EN (src/i18n.tsx).`);
 process.exit(1);
