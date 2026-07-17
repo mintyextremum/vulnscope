@@ -35,6 +35,9 @@ export interface FindingFilters {
   setOnlyNew: (v: boolean) => void;
   showSuppressed: boolean;
   setShowSuppressed: (v: boolean) => void;
+  /** Path the list is narrowed to via the tree, or null for the whole report. */
+  file: string | null;
+  clearFile: () => void;
   reset: () => void;
 }
 
@@ -459,6 +462,20 @@ export function FindingList({
           )}
         </div>
         <div className="lf-toggles">
+          {/* Picking a file in the tree narrows this list. That is deliberate,
+              but it used to be invisible: the list just showed fewer findings
+              with nothing saying why or how to get back. */}
+          {filters.file && (
+            <button
+              className="chip on chip-file"
+              onClick={filters.clearFile}
+              title={`${filters.file} — ${t("показать находки во всех файлах")}`}
+            >
+              <Icon name="description" />
+              {filters.file.split(/[\\/]/).pop()}
+              <Icon name="close" />
+            </button>
+          )}
           {filters.newCount > 0 && (
             <button
               className={`chip ${filters.onlyNew ? "on" : ""}`}

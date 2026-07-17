@@ -397,6 +397,9 @@ export default function App() {
     setOnlyNew(false);
     setShowSuppressed(false);
     setFindingQuery("");
+    // The tree selection narrows the list too, so "reset filters" has to drop it
+    // as well — otherwise the list stays a subset after the user asked for all.
+    setSelectedFile(null);
   }, []);
 
   const findingFilters: FindingFilters = useMemo(
@@ -417,6 +420,8 @@ export default function App() {
       setOnlyNew,
       showSuppressed,
       setShowSuppressed,
+      file: tab === "findings" ? selectedFile : null,
+      clearFile: () => setSelectedFile(null),
       reset: resetFilters,
     }),
     [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, resetFilters]
@@ -602,7 +607,7 @@ export default function App() {
         icon: "filter_alt_off",
         when:
           screen === "results" &&
-          (sevFilter.size > 0 || onlyNew || showSuppressed || findingQuery !== ""),
+          (sevFilter.size > 0 || onlyNew || showSuppressed || findingQuery !== "" || !!selectedFile),
         run: () => {
           setSevFilter(new Set());
           setOnlyNew(false);
@@ -619,6 +624,7 @@ export default function App() {
       onlyNew,
       showSuppressed,
       findingQuery,
+      selectedFile,
       mode,
       canScan,
       target,

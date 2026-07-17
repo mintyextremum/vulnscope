@@ -1800,6 +1800,12 @@ kbd,
   font-size: 15px;
 }
 
+/* The file the list is narrowed to. Long paths are shown by basename, so the
+   chip stays a chip; the trailing × is what dismisses the narrowing. */
+.chip-file { max-width: 210px; }
+.chip-file .material-symbols-outlined:last-child { font-size: 14px; opacity: 0.7; }
+.chip-file:hover .material-symbols-outlined:last-child { opacity: 1; }
+
 .chip-n {
   font-variant-numeric: tabular-nums;
   color: var(--t-4);
