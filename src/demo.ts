@@ -4,6 +4,7 @@ import type {
   Severity,
   Confidence,
   FindingSource,
+  AppSettings,
 } from "./types";
 
 /**
@@ -185,4 +186,39 @@ export const DEMO_REPORT: ScanReport = {
   dependenciesChecked: 312,
   enginesUsed: ["Встроенные правила", "Поиск секретов", "OSV.dev"],
   warnings: [],
+};
+
+/**
+ * Settings for the same preview: parts of the UI only render with settings
+ * loaded (the open-in-editor button keys off editorCommand), and outside Tauri
+ * get_settings rejects, leaving them invisible forever. Mirrors the backend
+ * defaults.
+ */
+export const DEMO_SETTINGS: AppSettings = {
+  maxFileSizeMb: 2,
+  minifiedLineLen: 2000,
+  maxFindingsPerFile: 200,
+  defaultRespectGitignore: true,
+  defaultIncludeVendor: false,
+  defaultCheckSecrets: true,
+  defaultCheckDependencies: true,
+  osvCacheDays: 7,
+  osvConcurrency: 16,
+  language: "ru",
+  accent: "#5b8def",
+  themePreset: "night",
+  theme: {},
+  density: "comfortable",
+  reduceMotion: false,
+  a11yUiScale: 100,
+  a11yAlwaysFocus: false,
+  a11yNoAmbient: false,
+  a11ySeverityText: false,
+  a11yUnderlineLinks: false,
+  a11yBigTargets: false,
+  maxHighlightLines: 6000,
+  skipNoisyInTests: true,
+  ignoreComments: true,
+  editorCommand: "code -g {file}:{line}",
+  keybinds: {},
 };

@@ -30,6 +30,8 @@ export interface AppSettings {
   maxHighlightLines: number;
   skipNoisyInTests: boolean;
   ignoreComments: boolean;
+  /** Editor command with {file}/{line} placeholders; empty disables the button. */
+  editorCommand: string;
   /** Action id -> key combo, e.g. "palette" -> "mod+k". */
   keybinds: Record<string, string>;
 }

@@ -229,6 +229,15 @@ export function SettingsScreen({
               onChange={(v) => apply({ ...s, ignoreComments: v })}
             />
 
+            <div className="set-section">{t("Редактор")}</div>
+            <Txt
+              label={t("Команда открытия находки")}
+              hint={t("{file} и {line} подставляются. Пусто — кнопка скрыта. Например: code -g {file}:{line}")}
+              placeholder="code -g {file}:{line}"
+              value={s.editorCommand}
+              onChange={(v) => apply({ ...s, editorCommand: v })}
+            />
+
             <div className="set-section">{t("Что включено по умолчанию")}</div>
             <Toggle
               label={t("Секреты в коде")}
@@ -730,6 +739,48 @@ function Num({
           inputMode="numeric"
         />
         <span className="set-unit">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+/** A free-text row, committed on blur/Enter like Num — not on every keystroke,
+ *  so half-typed commands never reach the backend. */
+function Txt({
+  label,
+  hint,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => {
+    if (text.trim() !== value) onChange(text.trim());
+  };
+  return (
+    <div className="set-row">
+      <div className="set-info">
+        <div className="set-label">{label}</div>
+        {hint && <div className="field-note">{hint}</div>}
+      </div>
+      <div className="set-control">
+        <input
+          className="input mono"
+          style={{ width: 250 }}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === "Enter" && commit()}
+          placeholder={placeholder}
+          spellCheck={false}
+        />
       </div>
     </div>
   );

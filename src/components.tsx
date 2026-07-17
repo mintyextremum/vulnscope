@@ -805,11 +805,14 @@ export function FindingDetail({
   onOpenFile,
   root,
   onSuppressionChanged,
+  editorCommand = "",
 }: {
   finding: Finding | null;
   onOpenFile: (path: string, line: number) => void;
   root: string;
   onSuppressionChanged: () => void;
+  /** The configured editor command; empty hides the open-in-editor button. */
+  editorCommand?: string;
 }) {
   const t = useT();
   const [reason, setReason] = useState("");
@@ -817,6 +820,7 @@ export function FindingDetail({
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "ok" | "fail">("idle");
+  const [editorErr, setEditorErr] = useState<string | null>(null);
 
   useEffect(() => {
     setOpen(false);
@@ -824,6 +828,7 @@ export function FindingDetail({
     setWholeFile(false);
     setErr(null);
     setCopyState("idle");
+    setEditorErr(null);
   }, [finding?.id]);
 
   /**
@@ -1002,6 +1007,27 @@ export function FindingDetail({
           >
             <Icon name="folder_open" />
           </button>
+          {/* One step further when the user configured their editor: jump
+              straight to the line. Failure flips the icon and carries the
+              backend's message in the tooltip — an icon-only button has
+              nowhere else to put it. */}
+          {editorCommand.trim() !== "" && (
+            <button
+              className="loc-reveal"
+              onClick={() =>
+                invoke("open_in_editor", {
+                  path: `${root}/${finding.file}`,
+                  line: finding.line,
+                })
+                  .then(() => setEditorErr(null))
+                  .catch((e) => setEditorErr(String(e)))
+              }
+              title={editorErr ?? t("Открыть в редакторе на этой строке")}
+              aria-label={t("Открыть в редакторе на этой строке")}
+            >
+              <Icon name={editorErr ? "error" : "edit"} />
+            </button>
+          )}
         </div>
       </div>
 
