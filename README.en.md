@@ -14,7 +14,7 @@ code) — and only when the CVE check is enabled.
 
 ## What it finds
 
-**Code — 167 built-in rules** across 38 languages: command, SQL and NoSQL
+**Code — 181 built-in rules** across 38 languages: command, SQL and NoSQL
 injection, XSS and SSTI, open redirects, unsafe deserialization (`pickle`,
 `yaml.load`, SnakeYAML, `binary_to_term`), disabled TLS and SSH host-key
 verification, weak cryptography, path traversal and Zip Slip, JWT verification
@@ -22,26 +22,37 @@ bypass, `xp_cmdshell` and file operations in SQL, `unsafe` pitfalls in Rust, and
 misconfigurations in Dockerfiles, GitHub Actions, Terraform and nginx. Every
 finding is tagged with a CWE and an OWASP Top 10 category and comes with a fix.
 
+**Compromise indicators.** A dedicated category catches not "risky patterns" but
+what an attacker leaves behind: PHP web shells (`eval($_POST[...])`, a function
+called by name from the request, packed `eval(base64_decode(...))`), reverse
+shells (`/dev/tcp/…`, netcat/mkfifo, `pty.spawn` onto a socket), PowerShell
+download cradles (`IEX (…).DownloadString`) and packed payloads (`eval(atob(…))`,
+`exec(base64.b64decode(…))`). These are flagged **Critical** with high confidence:
+ordinary code does not do this, and a live web shell in the tree means the box is
+already owned.
+
 | Language | Rules |
 |---|---|
-| JavaScript / TypeScript / React | 29 |
-| Python | 26 |
-| Java / Kotlin | 12 |
+| JavaScript / TypeScript / React | 31 |
+| Python | 29 |
+| PHP | 13 |
+| Java / Kotlin | 13 |
 | Rust | 10 |
-| PHP | 10 |
 | Go | 10 |
-| C# | 8 |
+| C# | 9 |
 | Terraform | 7 |
 | Ruby | 7 |
 | Dockerfile | 6 |
 | C / C++ | 6 |
 | Swift | 4 |
 | SQL | 4 |
+| Shell | 4 |
+| PowerShell | 4 |
 | Nginx | 4 |
 | Kubernetes | 4 |
 | GitHub Actions | 4 |
 | Scala / Elixir | 3 each |
-| Shell / PowerShell / Perl / Lua | 2 each |
+| Perl / Lua | 2 each |
 | Vue / Svelte | 1 each |
 
 Languages are detected by extension and filename — Vue, Svelte, GraphQL, SQL and
