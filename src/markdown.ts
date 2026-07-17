@@ -1,4 +1,4 @@
-import type { ScanReport, Severity } from "./types";
+import type { Finding, ScanReport, Severity } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
 
@@ -24,6 +24,45 @@ const SEV_MARK: Record<Severity, string> = {
 /** Escapes the pipe so a value never breaks a Markdown table row. */
 function cell(s: string): string {
   return s.replace(/\|/g, "\\|");
+}
+
+/** Language hint for a fenced block, from the file's extension. */
+function fenceLang(file: string): string {
+  const map: Record<string, string> = {
+    rs: "rust", py: "python", js: "javascript", mjs: "javascript", cjs: "javascript",
+    jsx: "jsx", ts: "typescript", tsx: "tsx", go: "go", java: "java", kt: "kotlin",
+    php: "php", rb: "ruby", cs: "csharp", c: "c", h: "c", cpp: "cpp", swift: "swift",
+    scala: "scala", pl: "perl", lua: "lua", ex: "elixir", exs: "elixir", sql: "sql",
+    sh: "bash", bash: "bash", ps1: "powershell", yml: "yaml", yaml: "yaml",
+    tf: "hcl", json: "json", vue: "vue", svelte: "svelte",
+  };
+  return map[file.split(".").pop()?.toLowerCase() ?? ""] ?? "";
+}
+
+/**
+ * One finding as a self-contained Markdown block.
+ *
+ * Shared so the report and the per-finding copy cannot drift apart. The report
+ * leaves the snippet out — it already links the line and would double in size —
+ * while a single finding pasted into a ticket is far more useful with it.
+ */
+export function findingToMarkdown(f: Finding, t: TFn, includeSnippet = false): string {
+  const out: string[] = [];
+  out.push(`### ${SEV_MARK[f.severity]} ${t(SEVERITY_LABEL[f.severity])}: ${t(f.title)}`);
+  const tags = [
+    `\`${f.file}${f.line > 0 ? ":" + f.line : ""}\``,
+    `${t("правило")} \`${f.ruleId}\``,
+    ...f.cwe,
+    ...(f.owasp ? [f.owasp] : []),
+    ...f.cve,
+  ];
+  out.push(tags.join(" · "), "");
+  out.push(t(f.description), "");
+  if (includeSnippet && f.snippet) {
+    out.push("```" + fenceLang(f.file), f.snippet.replace(/\s+$/, ""), "```", "");
+  }
+  if (f.recommendation) out.push(`**${t("Как исправить")}:** ${t(f.recommendation)}`, "");
+  return out.join("\n");
 }
 
 export function toMarkdown(report: ScanReport, t: TFn): string {
@@ -59,19 +98,7 @@ export function toMarkdown(report: ScanReport, t: TFn): string {
   for (const sev of SEVERITY_ORDER) {
     const group = active.filter((f) => f.severity === sev);
     if (group.length === 0) continue;
-    for (const f of group) {
-      out.push(`### ${SEV_MARK[sev]} ${t(SEVERITY_LABEL[sev])}: ${t(f.title)}`);
-      const tags = [
-        `\`${f.file}:${f.line}\``,
-        `${t("правило")} \`${f.ruleId}\``,
-        ...f.cwe,
-        ...(f.owasp ? [f.owasp] : []),
-        ...f.cve,
-      ];
-      out.push(tags.join(" · "), "");
-      out.push(t(f.description), "");
-      if (f.recommendation) out.push(`**${t("Как исправить")}:** ${t(f.recommendation)}`, "");
-    }
+    for (const f of group) out.push(findingToMarkdown(f, t));
   }
 
   if (suppressed.length > 0) {
