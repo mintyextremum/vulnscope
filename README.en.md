@@ -89,8 +89,12 @@ titles, descriptions, fixes) are translated.
 A missing key falls back to the Russian source rather than failing, which is
 convenient but silent — the English UI just shows Russian, and only someone who
 switches the language would notice. So completeness is checked on its own:
-`npm run audit:i18n` collects every literal `t(...)` under `src/` and fails on
-any the dictionary has no entry for.
+`npm run audit:i18n` collects strings from **both** sources — literal `t(...)`
+calls under `src/` and the backend catalogue (every rule's title, description,
+recommendation and category in `rules.rs` and `secrets.rs`) — and fails on any
+the dictionary has no entry for, so a new rule cannot ship untranslated. Strings
+with no Cyrillic in them (`Path traversal`, `document.write()`) are skipped:
+falling back to the source already gives the right English.
 
 ## Themes
 
