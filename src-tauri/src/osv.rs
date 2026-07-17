@@ -478,7 +478,7 @@ impl OsvClient {
                     .iter()
                     .filter_map(|id| advisories.get(id).cloned())
                     .collect();
-                found.sort_by(|a, b| b.severity.cmp(&a.severity));
+                found.sort_by_key(|a| std::cmp::Reverse(a.severity));
                 DependencyAdvisories {
                     dependency: dep.clone(),
                     advisories: found,
