@@ -1,0 +1,58 @@
+name: checks
+
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    branches: [main]
+
+# The workflow only reads the code. Anything wider would hand a compromised step
+# push access — the same thing VS-CI-004 flags in other people's pipelines.
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      # Third-party actions are pinned to a commit, not a tag: a tag can be
+      # moved under us, which is exactly what VS-CI-002 reports.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Contrast audit (WCAG + colour-vision)
+        run: npm run audit:contrast
+      - name: Localization completeness
+        run: npm run audit:i18n
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # Tauri links against the system webview, so the lib does not compile —
+      # and the tests do not run — without these.
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libssl-dev
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+        with:
+          workspaces: src-tauri
+      - name: Tests
+        working-directory: src-tauri
+        run: cargo test --lib
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --lib -- -D warnings
