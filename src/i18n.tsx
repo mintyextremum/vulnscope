@@ -199,6 +199,12 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  "Экспорт отфильтрованного в Markdown": "Export filtered to Markdown",
+  "Экспорт отфильтрованного в CSV": "Export filtered to CSV",
+  "Экспорт отфильтрованного в HTML": "Export filtered to HTML",
+  "{n} из {total} находок": "{n} of {total} findings",
+  "Отфильтрованная выборка: {n} из {total} находок полного отчёта.":
+    "A filtered selection: {n} of {total} findings from the full report.",
   // Keybind actions and their groups: backend strings rendered on the settings
   // screen, which used to print them raw and so stayed Russian in English.
   "Командная палитра": "Command palette",

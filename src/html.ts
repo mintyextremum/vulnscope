@@ -34,7 +34,11 @@ function esc(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export function toHtml(report: ScanReport, t: TFn): string {
+/**
+ * `note` is shown as a warning in the header. The filtered export passes one: a
+ * document holding a subset must say so, or it reads as the whole report.
+ */
+export function toHtml(report: ScanReport, t: TFn, note?: string): string {
   const total = SEVERITY_ORDER.reduce((n, s) => n + report.counts[s], 0);
   const active = report.findings.filter((f) => !f.suppressed);
   const suppressed = report.findings.filter((f) => f.suppressed);
@@ -85,6 +89,8 @@ export function toHtml(report: ScanReport, t: TFn): string {
   const cancelled = report.cancelled
     ? `<p class="warn">⚠️ ${esc(t("Сканирование отменено — результаты неполные."))}</p>`
     : "";
+
+  const filtered = note ? `<p class="warn">🔎 ${esc(note)}</p>` : "";
 
   const empty =
     total === 0 && suppressed.length === 0
@@ -150,6 +156,7 @@ export function toHtml(report: ScanReport, t: TFn): string {
     <h1>${esc(t("Отчёт VulnScope"))}</h1>
     <div class="target">${esc(report.targetLabel)}</div>
     ${cancelled}
+    ${filtered}
     <div class="summary">${esc(
       t("Найдено: {total} · файлов: {files} · строк: {lines}", {
         total,

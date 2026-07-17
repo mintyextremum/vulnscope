@@ -65,13 +65,20 @@ export function findingToMarkdown(f: Finding, t: TFn, includeSnippet = false): s
   return out.join("\n");
 }
 
-export function toMarkdown(report: ScanReport, t: TFn): string {
+/**
+ * `note` is printed as a leading warning. The filtered export passes one: a
+ * document holding a subset must say so, or it reads as the whole report.
+ */
+export function toMarkdown(report: ScanReport, t: TFn, note?: string): string {
   const out: string[] = [];
   const total = SEVERITY_ORDER.reduce((n, s) => n + report.counts[s], 0);
 
   out.push(`# ${t("Отчёт VulnScope")} — ${report.targetLabel}`, "");
   if (report.cancelled) {
     out.push(`> ⚠️ ${t("Сканирование отменено — результаты неполные.")}`, "");
+  }
+  if (note) {
+    out.push(`> 🔎 ${note}`, "");
   }
   out.push(
     t("Найдено: {total} · файлов: {files} · строк: {lines}", {
