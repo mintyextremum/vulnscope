@@ -429,7 +429,9 @@ kbd,
   background: var(--s-2);
   border-radius: var(--r-3);
   padding: var(--sp-5);
-  box-shadow: var(--e-1);
+  /* The same 1px top sheen as the stat cards, so the whole dashboard reads as
+     one raised-glass system rather than a mix of flat and lifted panels. */
+  box-shadow: var(--e-1), inset 0 1px 0 var(--edge-light);
 }
 
 .card-title {
@@ -2042,6 +2044,7 @@ kbd,
   background: var(--s-2);
   border-radius: var(--r-2);
   padding: var(--sp-3);
+  box-shadow: inset 0 1px 0 var(--edge-light);
   transition: background var(--t-fast) var(--ease);
 }
 
@@ -2238,23 +2241,32 @@ kbd,
 }
 
 .stat-card {
-  background: var(--s-1);
+  /* Raised off the canvas with a top-lit gradient and a 1px sheen, so the card
+     reads as a panel instead of a painted rectangle. */
+  background: linear-gradient(180deg, var(--s-3), var(--s-2));
   border-radius: var(--r-3);
   padding: var(--sp-4);
-  box-shadow: var(--e-1);
+  box-shadow: var(--e-2), inset 0 1px 0 var(--edge-light);
   transition: transform var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease);
   animation: itemIn var(--t-slow) var(--ease-out) backwards;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--e-2);
+  transform: translateY(-3px);
+  box-shadow: var(--e-3), inset 0 1px 0 var(--edge-light);
 }
 
 .stat-card .material-symbols-outlined {
-  font-size: 18px;
-  color: var(--t-4);
-  margin-bottom: var(--sp-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-2);
+  background: var(--s-4);
+  font-size: 19px;
+  color: var(--t-3);
+  margin-bottom: var(--sp-3);
 }
 
 .stat-val {
@@ -2271,15 +2283,18 @@ kbd,
   margin-top: 3px;
 }
 
-.stat-card.risk-critical .stat-val,
-.stat-card.risk-critical .material-symbols-outlined { color: var(--crit); }
-.stat-card.risk-critical { box-shadow: var(--e-1), inset 0 0 0 1px var(--crit-ring); }
-.stat-card.risk-high .stat-val,
-.stat-card.risk-high .material-symbols-outlined { color: var(--high); }
-.stat-card.risk-high { box-shadow: var(--e-1), inset 0 0 0 1px var(--high-ring); }
-.stat-card.risk-ok .stat-val,
-.stat-card.risk-ok .material-symbols-outlined { color: var(--ok); }
-.stat-card.risk-ok { box-shadow: var(--e-1), inset 0 0 0 1px var(--ok-ring); }
+/* The hero card takes the tone of the worst finding: its number and icon carry
+   the colour, the icon chip is tinted, and a soft ring + inner glow lift it
+   above the neutral cards without shouting. */
+.stat-card.risk-critical .stat-val { color: var(--crit); }
+.stat-card.risk-critical .material-symbols-outlined { color: var(--crit); background: var(--crit-bg); }
+.stat-card.risk-critical { box-shadow: var(--e-2), inset 0 0 0 1px var(--crit-ring), inset 0 1px 0 var(--edge-light); }
+.stat-card.risk-high .stat-val { color: var(--high); }
+.stat-card.risk-high .material-symbols-outlined { color: var(--high); background: var(--high-bg); }
+.stat-card.risk-high { box-shadow: var(--e-2), inset 0 0 0 1px var(--high-ring), inset 0 1px 0 var(--edge-light); }
+.stat-card.risk-ok .stat-val { color: var(--ok); }
+.stat-card.risk-ok .material-symbols-outlined { color: var(--ok); background: var(--ok-bg); }
+.stat-card.risk-ok { box-shadow: var(--e-2), inset 0 0 0 1px var(--ok-ring), inset 0 1px 0 var(--edge-light); }
 
 .bar-row {
   display: flex;
@@ -2307,9 +2322,20 @@ kbd,
 }
 
 .bar-fill {
+  position: relative;
   height: 100%;
   border-radius: var(--r-full);
   transition: width var(--t-slow) var(--ease-out);
+}
+
+/* A top sheen so the fill reads as a rounded bar catching light, not a flat
+   block. Purely decorative, hence aria-hidden by being a pseudo-element. */
+.bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--edge-light), transparent 65%);
 }
 
 .bar-fill.critical { background: var(--crit); }

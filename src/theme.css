@@ -23,6 +23,11 @@
   --line: #1c2230;
   --line-strong: #2a3446;
 
+  /* A 1px top-lit edge for raised surfaces — the sheen that reads as glass.
+     Kept a token so App.css never spells a raw colour (the contrast audit
+     greps for one). Light presets override it toward transparent. */
+  --edge-light: rgba(255, 255, 255, 0.06);
+
   /* ---- text: a real hierarchy, not three greys ----------------------- */
   --t-1: #eef2f8; /* primary */
   --t-2: #a7b2c4; /* secondary */
