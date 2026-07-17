@@ -402,6 +402,50 @@ export default function App() {
     setSelectedFile(null);
   }, []);
 
+  /**
+   * The report reduced to what the findings list currently shows, for the
+   * filtered export. Counts are recomputed so the document's own summary agrees
+   * with its contents rather than with the full scan.
+   */
+  const filteredReport: ScanReport | null = useMemo(() => {
+    if (!report) return null;
+    const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    for (const f of filteredFindings) if (!f.suppressed) counts[f.severity]++;
+    return {
+      ...report,
+      findings: filteredFindings,
+      counts,
+      suppressedCount: filteredFindings.filter((f) => f.suppressed).length,
+    };
+  }, [report, filteredFindings]);
+
+  /**
+   * Exports what the list shows, not the whole report — for handing a triaged
+   * subset to someone. Human formats only: JSON stays the full data by
+   * definition, and a partial SARIF upload would make code scanning close every
+   * alert absent from it as fixed. The document carries a note saying it is a
+   * subset, so it cannot pass for the full report.
+   */
+  const exportFiltered = async (kind: "md" | "csv" | "html") => {
+    if (!report || !filteredReport) return;
+    const note = t("Отфильтрованная выборка: {n} из {total} находок полного отчёта.", {
+      n: filteredReport.findings.length,
+      total: report.findings.length,
+    });
+    const base = `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}-filtered`;
+    const cfg = {
+      md: { ext: "md", name: "Markdown", body: () => toMarkdown(filteredReport, t, note) },
+      csv: { ext: "csv", name: "CSV", body: () => toCsv(filteredReport, t) },
+      html: { ext: "html", name: "HTML", body: () => toHtml(filteredReport, t, note) },
+    }[kind];
+    const path = await saveDialog({
+      defaultPath: `${base}.${cfg.ext}`,
+      filters: [{ name: cfg.name, extensions: [cfg.ext] }],
+    });
+    if (!path) return;
+    await invoke("save_report", { path, json: cfg.body() }).catch((e) => setError(String(e)));
+  };
+
   const findingFilters: FindingFilters = useMemo(
     () => ({
       // Against the whole report, not the file selection: the tree is a
@@ -582,6 +626,32 @@ export default function App() {
         when: screen === "results" && !!report,
         run: exportHtml,
       },
+      // Exporting the triaged subset. Offered only while the list differs from
+      // the full report, and only in the human formats: JSON is the full data by
+      // definition, and a partial SARIF would close absent alerts as fixed.
+      ...(["md", "csv", "html"] as const).map((kind) => ({
+        id: `export-filtered-${kind}`,
+        label: t(
+          {
+            md: "Экспорт отфильтрованного в Markdown",
+            csv: "Экспорт отфильтрованного в CSV",
+            html: "Экспорт отфильтрованного в HTML",
+          }[kind]
+        ),
+        hint: report
+          ? t("{n} из {total} находок", {
+              n: filteredFindings.length,
+              total: report.findings.length,
+            })
+          : undefined,
+        icon: "filter_alt",
+        when:
+          screen === "results" &&
+          !!report &&
+          filteredFindings.length > 0 &&
+          filteredFindings.length !== report.findings.length,
+        run: () => exportFiltered(kind),
+      })),
       {
         id: "copy-md",
         label: t("Скопировать отчёт (Markdown)"),
@@ -647,6 +717,8 @@ export default function App() {
       exportMarkdown,
       exportCsv,
       exportHtml,
+      exportFiltered,
+      filteredFindings,
       copyMarkdown,
       rescan,
     ]

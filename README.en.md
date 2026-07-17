@@ -187,6 +187,13 @@ heading, `file:line`, the rule, CWE/OWASP, the description, the code snippet in 
 highlighted fence, and the fix. No need to copy the whole report to share one
 finding — and the format is shared with the report, so the two cannot drift apart.
 
+When the list is narrowed by filters, the palette offers **filtered export**
+(Markdown, CSV, HTML) — for handing the triaged subset to your team. The document
+says so honestly: "a selection of N of M findings from the full report", with its
+summary recomputed to match its contents. JSON and SARIF deliberately stay
+full-report only: JSON is the complete data by definition, and a partial SARIF
+upload would make code scanning close every alert absent from it as fixed.
+
 ## Interface
 
 A window with no OS frame: the title bar is ours, and panels are separated by a
