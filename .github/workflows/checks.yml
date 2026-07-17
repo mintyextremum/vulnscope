@@ -39,6 +39,25 @@ jobs:
       - name: Production build
         run: npm run build
 
+  # A scanner that reports vulnerable dependencies in other people's projects
+  # should know about its own. Both tools read the lockfiles, so this needs
+  # neither a build nor the Tauri system libraries and stays a fast job.
+  deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: npm audit
+        run: npm audit --audit-level=high
+      - uses: taiki-e/install-action@678b06b887cdbf44fa0601e5915f865e17c2241d # v2.44.60
+        with:
+          tool: cargo-audit
+      # Fails on advisories only. The unmaintained/unsound warnings today are
+      # GTK3 bindings Tauri pulls in for its Linux backend — not code that ships
+      # in the Windows build, and not ours to fix.
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit
+
   backend:
     # Windows is what this ships on, and the code knows it: PATHEXT resolution
     # for .cmd shims, and parser fixtures captured from real tools on Windows
