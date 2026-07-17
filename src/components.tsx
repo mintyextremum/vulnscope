@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import hljs from "highlight.js/lib/common";
 import { invoke } from "@tauri-apps/api/core";
 import { useVirtual } from "./ui";
+import { findingToMarkdown } from "./markdown";
 import { useT, Lang } from "./i18n";
 import {
   Finding,
@@ -815,13 +816,31 @@ export function FindingDetail({
   const [wholeFile, setWholeFile] = useState(false);
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<"idle" | "ok" | "fail">("idle");
 
   useEffect(() => {
     setOpen(false);
     setReason("");
     setWholeFile(false);
     setErr(null);
+    setCopyState("idle");
   }, [finding?.id]);
+
+  /**
+   * Reports on the button itself, both ways. `err` below belongs to the suppress
+   * form and only renders while it is open, so routing a copy failure there left
+   * the user clicking Copy and seeing nothing at all.
+   */
+  const copyFinding = async () => {
+    if (!finding) return;
+    try {
+      await navigator.clipboard.writeText(findingToMarkdown(finding, t, true));
+      setCopyState("ok");
+    } catch {
+      setCopyState("fail");
+    }
+    setTimeout(() => setCopyState("idle"), 2000);
+  };
 
   const suppress = async () => {
     if (!finding) return;
@@ -878,6 +897,22 @@ export function FindingDetail({
             </span>
           )}
           <div style={{ flex: 1 }} />
+          {/* Copying the whole report to share one finding is absurd, and this is
+              the usual next step: paste it into a ticket or a chat. */}
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={copyFinding}
+            title={t("Скопировать находку как Markdown — для тикета или чата")}
+          >
+            <Icon
+              name={copyState === "ok" ? "check" : copyState === "fail" ? "error" : "content_copy"}
+            />
+            {copyState === "ok"
+              ? t("Скопировано")
+              : copyState === "fail"
+              ? t("Не удалось")
+              : t("Копировать")}
+          </button>
           {finding.suppressed ? (
             <button className="btn btn-ghost btn-sm" onClick={unsuppress}>
               <Icon name="visibility" />

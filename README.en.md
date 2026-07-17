@@ -182,6 +182,11 @@ stays masked in every one. The Markdown report can also be copied straight to th
 clipboard (`Ctrl+K` → Copy report) to paste into a PR or chat without a save
 dialog.
 
+A single finding is copied by the **Copy** button on its card: the severity
+heading, `file:line`, the rule, CWE/OWASP, the description, the code snippet in a
+highlighted fence, and the fix. No need to copy the whole report to share one
+finding — and the format is shared with the report, so the two cannot drift apart.
+
 ## Interface
 
 A window with no OS frame: the title bar is ours, and panels are separated by a
