@@ -1,5 +1,7 @@
 # VulnScope
 
+[![checks](https://github.com/mintyextremum/vulnscope/actions/workflows/checks.yml/badge.svg)](https://github.com/mintyextremum/vulnscope/actions/workflows/checks.yml)
+
 *[Русская версия](README.md)*
 
 A desktop app for auditing code security. It scans local projects and public
