@@ -30,6 +30,7 @@ const DICT_FILE = join(SRC, "i18n.tsx");
 const RULES_FILE = join(ROOT, "src-tauri", "src", "rules.rs");
 const SECRETS_FILE = join(ROOT, "src-tauri", "src", "secrets.rs");
 const MODEL_FILE = join(ROOT, "src-tauri", "src", "model.rs");
+const SETTINGS_FILE = join(ROOT, "src-tauri", "src", "settings.rs");
 
 function walk(dir) {
   const out = [];
@@ -117,6 +118,24 @@ function labelKeys(file, enums) {
 }
 
 /**
+ * Rebindable actions and their groups, from `action_labels()` in settings.rs —
+ * tuples of (id, label, group) that the settings screen renders. This one is not
+ * theory: the screen printed them raw for a while, so most of the keybinding rows
+ * stayed Russian in the English UI with nothing to catch it.
+ */
+function actionLabelKeys(file) {
+  const keys = new Map();
+  const src = readFileSync(file, "utf8");
+  const fn = src.slice(src.indexOf("pub fn action_labels"));
+  const body = fn.slice(0, fn.indexOf("\n}"));
+  for (const m of body.matchAll(/\(\s*"[^"]+"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)/g)) {
+    add(keys, unesc(m[1]), "action_labels");
+    add(keys, unesc(m[2]), "action_labels (группа)");
+  }
+  return keys;
+}
+
+/**
  * Re-escapes a runtime string into the form it is written as inside a source
  * literal delimited by `q`, so it can be matched against the dictionary text.
  * Without this a key containing a newline is searched for as a real line break
@@ -173,6 +192,10 @@ const groups = [
   {
     name: "Метки времени выполнения (model.rs)",
     keys: labelKeys(MODEL_FILE, ["FindingSource", "SkipReason", "ScanPhase"]),
+  },
+  {
+    name: "Действия горячих клавиш (settings.rs)",
+    keys: actionLabelKeys(SETTINGS_FILE),
   },
 ];
 

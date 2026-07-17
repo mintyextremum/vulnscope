@@ -197,6 +197,21 @@ export const EN: Record<string, string> = {
   // -- findings list & filters
   "Поиск: название, путь, категория, CWE, CVE, код": "Search: title, path, category, CWE, CVE, code",
   "показать находки во всех файлах": "show findings from every file",
+  "Пересканировать": "Re-scan",
+  // Keybind actions and their groups: backend strings rendered on the settings
+  // screen, which used to print them raw and so stayed Russian in English.
+  "Командная палитра": "Command palette",
+  "Экспорт отчёта": "Export report",
+  "Вкладка «Обзор»": "Overview tab",
+  "Вкладка «Находки»": "Findings tab",
+  "Вкладка «Код»": "Code tab",
+  "Вкладка «Пропущено»": "Skipped tab",
+  "Следующая находка": "Next finding",
+  "Предыдущая находка": "Previous finding",
+  "Открыть находку в коде": "Open the finding in code",
+  "Поиск по файлам": "Search files",
+  "Навигация": "Navigation",
+  "Вкладки": "Tabs",
   "Копировать": "Copy",
   "Скопировано": "Copied",
   "Скопировать находку как Markdown — для тикета или чата": "Copy the finding as Markdown — for a ticket or chat",

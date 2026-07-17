@@ -211,6 +211,7 @@ invisible.
 | `Ctrl+E` | Custom rules |
 | `Ctrl+,` | Settings |
 | `Ctrl+N` | New scan |
+| `Ctrl+Shift+R` | Re-scan the same target |
 | `Ctrl+S` | Export report |
 | `1`–`4` | Tabs: overview / findings / code / skipped |
 | `J`, `K`, `↑`, `↓` | Move between findings |
@@ -258,6 +259,7 @@ strings from every place they reach the UI and fails on any the dictionary lacks
 | `src/**` | literal `t(...)` / `tr(...)` arguments |
 | `rules.rs`, `secrets.rs` | each rule's `title`, `description`, `recommendation`, `category` |
 | `model.rs` | the `sourceLabel`, `reasonLabel`, `phaseLabel` match arms |
+| `settings.rs` | keybinding action and group names (`action_labels()`) |
 
 So neither a new rule nor a new scan phase can ship untranslated. Strings with no
 Cyrillic in them (`Path traversal`, `Semgrep`, `document.write()`) are skipped:

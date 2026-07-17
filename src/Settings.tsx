@@ -269,13 +269,15 @@ export function SettingsScreen({
 
             {grouped.map(([group, items]) => (
               <div key={group}>
-                <div className="set-section">{group}</div>
+                {/* Both come from the backend as Russian strings, so they need
+                    the same t() as the rest of the catalogue content. */}
+                <div className="set-section">{t(group)}</div>
                 {items.map((a) => {
                   const combo = s.keybinds[a.id] ?? "";
                   const clash = conflictFor(a.id);
                   return (
                     <div key={a.id} className="key-row">
-                      <span className="key-label">{a.label}</span>
+                      <span className="key-label">{t(a.label)}</span>
                       {clash && (
                         <span className="tag cve" title={t("Конфликт сочетаний")}>
                           {t("конфликт")}
