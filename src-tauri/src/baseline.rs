@@ -307,7 +307,7 @@ pub fn compare(
         }
     }
 
-    delta.fixed.sort_by(|a, b| b.severity.cmp(&a.severity));
+    delta.fixed.sort_by_key(|f| std::cmp::Reverse(f.severity));
     (delta, statuses)
 }
 

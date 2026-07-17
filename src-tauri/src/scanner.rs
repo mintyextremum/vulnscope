@@ -723,7 +723,7 @@ pub async fn run_scan(
             lines,
         })
         .collect();
-    languages.sort_by(|a, b| b.files.cmp(&a.files));
+    languages.sort_by_key(|l| std::cmp::Reverse(l.files));
 
     let report = ScanReport {
         id: scan_id,

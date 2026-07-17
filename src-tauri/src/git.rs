@@ -208,9 +208,15 @@ mod tests {
 
     #[test]
     fn cleanup_refuses_paths_outside_cache() {
-        // Must not delete an arbitrary path even if asked.
-        let outside = PathBuf::from("D:\\Project");
+        // A real directory outside the clone cache — temp never sits under
+        // cache_dir/vulnscope/repos on any platform. The earlier version asserted
+        // on a hardcoded D:\Project, so it only proved anything on a machine that
+        // happened to have one and failed everywhere else, CI included.
+        let outside = std::env::temp_dir().join("vulnscope-cleanup-guard");
+        std::fs::create_dir_all(&outside).expect("temp dir for the test");
         cleanup_clone(&outside);
-        assert!(outside.exists(), "cleanup must never touch paths outside its cache");
+        let survived = outside.exists();
+        let _ = std::fs::remove_dir_all(&outside);
+        assert!(survived, "cleanup must never touch paths outside its cache");
     }
 }
