@@ -2469,11 +2469,25 @@ kbd,
 
 .rules-filters {
   display: flex;
-  align-items: center;
-  gap: var(--sp-4);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-4);
   background: var(--s-1);
   flex-shrink: 0;
+}
+
+.rules-filters .search-box {
+  width: 100%;
+}
+
+/* Confidence and language chips share one wrapping row below the search box,
+   so the search field always keeps its full width. */
+.rules-chiprow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
 }
 
 .lang-chips {

@@ -148,7 +148,7 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="rules-filters">
-        <div className="search-box" style={{ flex: 1, border: "none", padding: 0 }}>
+        <div className="search-box" style={{ border: "none", padding: 0 }}>
           <Icon name="search" style={{ left: 10 }} />
           <input
             placeholder={t("Поиск по id, названию, CWE, OWASP…")}
@@ -156,37 +156,39 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div className="conf-chips">
-          {CONF_ORDER.map((c) => (
+        <div className="rules-chiprow">
+          <div className="conf-chips">
+            {CONF_ORDER.map((c) => (
+              <button
+                key={c}
+                className={`lang-chip conf-chip conf-${c} ${
+                  confFilter.has(c) ? "active" : ""
+                } ${!confCounts[c] ? "zero" : ""}`}
+                onClick={() => toggleConf(c)}
+                title={t(CONFIDENCE_LABEL[c])}
+              >
+                {t(CONFIDENCE_LABEL[c])}
+                <span className="chip-count">{confCounts[c] ?? 0}</span>
+              </button>
+            ))}
+          </div>
+          <div className="lang-chips">
             <button
-              key={c}
-              className={`lang-chip conf-chip conf-${c} ${
-                confFilter.has(c) ? "active" : ""
-              } ${!confCounts[c] ? "zero" : ""}`}
-              onClick={() => toggleConf(c)}
-              title={t(CONFIDENCE_LABEL[c])}
+              className={`lang-chip ${langFilter === null ? "active" : ""}`}
+              onClick={() => setLangFilter(null)}
             >
-              {t(CONFIDENCE_LABEL[c])}
-              <span className="chip-count">{confCounts[c] ?? 0}</span>
+              {t("Все")}
             </button>
-          ))}
-        </div>
-        <div className="lang-chips">
-          <button
-            className={`lang-chip ${langFilter === null ? "active" : ""}`}
-            onClick={() => setLangFilter(null)}
-          >
-            {t("Все")}
-          </button>
-          {languages.map((l) => (
-            <button
-              key={l}
-              className={`lang-chip ${langFilter === l ? "active" : ""}`}
-              onClick={() => setLangFilter(langFilter === l ? null : l)}
-            >
-              {l}
-            </button>
-          ))}
+            {languages.map((l) => (
+              <button
+                key={l}
+                className={`lang-chip ${langFilter === l ? "active" : ""}`}
+                onClick={() => setLangFilter(langFilter === l ? null : l)}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
