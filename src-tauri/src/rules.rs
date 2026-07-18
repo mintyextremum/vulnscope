@@ -2479,6 +2479,120 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // -------------------- Прототип, postMessage, SpEL, XXE, секреты, тайминг
+    Rule {
+        id: "VS-JS-032",
+        title: "Загрязнение прототипа (запись в __proto__)",
+        description: "Присваивание в __proto__ или constructor.prototype меняет прототип всех объектов сразу. Через управляемый ключ атакующий подсовывает свойства, которые всплывают везде, — обход проверок, порча логики, иногда RCE.",
+        recommendation: "Не пишите в __proto__/prototype по вычисляемому ключу. Отклоняйте ключи __proto__, constructor, prototype; используйте Map или Object.create(null).",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Загрязнение прототипа",
+        languages: JS_FAMILY,
+        pattern: r#"(?:\.__proto__|\.constructor\.prototype|\[\s*["'`]__proto__["'`]\s*\])(?:\.\w+|\[[^\]]+\])*\s*=[^=]"#,
+        unless_contains: &[],
+        cwe: &["CWE-1321"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/1321.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JS-033",
+        title: "postMessage с origin \"*\"",
+        description: "postMessage(data, \"*\") отправляет сообщение в любое окно на любом источнике. Если во фрейме окажется чужая страница, она прочитает данные. Так утекают токены и персональные данные.",
+        recommendation: "Указывайте конкретный целевой origin вместо \"*\", а на приёмной стороне проверяйте event.origin.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Утечка данных",
+        languages: JS_FAMILY,
+        pattern: r#"\.postMessage\s*\([^,]*,\s*["'`]\*["'`]\s*\)"#,
+        unless_contains: &[],
+        cwe: &["CWE-345"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/345.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-018",
+        title: "SpEL-инъекция: выражение из пользовательских данных",
+        description: "parseExpression() с собранной или переменной строкой компилирует и исполняет Spring EL — а через него любой код Java. Это выполнение кода на сервере из ввода.",
+        recommendation: "Не собирайте SpEL из ввода. Используйте SimpleEvaluationContext и статические выражения; данные передавайте как переменные.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"parseExpression\s*\(\s*(?:"[^"]*"\s*\+|[a-zA-Z_]\w*\s*[),])"#,
+        unless_contains: &[],
+        cwe: &["CWE-917"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/917.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-019",
+        title: "XML-фабрика без защиты от XXE",
+        description: "DocumentBuilderFactory/SAXParserFactory/XMLInputFactory по умолчанию разбирают внешние сущности (DTD). Если внешние сущности не отключены, XML с ссылкой на файл или URL раскрывает содержимое или бьёт по SSRF.",
+        recommendation: "Отключите DTD: factory.setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true) и внешние сущности перед разбором.",
+        severity: Severity::Medium,
+        confidence: Confidence::Low,
+        category: "XXE",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"(?:DocumentBuilderFactory|SAXParserFactory|XMLInputFactory)\.newInstance\s*\(",
+        unless_contains: &["disallow-doctype-decl", "setExpandEntityReferences(false)"],
+        cwe: &["CWE-611"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/611.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-020",
+        title: "Десериализация через XMLDecoder",
+        description: "java.beans.XMLDecoder исполняет инструкции из XML при разборе — создаёт объекты и вызывает методы. XML из недоверенного источника даёт выполнение произвольного кода; это известный RCE-гаджет.",
+        recommendation: "Не разбирайте недоверенный XML через XMLDecoder. Возьмите безопасный формат (JSON со схемой) или whitelisting-десериализатор.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Небезопасная десериализация",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"new\s+XMLDecoder\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-502"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://cwe.mitre.org/data/definitions/502.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-032",
+        title: "SECRET_KEY зашит в код",
+        description: "Строковый литерал в SECRET_KEY (Django/Flask) — это ключ подписи сессий и CSRF-токенов прямо в исходнике. Зная его, атакующий подделает сессию и войдёт кем угодно.",
+        recommendation: "Читайте SECRET_KEY из окружения или хранилища секретов (os.environ[\"SECRET_KEY\"]). Утёкший ключ смените.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Хранение секретов",
+        languages: PY,
+        pattern: r#"SECRET_KEY\s*=\s*["'][^"']{8,}["']"#,
+        unless_contains: &["os.environ", "getenv", "config(", "env("],
+        cwe: &["CWE-798"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/798.html"],
+        skip_in_tests: true,
+    },
+    Rule {
+        id: "VS-PY-033",
+        title: "Сравнение дайджестов не за постоянное время",
+        description: "Сравнение хеша/HMAC обычным == выходит из цикла на первом несовпавшем байте. По времени ответа атакующий побайтово подбирает правильную подпись (timing attack).",
+        recommendation: "Сравнивайте секреты через hmac.compare_digest(a, b) — оно работает за постоянное время.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Криптография",
+        languages: PY,
+        pattern: r#"\.(?:hex)?digest\(\)\s*==|==\s*\w[\w.]*\.(?:hex)?digest\(\)"#,
+        unless_contains: &["compare_digest"],
+        cwe: &["CWE-208"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/208.html"],
+        skip_in_tests: false,
+    },
+
     // ----------------------------------- Крипто, LDAP/XPath, mass assignment
     Rule {
         id: "VS-JV-014",
@@ -3761,6 +3875,60 @@ mod tests {
         // Strong parameters via permit must not trip mass assignment.
         let ok = "user.update(params.require(:user).permit(:name))\n";
         assert!(!hit_ids(ok, Language::Ruby, "u.rb").contains(&"VS-RB-008"));
+    }
+
+    #[test]
+    fn finds_prototype_pollution() {
+        assert!(hit_ids("target[key].__proto__ = source;\n", Language::JavaScript, "merge.js").contains(&"VS-JS-032"));
+        assert!(hit_ids("obj.constructor.prototype.admin = true;\n", Language::JavaScript, "x.js").contains(&"VS-JS-032"));
+        // A comparison against __proto__ must not be flagged as a write.
+        let ok = "if (obj.__proto__ === Array.prototype) return;\n";
+        assert!(!hit_ids(ok, Language::JavaScript, "x.js").contains(&"VS-JS-032"));
+    }
+
+    #[test]
+    fn finds_postmessage_wildcard() {
+        assert!(hit_ids("win.postMessage(payload, \"*\");\n", Language::JavaScript, "x.js").contains(&"VS-JS-033"));
+        // A concrete target origin is fine.
+        let ok = "win.postMessage(payload, \"https://app.example.com\");\n";
+        assert!(!hit_ids(ok, Language::JavaScript, "x.js").contains(&"VS-JS-033"));
+    }
+
+    #[test]
+    fn finds_spel_injection() {
+        let bad = "Expression e = parser.parseExpression(userInput);\n";
+        assert!(hit_ids(bad, Language::Java, "Eval.java").contains(&"VS-JV-018"));
+        let concat = "parser.parseExpression(\"T(\" + cls + \").run()\");\n";
+        assert!(hit_ids(concat, Language::Java, "Eval.java").contains(&"VS-JV-018"));
+    }
+
+    #[test]
+    fn finds_xxe_factory_and_xmldecoder() {
+        let f = "DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();\n";
+        assert!(hit_ids(f, Language::Java, "Xml.java").contains(&"VS-JV-019"));
+        let dec = "XMLDecoder d = new XMLDecoder(in);\n";
+        assert!(hit_ids(dec, Language::Java, "De.java").contains(&"VS-JV-020"));
+        // A hardened factory must not be flagged.
+        let ok = "dbf.setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true);\n";
+        assert!(!hit_ids(ok, Language::Java, "Xml.java").contains(&"VS-JV-019"));
+    }
+
+    #[test]
+    fn finds_hardcoded_secret_key() {
+        let bad = "SECRET_KEY = \"django-insecure-9f8a7b6c5d4e3f2a1b\"\n";
+        assert!(hit_ids(bad, Language::Python, "settings.py").contains(&"VS-PY-032"));
+        // Reading from the environment is the correct pattern.
+        let ok = "SECRET_KEY = os.environ[\"SECRET_KEY\"]\n";
+        assert!(!hit_ids(ok, Language::Python, "settings.py").contains(&"VS-PY-032"));
+    }
+
+    #[test]
+    fn finds_timing_unsafe_digest_compare() {
+        let bad = "if mac.hexdigest() == provided:\n    ok()\n";
+        assert!(hit_ids(bad, Language::Python, "verify.py").contains(&"VS-PY-033"));
+        // compare_digest is the constant-time fix.
+        let ok = "if hmac.compare_digest(mac.hexdigest(), provided):\n    ok()\n";
+        assert!(!hit_ids(ok, Language::Python, "verify.py").contains(&"VS-PY-033"));
     }
 
     #[test]
