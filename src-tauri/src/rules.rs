@@ -2479,6 +2479,152 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ----------------------------------- Крипто, LDAP/XPath, mass assignment
+    Rule {
+        id: "VS-JV-014",
+        title: "Фиксированный (нулевой) IV для шифрования",
+        description: "new IvParameterSpec(new byte[...]) даёт вектор инициализации из нулей — один и тот же для каждого сообщения. В CBC/CTR это раскрывает совпадения открытого текста и ломает семантическую стойкость.",
+        recommendation: "Генерируйте случайный IV на каждое сообщение через SecureRandom и передавайте его рядом с шифротекстом.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"new\s+IvParameterSpec\s*\(\s*new\s+byte\s*\[",
+        unless_contains: &[],
+        cwe: &["CWE-329", "CWE-1204"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/329.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-015",
+        title: "Ключ шифрования зашит в код",
+        description: "new SecretKeySpec(\"...\".getBytes()) берёт ключ из строкового литерала. Ключ в исходнике доступен всем, у кого есть код, и остаётся в истории git.",
+        recommendation: "Держите ключ вне кода: в переменной окружения, хранилище секретов или KMS. Скомпрометированный ключ смените.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"new\s+SecretKeySpec\s*\(\s*"[^"]+"\s*\.getBytes"#,
+        unless_contains: &[],
+        cwe: &["CWE-321"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/321.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-016",
+        title: "LDAP-инъекция: фильтр собирается конкатенацией",
+        description: "Склейка пользовательского ввода в LDAP-фильтр («(uid=» + name) позволяет атакующему дописать свои условия — обойти аутентификацию или вытащить лишние записи.",
+        recommendation: "Экранируйте ввод по RFC 4515 (спецсимволы \\ * ( ) NUL) или используйте параметризованные фильтры библиотеки.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "LDAP-инъекция",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"(?i)"\(\s*\w+\s*=[^"]*"\s*\+"#,
+        unless_contains: &[],
+        cwe: &["CWE-90"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/90.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-017",
+        title: "XPath-инъекция: выражение собирается конкатенацией",
+        description: "Склейка ввода в XPath (\"/users/user[name='\" + name) позволяет изменить структуру запроса и обойти проверку — например, вернуть чужого пользователя.",
+        recommendation: "Используйте XPath с переменными (XPathVariableResolver) вместо конкатенации, либо экранируйте ввод.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "XPath-инъекция",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"(?i)(?:evaluate|compile|selectNodes|selectSingleNode)\s*\(\s*"[^"]*/[^"]*"\s*\+"#,
+        unless_contains: &[],
+        cwe: &["CWE-643"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/643.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-010",
+        title: "Шифрование в режиме ECB",
+        description: "CipherMode.ECB шифрует одинаковые блоки одинаково, поэтому структура открытого текста просвечивает в шифротексте.",
+        recommendation: "Используйте AES-GCM (AesGcm) или CBC со случайным IV на каждое сообщение.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::CSharp],
+        pattern: r"CipherMode\.ECB\b",
+        unless_contains: &[],
+        cwe: &["CWE-327"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-030",
+        title: "Шифрование в режиме ECB",
+        description: "MODE_ECB шифрует одинаковые блоки одинаково, поэтому структура открытого текста видна в шифротексте.",
+        recommendation: "Используйте AES-GCM или CBC со случайным IV на каждое сообщение (Crypto.Cipher.AES с MODE_GCM).",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: PY,
+        pattern: r"\bMODE_ECB\b",
+        unless_contains: &[],
+        cwe: &["CWE-327"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-031",
+        title: "LDAP-инъекция: фильтр собирается конкатенацией",
+        description: "Подстановка ввода в LDAP-фильтр («(uid=» + name или f-строкой) позволяет дописать свои условия и обойти аутентификацию или прочитать лишние записи.",
+        recommendation: "Экранируйте ввод через ldap.filter.escape_filter_chars() перед вставкой в фильтр.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "LDAP-инъекция",
+        languages: PY,
+        pattern: r#"(?i)"\(\s*\w+\s*=[^"]*"\s*(?:\+|%)|f"\(\s*\w+\s*=[^"]*\{"#,
+        unless_contains: &[],
+        cwe: &["CWE-90"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/90.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-RB-008",
+        title: "Mass assignment: массовое присваивание из params",
+        description: "permit! или update_attributes(params) присваивает модели все поля из запроса. Атакующий может выставить те, что не предназначались для правки — например, admin=true.",
+        recommendation: "Разрешайте только нужные поля явным списком: params.require(:user).permit(:name, :email).",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Контроль доступа",
+        languages: &[Language::Ruby],
+        pattern: r#"\.permit!|(?:update_attributes|update|create)\s*\(\s*params\s*\)"#,
+        unless_contains: &[".permit("],
+        cwe: &["CWE-915"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/915.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-RB-009",
+        title: "SSTI: ERB-шаблон из пользовательских данных",
+        description: "ERB.new с данными из params/request компилирует и исполняет их как шаблон — а значит, как код Ruby. Это инъекция шаблона с выполнением кода на сервере.",
+        recommendation: "Не собирайте шаблон из ввода. Рендерите статические шаблоны и передавайте данные через локальные переменные.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Ruby],
+        pattern: r#"ERB\.new\s*\(\s*(?:params|request|@?\w*(?:input|user|body|content))"#,
+        unless_contains: &[],
+        cwe: &["CWE-94"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/94.html"],
+        skip_in_tests: false,
+    },
+
     // ------------------------------------------ Индикаторы компрометации
     // These are not "risky patterns" — they are what an attacker plants. A live
     // web shell or a reverse shell in the tree means the box is already owned, so
@@ -3575,6 +3721,46 @@ mod tests {
         // A catch that actually does something is fine.
         let ok = "try:\n    f()\nexcept ValueError:\n    log(e)\n";
         assert!(!hit_ids(ok, Language::Python, "a.py").contains(&"VS-PY-029"));
+    }
+
+    #[test]
+    fn finds_weak_crypto_iv_and_key() {
+        let iv = "cipher.init(ENCRYPT_MODE, key, new IvParameterSpec(new byte[16]));\n";
+        assert!(hit_ids(iv, Language::Java, "Crypto.java").contains(&"VS-JV-014"));
+        let key = "SecretKeySpec k = new SecretKeySpec(\"0123456789abcdef\".getBytes(), \"AES\");\n";
+        assert!(hit_ids(key, Language::Java, "Crypto.java").contains(&"VS-JV-015"));
+        // A random IV from SecureRandom must not trip the fixed-IV rule.
+        let ok = "byte[] iv = new byte[16]; rng.nextBytes(iv);\nnew IvParameterSpec(iv);\n";
+        assert!(!hit_ids(ok, Language::Java, "Crypto.java").contains(&"VS-JV-014"));
+    }
+
+    #[test]
+    fn finds_ecb_mode() {
+        assert!(hit_ids("aes.Mode = CipherMode.ECB;\n", Language::CSharp, "Enc.cs").contains(&"VS-CS-010"));
+        assert!(hit_ids("cipher = AES.new(key, AES.MODE_ECB)\n", Language::Python, "enc.py").contains(&"VS-PY-030"));
+    }
+
+    #[test]
+    fn finds_ldap_injection() {
+        let jv = "String filter = \"(uid=\" + username + \")\";\n";
+        assert!(hit_ids(jv, Language::Java, "Auth.java").contains(&"VS-JV-016"));
+        let py = "flt = \"(uid=\" + username + \")\"\n";
+        assert!(hit_ids(py, Language::Python, "auth.py").contains(&"VS-PY-031"));
+    }
+
+    #[test]
+    fn finds_xpath_injection() {
+        let code = "Object r = xpath.evaluate(\"/users/user[name='\" + name + \"']\", doc);\n";
+        assert!(hit_ids(code, Language::Java, "Lookup.java").contains(&"VS-JV-017"));
+    }
+
+    #[test]
+    fn finds_ruby_mass_assignment_and_ssti() {
+        assert!(hit_ids("user.update_attributes(params)\n", Language::Ruby, "u.rb").contains(&"VS-RB-008"));
+        assert!(hit_ids("ERB.new(params[:tpl]).result(binding)\n", Language::Ruby, "r.rb").contains(&"VS-RB-009"));
+        // Strong parameters via permit must not trip mass assignment.
+        let ok = "user.update(params.require(:user).permit(:name))\n";
+        assert!(!hit_ids(ok, Language::Ruby, "u.rb").contains(&"VS-RB-008"));
     }
 
     #[test]
