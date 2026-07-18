@@ -409,6 +409,11 @@ pub struct FindingExtra {
     /// this finding's confidence above the rule's baseline.
     #[serde(default)]
     pub corroborated: bool,
+    /// True for experimental (BETA) heuristic findings: a *suspected* issue the
+    /// precise rule catalogue did not catch, surfaced for review rather than as
+    /// a confirmed defect.
+    #[serde(default)]
+    pub experimental: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

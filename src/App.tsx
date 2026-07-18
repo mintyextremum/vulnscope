@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -78,6 +78,9 @@ export default function App() {
   const [includeVendor, setIncludeVendor] = useState(false);
   const [checkSecrets, setCheckSecrets] = useState(true);
   const [checkDependencies, setCheckDependencies] = useState(true);
+  const [experimental, setExperimental] = useState(
+    () => localStorage.getItem("vs.experimental") !== "0",
+  );
   const [enabledTools, setEnabledTools] = useState<Set<ToolId>>(new Set());
 
   const [progress, setProgress] = useState<ScanProgress | null>(null);
@@ -213,6 +216,7 @@ export default function App() {
       includeVendor,
       checkSecrets,
       checkDependencies,
+      experimental,
       externalTools: [...enabledTools],
     };
 
@@ -913,6 +917,8 @@ export default function App() {
           setCheckSecrets={setCheckSecrets}
           checkDependencies={checkDependencies}
           setCheckDependencies={setCheckDependencies}
+          experimental={experimental}
+          setExperimental={setExperimental}
           enabledTools={enabledTools}
           setEnabledTools={setEnabledTools}
           canScan={canScan}
@@ -1106,6 +1112,8 @@ interface SetupProps {
   setCheckSecrets: (v: boolean) => void;
   checkDependencies: boolean;
   setCheckDependencies: (v: boolean) => void;
+  experimental: boolean;
+  setExperimental: (v: boolean) => void;
   enabledTools: Set<ToolId>;
   setEnabledTools: (v: Set<ToolId>) => void;
   canScan: boolean;
@@ -1230,6 +1238,22 @@ function SetupScreen(p: SetupProps) {
               title={t("Включая зависимости")}
               desc={t("Сканировать node_modules, venv и т.п. Заметно дольше")}
             />
+            <Check
+              checked={p.experimental}
+              onChange={(v) => {
+                p.setExperimental(v);
+                localStorage.setItem("vs.experimental", v ? "1" : "0");
+              }}
+              title={
+                <>
+                  {t("Экспериментальные проверки")}
+                  <span className="beta-badge">BETA</span>
+                </>
+              }
+              desc={t(
+                "Эвристики: помечают возможные уязвимости, которые не поймали точные правила",
+              )}
+            />
           </div>
         </div>
 
@@ -1277,7 +1301,7 @@ function Check({
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
-  title: string;
+  title: ReactNode;
   desc: string;
 }) {
   return (

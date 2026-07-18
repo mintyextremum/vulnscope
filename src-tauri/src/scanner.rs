@@ -36,6 +36,10 @@ pub struct ScanOptions {
     pub check_secrets: bool,
     #[serde(default = "default_true")]
     pub check_dependencies: bool,
+    /// Experimental (BETA) heuristic pass: flags *suspected* issues the precise
+    /// rules missed. On by default, but every such finding is clearly labelled.
+    #[serde(default = "default_true")]
+    pub experimental: bool,
     #[serde(default)]
     pub external_tools: Vec<Tool>,
 }
@@ -208,11 +212,13 @@ fn scan_user_rules(
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn scan_one_file(
     abs: &Path,
     rel: &str,
     lang: Language,
     check_secrets: bool,
+    experimental: bool,
     user_rules: &[userrules::CompiledUserRule],
     max_findings: usize,
 ) -> Option<(Vec<Finding>, u32, u64)> {
@@ -244,6 +250,7 @@ fn scan_one_file(
                 impact: ex.impact.iter().map(|s| s.to_string()).collect(),
                 fix_code: Some(ex.fix_code.to_string()),
                 corroborated,
+                experimental: false,
             }
         });
 
@@ -322,9 +329,72 @@ fn scan_one_file(
 
     findings.extend(scan_user_rules(&content, &index, rel, lang, user_rules));
 
+    // Experimental (BETA) heuristic pass. Fires only on lines the precise rules
+    // and secrets left untouched, so it adds *suspected* issues rather than
+    // duplicating confirmed ones.
+    if experimental && rules::content_has_taint(&content) {
+        let covered: std::collections::HashSet<u32> = findings.iter().map(|f| f.line).collect();
+        let mut heur_count = 0;
+        for line in 1..=lines {
+            if heur_count >= 25 {
+                // Cap per file so a pathological file can't flood the report.
+                break;
+            }
+            if covered.contains(&line) {
+                continue;
+            }
+            let text = index.line_text(line);
+            if text.trim().is_empty() || rules::is_comment_line(text, lang) {
+                continue;
+            }
+            // One heuristic finding per line is enough signal.
+            let Some(h) = rules::line_heuristics(text, lang).into_iter().next() else {
+                continue;
+            };
+            let column = text.len() as u32 - text.trim_start().len() as u32 + 1;
+            let (snippet, snippet_start_line) = index.snippet(line);
+            findings.push(Finding {
+                id: format!("{}:{}:{}", h.id, rel, line),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: h.id.to_string(),
+                title: h.title.to_string(),
+                description: h.description.to_string(),
+                recommendation: h.recommendation.to_string(),
+                severity: h.severity,
+                confidence: Confidence::Low,
+                source: FindingSource::Builtin,
+                source_label: FindingSource::Builtin.label().to_string(),
+                category: h.category.to_string(),
+                file: rel.to_string(),
+                line,
+                end_line: line,
+                column,
+                end_column: column,
+                snippet,
+                snippet_start_line,
+                cwe: h.cwe.iter().map(|s| s.to_string()).collect(),
+                owasp: Some(OWASP_INJECTION_STR.to_string()),
+                cve: Vec::new(),
+                references: Vec::new(),
+                extra: Some(FindingExtra {
+                    experimental: true,
+                    ..Default::default()
+                }),
+                package: None,
+            });
+            heur_count += 1;
+        }
+    }
+
     findings.truncate(max_findings);
     Some((findings, lines, size))
 }
+
+/// OWASP tag shared by the experimental injection heuristics.
+const OWASP_INJECTION_STR: &str = "A03:2021 – Injection";
 
 struct Progress {
     app: AppHandle,
@@ -475,6 +545,7 @@ pub async fn run_scan(
 
     // --------------------------------------------------------- scan the files
     let check_secrets = opts.check_secrets;
+    let experimental = opts.experimental;
     let lines_total = AtomicU64::new(0);
     let bytes_total = AtomicU64::new(0);
 
@@ -496,6 +567,7 @@ pub async fn run_scan(
                         &c.rel_path,
                         c.language,
                         check_secrets,
+                        experimental,
                         &compiled_user,
                         max_findings,
                     );
@@ -1108,7 +1180,7 @@ mod tests {
         )
         .unwrap();
 
-        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, &[], 200).unwrap();
+        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, false, &[], 200).unwrap();
         let secret_findings: Vec<_> = findings
             .iter()
             .filter(|f| f.source == FindingSource::Secrets)
@@ -1280,7 +1352,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/app.py")
             .unwrap();
-        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, &[], 200).unwrap();
+        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, false, &[], 200).unwrap();
 
         assert!(lines >= 5);
         assert!(size > 0);
@@ -1300,7 +1372,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/safe.py")
             .unwrap();
-        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, &[], 200).unwrap();
+        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, false, &[], 200).unwrap();
         assert!(clean.is_empty(), "clean file produced findings: {clean:?}");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -1540,7 +1612,7 @@ mod tests {
         assert!(warns.is_empty());
 
         let (findings, _, _) =
-            scan_one_file(&path, "app.py", Language::Python, false, &compiled, 200).unwrap();
+            scan_one_file(&path, "app.py", Language::Python, false, false, &compiled, 200).unwrap();
 
         let mine: Vec<_> = findings
             .iter()
@@ -1566,13 +1638,13 @@ mod tests {
         let py = dir.join("a.py");
         std::fs::write(&py, "# banned_call(1)\n").unwrap();
         let (compiled, _) = userrules::compile(&[user_rule("MY-001", r"banned_call\s*\(", &["python"])]);
-        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, &compiled, 200).unwrap();
+        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, false, &compiled, 200).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         // A python-scoped rule must not fire on Rust.
         let rs = dir.join("b.rs");
         std::fs::write(&rs, "fn f() { banned_call(1); }\n").unwrap();
-        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, &compiled, 200).unwrap();
+        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, &compiled, 200).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         let _ = std::fs::remove_dir_all(&dir);

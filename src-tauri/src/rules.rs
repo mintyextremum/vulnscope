@@ -4632,6 +4632,149 @@ pub fn sink_present(id: &str, content: &str) -> bool {
         .unwrap_or(false)
 }
 
+// ---------------------------------------------------------------------------
+// Experimental (BETA) heuristics.
+//
+// A precise rule says "this exact pattern is dangerous". A heuristic says "user
+// input and a dangerous call appear on the same line — this *might* be
+// exploitable". It fires only on lines the precise catalogue did not already
+// flag, so it surfaces *suspected* issues the rules missed, at low confidence
+// and clearly labelled BETA. This is taint-lite: real, useful, and honest about
+// being a guess rather than a proof.
+
+const HEUR_LANGS: &[Language] = &[
+    Language::Python,
+    Language::JavaScript,
+    Language::TypeScript,
+    Language::Jsx,
+    Language::Tsx,
+    Language::Php,
+    Language::Ruby,
+    Language::Java,
+    Language::Kotlin,
+    Language::Go,
+    Language::CSharp,
+    Language::Scala,
+    Language::Perl,
+    Language::Elixir,
+];
+
+pub struct Heuristic {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
+    pub recommendation: &'static str,
+    pub severity: Severity,
+    pub category: &'static str,
+    pub languages: &'static [Language],
+    /// A user-input indicator; must be present on the line.
+    pub taint: &'static str,
+    /// A dangerous call; must be present on the same line.
+    pub sink: &'static str,
+    pub cwe: &'static [&'static str],
+}
+
+/// Shared user-input indicator: request objects, CGI superglobals, argv, stdin.
+const TAINT: &str = r#"(?i)(?:\b(?:req|request|params?|argv|body|cookie|user_?input|stdin|form_?data|payload)\b|\$_(?:GET|POST|REQUEST|COOKIE)|\binput\s*\(|getenv\s*\(|process\.argv|readLine\s*\(|Console\.Read)"#;
+
+pub static HEURISTICS: &[Heuristic] = &[
+    Heuristic {
+        id: "VS-EXP-001",
+        title: "Возможная инъекция команд",
+        description: "В одной строке встречаются пользовательский ввод и запуск системной команды. Если ввод попадает в команду без экранирования, это инъекция команд ОС. Это эвристика (BETA): точное правило здесь не сработало, проверьте поток данных вручную.",
+        recommendation: "Убедитесь, что ввод не попадает в команду. Запускайте процессы с массивом аргументов без шелла и с белым списком.",
+        severity: Severity::Medium,
+        category: "Инъекция команд",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)\b(?:system|popen|shell_exec|passthru|proc_open|pcntl_exec|Runtime\.getRuntime|ProcessBuilder|subprocess\.(?:call|run|Popen|check_output)|os\.system|child_process\.\w+|exec(?:File|Sync)?)\s*\(",
+        cwe: &["CWE-78"],
+    },
+    Heuristic {
+        id: "VS-EXP-002",
+        title: "Возможная SQL-инъекция",
+        description: "В одной строке встречаются пользовательский ввод и выполнение SQL-запроса. Если ввод склеивается в текст запроса, это SQL-инъекция. Это эвристика (BETA): проверьте, используется ли параметризация.",
+        recommendation: "Используйте параметризованные запросы (placeholders), а не конкатенацию/интерполяцию ввода в SQL.",
+        severity: Severity::High,
+        category: "SQL-инъекция",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)\.(?:execute|executemany|query|rawQuery|exec|prepare|raw)\s*\(",
+        cwe: &["CWE-89"],
+    },
+    Heuristic {
+        id: "VS-EXP-003",
+        title: "Возможный path traversal",
+        description: "В одной строке встречаются пользовательский ввод и открытие файла. Если имя файла задаёт пользователь, через ../ он выйдет за пределы каталога. Это эвристика (BETA): проверьте, ограничен ли путь.",
+        recommendation: "Сопоставляйте имя с белым списком или берите только basename и фиксируйте базовый каталог; проверяйте результат после нормализации пути.",
+        severity: Severity::Medium,
+        category: "Path traversal",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink)\s*\(",
+        cwe: &["CWE-22"],
+    },
+    Heuristic {
+        id: "VS-EXP-004",
+        title: "Возможный SSRF",
+        description: "В одной строке встречаются пользовательский ввод и исходящий HTTP-запрос. Если адрес задаёт пользователь, сервер сходит куда угодно — вплоть до внутренних сервисов и метаданных облака. Это эвристика (BETA).",
+        recommendation: "Проверяйте и ограничивайте целевой адрес белым списком доменов/сетей; запрещайте приватные диапазоны и редиректы на них.",
+        severity: Severity::Medium,
+        category: "SSRF",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)\b(?:requests\.(?:get|post|put|delete|head)|urlopen|urlretrieve|fetch|axios|HttpClient|WebClient|OkHttp|http\.(?:Get|Post|get|post)|URLConnection)\s*[.(]",
+        cwe: &["CWE-918"],
+    },
+    Heuristic {
+        id: "VS-EXP-005",
+        title: "Возможное выполнение кода",
+        description: "В одной строке встречаются пользовательский ввод и eval/exec-подобный вызов. Если ввод исполняется как код или десериализуется небезопасно, это выполнение произвольного кода. Это эвристика (BETA).",
+        recommendation: "Не исполняйте и не десериализуйте пользовательские данные. Используйте безопасные парсеры и белые списки.",
+        severity: Severity::High,
+        category: "Выполнение кода",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)\b(?:eval|exec|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load)\s*\(",
+        cwe: &["CWE-94"],
+    },
+];
+
+static TAINT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(TAINT).expect("bad TAINT"));
+
+/// Cheap gate: if a file has no user-input indicator at all, no heuristic can
+/// fire, so the per-line pass is skipped entirely.
+pub fn content_has_taint(content: &str) -> bool {
+    TAINT_RE.is_match(content)
+}
+
+static HEURISTIC_RE: Lazy<Vec<(Regex, Regex)>> = Lazy::new(|| {
+    HEURISTICS
+        .iter()
+        .map(|h| {
+            (
+                Regex::new(h.taint).expect("bad heuristic taint"),
+                Regex::new(h.sink).expect("bad heuristic sink"),
+            )
+        })
+        .collect()
+});
+
+/// Heuristics whose taint *and* sink both match this single line, for `lang`.
+pub fn line_heuristics(line: &str, lang: Language) -> Vec<&'static Heuristic> {
+    HEURISTICS
+        .iter()
+        .enumerate()
+        .filter(|(i, h)| {
+            h.languages.contains(&lang) && {
+                let (taint, sink) = &HEURISTIC_RE[*i];
+                taint.is_match(line) && sink.is_match(line)
+            }
+        })
+        .map(|(_, h)| h)
+        .collect()
+}
+
 pub struct CompiledRule {
     pub index: usize,
     pub regex: Regex,
@@ -5519,6 +5662,22 @@ mod tests {
         let with_sink = "String f = \"(uid=\" + user + \")\";\nctx.search(base, f, controls);\n";
         assert!(sink_present("VS-JV-016", with_sink));
         assert!(extra_for("VS-JV-016").is_some());
+    }
+
+    #[test]
+    fn heuristic_patterns_compile_and_match() {
+        // Every heuristic's taint and sink must compile.
+        for h in HEURISTICS {
+            assert!(Regex::new(h.taint).is_ok() && Regex::new(h.sink).is_ok(), "bad {}", h.id);
+        }
+        // User input + a system call on one line → suspected command injection.
+        let hit = line_heuristics("run(subprocess.check_output(request.args['cmd']))", Language::Python);
+        assert!(hit.iter().any(|h| h.id == "VS-EXP-001"), "EXP-001 should fire");
+        // No user-input token on the line → no heuristic.
+        let clean = line_heuristics("subprocess.check_output(['ls', '-la'])", Language::Python);
+        assert!(clean.is_empty(), "no taint token, should not fire");
+        assert!(!content_has_taint("let x = compute(2 + 2);"));
+        assert!(content_has_taint("value = request.args['id']"));
     }
 
     #[test]

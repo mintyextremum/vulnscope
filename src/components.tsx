@@ -542,6 +542,7 @@ export function FindingList({
                 {f.line > 0 ? `:${f.line}` : ""}
               </div>
               <div className="fi-tags">
+                {f.extra?.experimental && <span className="tag beta">BETA</span>}
                 {f.isNew && <span className="tag is-new">{t("новое")}</span>}
                 {f.suppressed && <span className="tag muted">{t("подавлено")}</span>}
                 {f.cve.slice(0, 2).map((c) => (
@@ -896,6 +897,16 @@ export function FindingDetail({
             <Icon name={SEVERITY_SYMBOL[finding.severity]} />
             {t(SEVERITY_LABEL[finding.severity])}
           </div>
+          {finding.extra?.experimental && (
+            <span
+              className="tag beta"
+              title={t(
+                "Экспериментальная эвристика: возможная уязвимость, которую не поймали точные правила. Требует ручной проверки.",
+              )}
+            >
+              BETA
+            </span>
+          )}
           {finding.isNew && (
             <span className="tag is-new" title={t("Не было в предыдущем сканировании")}>
               {t("новое")}

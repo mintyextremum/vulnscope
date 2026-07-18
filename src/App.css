@@ -3520,6 +3520,27 @@ kbd,
   color: var(--t-4);
 }
 
+/* Experimental (BETA) heuristic findings — a distinct, unmistakable marker. */
+.tag.beta {
+  background: var(--high, var(--a));
+  color: var(--on-a);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+}
+
+/* Inline BETA chip next to the setup toggle label. */
+.beta-badge {
+  margin-left: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-1);
+  background: var(--high, var(--a));
+  color: var(--on-a);
+  font-size: var(--fs-2xs, 10px);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
 .detail-badges {
   display: flex;
   align-items: center;
