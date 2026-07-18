@@ -199,6 +199,67 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // More secret detectors — 18.07.2026
+  "Ключ доступа Azure Storage": "Azure Storage access key",
+  "AccountKey в строке подключения Azure Storage даёт полный доступ к аккаунту хранилища: чтение, запись и удаление всех блобов, очередей и таблиц.":
+    "AccountKey in an Azure Storage connection string grants full access to the storage account: reading, writing, and deleting all blobs, queues, and tables.",
+  "Смените ключ (rotate) в портале Azure и перейдите на SAS-токены с ограниченными правами или на управляемые удостоверения.":
+    "Rotate the key in the Azure portal and move to scoped SAS tokens or managed identities.",
+  "Twilio API Key": "Twilio API Key",
+  "SID API-ключа Twilio вместе с секретом даёт доступ к отправке SMS и звонков за ваш счёт и к данным сообщений.":
+    "A Twilio API key SID together with its secret grants access to sending SMS and calls at your expense and to message data.",
+  "Отзовите ключ в консоли Twilio и выпустите новый. Храните секрет вне кода.":
+    "Revoke the key in the Twilio console and issue a new one. Keep the secret out of the code.",
+  "Mailgun API-ключ": "Mailgun API key",
+  "Ключ Mailgun позволяет отправлять письма от имени ваших доменов и читать логи доставки. Утечка ведёт к рассылке спама и фишинга с вашей репутацией.":
+    "A Mailgun key lets one send mail as your domains and read delivery logs. A leak leads to spam and phishing sent under your reputation.",
+  "Смените ключ в панели Mailgun (Settings → API Keys). Держите его в переменных окружения.":
+    "Rotate the key in the Mailgun dashboard (Settings → API Keys). Keep it in environment variables.",
+  "Токен Discord-бота": "Discord bot token",
+  "Токен бота Discord даёт полный контроль над ботом: чтение сообщений, действия на серверах, где он состоит.":
+    "A Discord bot token gives full control of the bot: reading messages and acting on the servers it belongs to.",
+  "Сбросьте токен в Developer Portal (Bot → Reset Token). Храните его в секрет-хранилище.":
+    "Reset the token in the Developer Portal (Bot → Reset Token). Keep it in a secret store.",
+  "Токен доступа Square": "Square access token",
+  "Токен Square даёт доступ к платежам, транзакциям и данным клиентов вашего аккаунта.":
+    "A Square token grants access to payments, transactions, and customer data on your account.",
+  "Отзовите токен в Square Developer Dashboard и выпустите новый. Секрет держите на сервере.":
+    "Revoke the token in the Square Developer Dashboard and issue a new one. Keep the secret on the server.",
+  "Токен Hugging Face": "Hugging Face token",
+  "Токен Hugging Face даёт доступ к приватным моделям и датасетам и позволяет публиковать от вашего имени.":
+    "A Hugging Face token grants access to private models and datasets and lets one publish on your behalf.",
+  "Отзовите токен в настройках Hugging Face (Access Tokens) и выпустите новый с минимальными правами.":
+    "Revoke the token in Hugging Face settings (Access Tokens) and issue a new one with minimal scope.",
+  "Postman API-ключ": "Postman API key",
+  "Ключ Postman API даёт доступ к вашим коллекциям, окружениям и секретам, хранящимся в них.":
+    "A Postman API key grants access to your collections, environments, and the secrets stored in them.",
+  "Отзовите ключ в настройках Postman (API keys) и выпустите новый.":
+    "Revoke the key in Postman settings (API keys) and issue a new one.",
+  "Токен Databricks": "Databricks token",
+  "Персональный токен Databricks даёт доступ к рабочим областям, кластерам и данным через API.":
+    "A Databricks personal access token grants access to workspaces, clusters, and data via the API.",
+  "Отзовите токен в User Settings → Access Tokens и выпустите новый с ограниченным сроком.":
+    "Revoke the token in User Settings → Access Tokens and issue a new one with a limited lifetime.",
+  "New Relic API-ключ": "New Relic API key",
+  "Ключ New Relic API даёт доступ к телеметрии, дашбордам и настройкам мониторинга вашего аккаунта.":
+    "A New Relic API key grants access to telemetry, dashboards, and monitoring settings on your account.",
+  "Отзовите ключ в New Relic (API keys) и выпустите новый.":
+    "Revoke the key in New Relic (API keys) and issue a new one.",
+  "Токен интеграции Notion": "Notion integration token",
+  "Токен интеграции Notion даёт доступ к страницам и базам, к которым подключена интеграция.":
+    "A Notion integration token grants access to the pages and databases the integration is connected to.",
+  "Отзовите токен в настройках интеграции Notion и выпустите новый.":
+    "Revoke the token in the Notion integration settings and issue a new one.",
+  "Sentry DSN с секретным ключом": "Sentry DSN with a secret key",
+  "DSN Sentry с секретной частью позволяет отправлять и, в старом формате, читать события проекта. Он раскрывает адрес и идентификатор проекта.":
+    "A Sentry DSN with the secret part lets one send and, in the legacy format, read project events. It reveals the project's address and id.",
+  "Используйте публичный DSN (без секретной части) и держите его в переменных окружения, а не в клиентском коде.":
+    "Use a public DSN (without the secret part) and keep it in environment variables, not in client code.",
+  "Slack Incoming Webhook": "Slack incoming webhook",
+  "URL входящего вебхука Slack позволяет любому отправлять сообщения в привязанный канал. Это удобный вектор для фишинга внутри рабочего пространства.":
+    "A Slack incoming webhook URL lets anyone post messages to the linked channel. It is a convenient phishing vector inside the workspace.",
+  "Отзовите вебхук в настройках приложения Slack и выпустите новый. URL держите в секрет-хранилище.":
+    "Revoke the webhook in the Slack app settings and issue a new one. Keep the URL in a secret store.",
   // Weak TLS/crypto and insecure protocols — 18.07.2026
   "Явно выбран устаревший протокол TLS/SSL": "Obsolete TLS/SSL protocol explicitly selected",
   "ssl.PROTOCOL_SSLv23/SSLv3/TLSv1 фиксирует давно скомпрометированную версию (POODLE, BEAST). Соединение можно понизить до уязвимого протокола.":

@@ -73,9 +73,11 @@ Kubernetes (привилегии, хостовые пространства им
 встроенными: так же пропускают комментарии и тестовые файлы. Хранятся в
 `%APPDATA%/vulnscope/rules.json`, есть импорт и экспорт набора.
 
-**Секреты — 19 правил.** Ключи AWS, токены GitHub, GitLab, Slack, npm и PyPI,
-ключи Stripe, Google и SendGrid, токены Shopify и DigitalOcean, приватные ключи,
-строки подключения к БД, JWT. Значения проверяются на энтропию,
+**Секреты — 31 правило.** Ключи AWS и Azure Storage, токены GitHub, GitLab, Slack
+(включая incoming webhook), npm, PyPI, Discord, Twilio, Mailgun, Square, Hugging
+Face, Postman, Databricks, New Relic и Notion, ключи Stripe, Google, SendGrid,
+токены Shopify и DigitalOcean, Sentry DSN, приватные ключи, строки подключения к
+БД, JWT. Значения проверяются на энтропию,
 поэтому `your-api-key-here` и подобные плейсхолдеры не попадают в отчёт. В
 интерфейс и в экспорт секрет уходит **замаскированным** — сырое значение никогда
 не покидает файл.

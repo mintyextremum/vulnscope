@@ -250,6 +250,150 @@ pub static SECRET_RULES: &[SecretRule] = &[
         min_entropy: 0.0,
         cwe: &["CWE-798"],
     },
+    SecretRule {
+        id: "VS-SEC-020",
+        title: "Ключ доступа Azure Storage",
+        description: "AccountKey в строке подключения Azure Storage даёт полный доступ к аккаунту хранилища: чтение, запись и удаление всех блобов, очередей и таблиц.",
+        recommendation: "Смените ключ (rotate) в портале Azure и перейдите на SAS-токены с ограниченными правами или на управляемые удостоверения.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        pattern: r"AccountKey=([A-Za-z0-9+/=]{86,88})",
+        value_group: 1,
+        min_entropy: 4.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-021",
+        title: "Twilio API Key",
+        description: "SID API-ключа Twilio вместе с секретом даёт доступ к отправке SMS и звонков за ваш счёт и к данным сообщений.",
+        recommendation: "Отзовите ключ в консоли Twilio и выпустите новый. Храните секрет вне кода.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        pattern: r"\b(SK[0-9a-f]{32})\b",
+        value_group: 1,
+        min_entropy: 3.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-022",
+        title: "Mailgun API-ключ",
+        description: "Ключ Mailgun позволяет отправлять письма от имени ваших доменов и читать логи доставки. Утечка ведёт к рассылке спама и фишинга с вашей репутацией.",
+        recommendation: "Смените ключ в панели Mailgun (Settings → API Keys). Держите его в переменных окружения.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        pattern: r"\b(key-[0-9a-f]{32})\b",
+        value_group: 1,
+        min_entropy: 3.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-023",
+        title: "Токен Discord-бота",
+        description: "Токен бота Discord даёт полный контроль над ботом: чтение сообщений, действия на серверах, где он состоит.",
+        recommendation: "Сбросьте токен в Developer Portal (Bot → Reset Token). Храните его в секрет-хранилище.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        pattern: r"\b([MNO][A-Za-z0-9_-]{23}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,38})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-024",
+        title: "Токен доступа Square",
+        description: "Токен Square даёт доступ к платежам, транзакциям и данным клиентов вашего аккаунта.",
+        recommendation: "Отзовите токен в Square Developer Dashboard и выпустите новый. Секрет держите на сервере.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        pattern: r"\b(sq0(?:atp|csp)-[0-9A-Za-z_-]{22,43})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-025",
+        title: "Токен Hugging Face",
+        description: "Токен Hugging Face даёт доступ к приватным моделям и датасетам и позволяет публиковать от вашего имени.",
+        recommendation: "Отзовите токен в настройках Hugging Face (Access Tokens) и выпустите новый с минимальными правами.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        pattern: r"\b(hf_[A-Za-z0-9]{34,})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-026",
+        title: "Postman API-ключ",
+        description: "Ключ Postman API даёт доступ к вашим коллекциям, окружениям и секретам, хранящимся в них.",
+        recommendation: "Отзовите ключ в настройках Postman (API keys) и выпустите новый.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        pattern: r"\b(PMAK-[0-9a-f]{24}-[0-9a-f]{34})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-027",
+        title: "Токен Databricks",
+        description: "Персональный токен Databricks даёт доступ к рабочим областям, кластерам и данным через API.",
+        recommendation: "Отзовите токен в User Settings → Access Tokens и выпустите новый с ограниченным сроком.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        pattern: r"\b(dapi[0-9a-f]{32})\b",
+        value_group: 1,
+        min_entropy: 3.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-028",
+        title: "New Relic API-ключ",
+        description: "Ключ New Relic API даёт доступ к телеметрии, дашбордам и настройкам мониторинга вашего аккаунта.",
+        recommendation: "Отзовите ключ в New Relic (API keys) и выпустите новый.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        pattern: r"\b(NRAK-[A-Z0-9]{27})\b",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-029",
+        title: "Токен интеграции Notion",
+        description: "Токен интеграции Notion даёт доступ к страницам и базам, к которым подключена интеграция.",
+        recommendation: "Отзовите токен в настройках интеграции Notion и выпустите новый.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        pattern: r"\b(secret_[A-Za-z0-9]{43})\b",
+        value_group: 1,
+        min_entropy: 4.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-030",
+        title: "Sentry DSN с секретным ключом",
+        description: "DSN Sentry с секретной частью позволяет отправлять и, в старом формате, читать события проекта. Он раскрывает адрес и идентификатор проекта.",
+        recommendation: "Используйте публичный DSN (без секретной части) и держите его в переменных окружения, а не в клиентском коде.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        pattern: r"(https://[0-9a-f]{32}@[a-zA-Z0-9.-]+/[0-9]+)",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
+    SecretRule {
+        id: "VS-SEC-031",
+        title: "Slack Incoming Webhook",
+        description: "URL входящего вебхука Slack позволяет любому отправлять сообщения в привязанный канал. Это удобный вектор для фишинга внутри рабочего пространства.",
+        recommendation: "Отзовите вебхук в настройках приложения Slack и выпустите новый. URL держите в секрет-хранилище.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        pattern: r"(https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]{24})",
+        value_group: 1,
+        min_entropy: 0.0,
+        cwe: &["CWE-798"],
+    },
 ];
 
 /// Substrings that mark a value as a placeholder rather than a live credential.
@@ -420,6 +564,16 @@ mod tests {
         assert!(ids("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", "app.rb").contains(&"VS-SEC-017"));
         let dop = "token = \"dop_v1_deadbeefcafebabefeedfacedeadc0dedeadbeefcafebabefeedfacedeadc0de\"";
         assert!(ids(dop, "main.go").contains(&"VS-SEC-018"));
+    }
+
+    #[test]
+    fn finds_more_provider_tokens() {
+        let azure = "conn = \"DefaultEndpointsProtocol=https;AccountKey=aZ3k9Qw2eR7tyU1ioP4asD6fgH8jkL0zxC5vbN2mqW9erT3yuI7opA1sdF6ghJ8klZ0xcV4bnM2qwE9rtY3uiO==\"";
+        assert!(ids(azure, "cfg.cs").contains(&"VS-SEC-020"));
+        assert!(ids("key = \"hf_kR9mZ2qW7xL4nP8vT1yB6cJ3dH5gF0sAeUoI\"", "m.py").contains(&"VS-SEC-025"));
+        assert!(ids("nr = \"NRAK-K9MZ2QW7XL4NP8VT1YB6CJ3DH5G\"", "c.js").contains(&"VS-SEC-028"));
+        let hook = "url = \"https://hooks.slack.com/services/T9K2QW7X/B4NP8VT1Y/kR9mZ2qWxL4nP8vT1yB6cJ3d\"";
+        assert!(ids(hook, "n.py").contains(&"VS-SEC-031"));
     }
 
     #[test]

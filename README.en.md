@@ -74,9 +74,11 @@ against your own sample before you save it, showing which lines were dropped by
 comment and test-file handling. They live in `%APPDATA%/vulnscope/rules.json` and
 the set can be imported and exported.
 
-**Secrets — 19 detectors**: AWS keys, GitHub/GitLab/Slack/npm/PyPI tokens, Stripe,
-Google and SendGrid keys, Shopify and DigitalOcean tokens, private keys, database
-connection strings, JWTs. Values are checked for entropy, so `your-api-key-here`
+**Secrets — 31 detectors**: AWS and Azure Storage keys, GitHub/GitLab/Slack (incl.
+incoming webhook)/npm/PyPI/Discord/Twilio/Mailgun/Square/Hugging Face/Postman/
+Databricks/New Relic/Notion tokens, Stripe, Google and SendGrid keys, Shopify and
+DigitalOcean tokens, Sentry DSNs, private keys, database connection strings, JWTs.
+Values are checked for entropy, so `your-api-key-here`
 and similar placeholders never reach the report. Secret values are **masked**
 everywhere — in the UI and in every export — so the raw value never leaves the
 file.
