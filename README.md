@@ -14,7 +14,7 @@
 
 ## Что оно находит
 
-**Код — 210 встроенных правил** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
+**Код — 274 встроенных правила** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
 XPath, JNDI и шаблонов (SSTI, SpEL), XSS, загрязнение прототипа, небезопасная
 рефлексия (`Class.forName`, `constantize`), path traversal, открытые редиректы,
 небезопасная десериализация (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`, XStream,
@@ -38,26 +38,29 @@ Kubernetes (привилегии, хостовые пространства им
 
 | Язык | Правил |
 |---|---|
-| JavaScript / TypeScript / React | 33 |
-| Python | 33 |
-| Java / Kotlin | 25 |
-| PHP | 15 |
-| Go | 12 |
-| C# | 11 |
+| Python | 39 |
+| JavaScript / TypeScript / React | 36 |
+| Java / Kotlin | 30 |
+| Terraform | 28 |
+| PHP | 17 |
+| Ruby | 14 |
+| C# | 14 |
+| Go | 13 |
+| Kubernetes | 11 |
 | Rust | 10 |
-| Ruby | 10 |
-| Terraform | 7 |
-| Kubernetes | 6 |
-| Dockerfile | 6 |
+| Dockerfile | 10 |
+| Swift | 6 |
+| GitHub Actions | 6 |
 | C / C++ | 6 |
-| Swift | 4 |
+| Nginx | 5 |
 | SQL | 4 |
 | Shell | 4 |
 | PowerShell | 4 |
-| Nginx | 4 |
-| GitHub Actions | 4 |
-| Scala / Elixir | по 3 |
-| Perl / Lua | по 2 |
+| Elixir | 4 |
+| Scala | 3 |
+| Perl | 3 |
+| Ansible | 3 |
+| Lua | 2 |
 | Vue / Svelte | по 1 |
 
 Языки определяются по расширению и имени файла — Vue, Svelte, GraphQL, SQL и другие
@@ -73,9 +76,14 @@ Kubernetes (привилегии, хостовые пространства им
 встроенными: так же пропускают комментарии и тестовые файлы. Хранятся в
 `%APPDATA%/vulnscope/rules.json`, есть импорт и экспорт набора.
 
-**Секреты — 19 правил.** Ключи AWS, токены GitHub, GitLab, Slack, npm и PyPI,
-ключи Stripe, Google и SendGrid, токены Shopify и DigitalOcean, приватные ключи,
-строки подключения к БД, JWT. Значения проверяются на энтропию,
+**Секреты — 55 правил.** Ключи AWS и Azure Storage, токены GitHub, GitLab
+(включая runner и pipeline-trigger), Slack (включая incoming webhook), npm, PyPI,
+Discord, Twilio, Mailgun, Square, Hugging Face, Postman, Databricks, New Relic,
+Notion, Atlassian, Linear, Doppler, PlanetScale, HashiCorp Vault, Grafana, Dropbox,
+Terraform Cloud, Firebase, Adobe, Asana, Mailchimp, SonarQube, Figma, Airtable,
+Docker Hub, RubyGems, Pulumi, ключи Stripe (в т.ч. секрет вебхука), Google,
+SendGrid, токены Shopify и DigitalOcean, Sentry DSN, приватные ключи, строки
+подключения к БД, JWT. Значения проверяются на энтропию,
 поэтому `your-api-key-here` и подобные плейсхолдеры не попадают в отчёт. В
 интерфейс и в экспорт секрет уходит **замаскированным** — сырое значение никогда
 не покидает файл.

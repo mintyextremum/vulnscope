@@ -199,6 +199,509 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Perl string eval — 18.07.2026
+  "Строковый eval (выполнение кода)": "String eval (code execution)",
+  "eval со строкой (eval \"...\" или eval $code) компилирует и исполняет её как Perl. Ввод в этой строке даёт выполнение произвольного кода. Блочный eval { ... } для перехвата ошибок безопасен и не подпадает.":
+    "eval with a string (eval \"...\" or eval $code) compiles and runs it as Perl. Input in that string yields arbitrary code execution. The block form eval { ... } for error handling is safe and not flagged.",
+  "Для обработки ошибок используйте блочный eval { ... } или Try::Tiny. Не исполняйте пользовательский ввод как код.":
+    "For error handling use the block form eval { ... } or Try::Tiny. Do not run user input as code.",
+  // More SaaS + CI secret detectors — 18.07.2026
+  "Секрет подписи вебхука Stripe": "Stripe webhook signing secret",
+  "Секрет whsec_ проверяет подпись вебхуков Stripe. Зная его, атакующий подделывает события (например, «оплата прошла») и обманывает вашу бизнес-логику.":
+    "The whsec_ secret verifies Stripe webhook signatures. Knowing it, an attacker forges events (e.g. \"payment succeeded\") and deceives your business logic.",
+  "Смените секрет вебхука в дашборде Stripe и храните его в переменных окружения.":
+    "Rotate the webhook secret in the Stripe dashboard and keep it in environment variables.",
+  "Токен SonarQube": "SonarQube token",
+  "Токен SonarQube даёт доступ к результатам анализа кода, проектам и настройкам качества.":
+    "A SonarQube token grants access to code-analysis results, projects, and quality settings.",
+  "Отзовите токен в настройках SonarQube (Security → Tokens) и выпустите новый.":
+    "Revoke the token in SonarQube settings (Security → Tokens) and issue a new one.",
+  "Токен доступа Figma": "Figma access token",
+  "Токен Figma даёт доступ к файлам дизайна, проектам и командам вашего аккаунта.":
+    "A Figma token grants access to your account's design files, projects, and teams.",
+  "Отзовите токен в настройках Figma (Personal access tokens) и выпустите новый.":
+    "Revoke the token in Figma settings (Personal access tokens) and issue a new one.",
+  "Auth-токен Sentry": "Sentry auth token",
+  "Auth-токен Sentry даёт доступ к проектам, событиям ошибок и настройкам организации через API.":
+    "A Sentry auth token grants access to projects, error events, and organization settings via the API.",
+  "Отзовите токен в настройках Sentry (Auth Tokens) и выпустите новый.":
+    "Revoke the token in Sentry settings (Auth Tokens) and issue a new one.",
+  "Персональный токен Airtable": "Airtable personal access token",
+  "Токен Airtable даёт доступ к базам, таблицам и записям, к которым он привязан.":
+    "An Airtable token grants access to the bases, tables, and records it is scoped to.",
+  "Отзовите токен в настройках Airtable (Developer hub → Personal access tokens) и выпустите новый.":
+    "Revoke the token in Airtable settings (Developer hub → Personal access tokens) and issue a new one.",
+  "Токен интеграции Notion (ntn_)": "Notion integration token (ntn_)",
+  "Токен интеграции Notion в новом формате ntn_ даёт доступ к подключённым страницам и базам.":
+    "A Notion integration token in the newer ntn_ format grants access to the connected pages and databases.",
+  "Токен регистрации GitLab Runner": "GitLab Runner registration token",
+  "Токен регистрации GitLab Runner позволяет подключить свой раннер к проекту и перехватывать задания CI вместе с их секретами.":
+    "A GitLab Runner registration token lets one attach a runner to the project and intercept CI jobs together with their secrets.",
+  "Сбросьте токен в настройках CI/CD GitLab и выпустите новый.":
+    "Reset the token in GitLab CI/CD settings and issue a new one.",
+  "GitLab Pipeline Trigger Token": "GitLab pipeline trigger token",
+  "Токен триггера пайплайна GitLab позволяет запускать пайплайны проекта и, через них, выполнять код в CI.":
+    "A GitLab pipeline trigger token lets one run the project's pipelines and, through them, execute code in CI.",
+  "Отзовите токен в настройках CI/CD → Pipeline triggers и выпустите новый.":
+    "Revoke the token in CI/CD settings → Pipeline triggers and issue a new one.",
+  "Docker Hub Personal Access Token": "Docker Hub personal access token",
+  "PAT Docker Hub позволяет публиковать и скачивать образы от вашего имени — вектор атаки на цепочку поставок контейнеров.":
+    "A Docker Hub PAT lets one push and pull images on your behalf — a container supply-chain attack vector.",
+  "Отзовите токен в настройках Docker Hub (Security) и выпустите новый.":
+    "Revoke the token in Docker Hub settings (Security) and issue a new one.",
+  "Токен API RubyGems": "RubyGems API token",
+  "Токен RubyGems позволяет публиковать гемы от вашего имени. Утечка ведёт к компрометации цепочки поставок Ruby.":
+    "A RubyGems token lets one publish gems on your behalf. A leak compromises the Ruby supply chain.",
+  "Отзовите токен на rubygems.org (Settings → API keys) и выпустите новый с ограниченной областью.":
+    "Revoke the token at rubygems.org (Settings → API keys) and issue a new one with limited scope.",
+  "Токен доступа Pulumi": "Pulumi access token",
+  "Токен Pulumi даёт доступ к состоянию инфраструктуры (state) и секретам стеков в Pulumi Cloud.":
+    "A Pulumi token grants access to infrastructure state and stack secrets in Pulumi Cloud.",
+  "Отзовите токен в настройках Pulumi (Access Tokens) и выпустите новый.":
+    "Revoke the token in Pulumi settings (Access Tokens) and issue a new one.",
+  "Twilio Account SID": "Twilio Account SID",
+  "Account SID Twilio идентифицирует аккаунт и в паре с auth-токеном даёт полный доступ к API отправки SMS и звонков.":
+    "A Twilio Account SID identifies the account and, together with the auth token, grants full access to the SMS and call APIs.",
+  "Не храните SID в коде рядом с секретом; держите учётные данные в переменных окружения.":
+    "Do not store the SID in code next to the secret; keep credentials in environment variables.",
+  // SaaS provider secret detectors — 18.07.2026
+  "Токен Atlassian (Jira/Confluence)": "Atlassian token (Jira/Confluence)",
+  "API-токен Atlassian даёт доступ к Jira и Confluence вашего аккаунта: задачам, страницам и вложениям.":
+    "An Atlassian API token grants access to your account's Jira and Confluence: issues, pages, and attachments.",
+  "Отзовите токен в настройках Atlassian (Security → API tokens) и выпустите новый.":
+    "Revoke the token in Atlassian settings (Security → API tokens) and issue a new one.",
+  "Linear API-ключ": "Linear API key",
+  "Ключ Linear API даёт доступ к задачам, проектам и комментариям вашей рабочей области.":
+    "A Linear API key grants access to your workspace's issues, projects, and comments.",
+  "Отзовите ключ в настройках Linear (API) и выпустите новый.":
+    "Revoke the key in Linear settings (API) and issue a new one.",
+  "Токен Doppler": "Doppler token",
+  "Токен Doppler открывает доступ к секретам проектов и окружений, которыми управляет Doppler. Это ключ ко всем остальным секретам.":
+    "A Doppler token opens access to the project and environment secrets Doppler manages. It is a key to all your other secrets.",
+  "Отзовите токен в панели Doppler и выпустите новый с минимальной областью.":
+    "Revoke the token in the Doppler dashboard and issue a new one with minimal scope.",
+  "Токен PlanetScale": "PlanetScale token",
+  "Токен PlanetScale даёт доступ к базам данных, веткам и паролям подключения вашей организации.":
+    "A PlanetScale token grants access to your organization's databases, branches, and connection passwords.",
+  "Отзовите токен в настройках PlanetScale и выпустите новый.":
+    "Revoke the token in PlanetScale settings and issue a new one.",
+  "Токен HashiCorp Vault": "HashiCorp Vault token",
+  "Токен Vault даёт доступ к секретам, которыми управляет хранилище: ключам, паролям и сертификатам в рамках своих политик.":
+    "A Vault token grants access to the secrets the vault manages: keys, passwords, and certificates within its policies.",
+  "Отзовите токен (vault token revoke) и выпустите новый с ограниченным TTL и политиками.":
+    "Revoke the token (vault token revoke) and issue a new one with a limited TTL and policies.",
+  "Токен сервис-аккаунта Grafana": "Grafana service account token",
+  "Токен Grafana даёт доступ к дашбордам, источникам данных и настройкам мониторинга.":
+    "A Grafana token grants access to dashboards, data sources, and monitoring settings.",
+  "Отзовите токен в Grafana (Service accounts) и выпустите новый.":
+    "Revoke the token in Grafana (Service accounts) and issue a new one.",
+  "Токен Dropbox": "Dropbox token",
+  "Токен Dropbox даёт доступ к файлам и папкам аккаунта: чтение, запись и удаление.":
+    "A Dropbox token grants access to the account's files and folders: read, write, and delete.",
+  "Отзовите токен в App Console Dropbox и выпустите новый с нужной областью.":
+    "Revoke the token in the Dropbox App Console and issue a new one with the needed scope.",
+  "Токен Terraform Cloud": "Terraform Cloud token",
+  "Токен Terraform Cloud даёт доступ к рабочим областям, состоянию (state) и переменным — включая другие секреты инфраструктуры.":
+    "A Terraform Cloud token grants access to workspaces, state, and variables — including your other infrastructure secrets.",
+  "Отзовите токен в настройках Terraform Cloud (Tokens) и выпустите новый.":
+    "Revoke the token in Terraform Cloud settings (Tokens) and issue a new one.",
+  "Серверный ключ Firebase Cloud Messaging": "Firebase Cloud Messaging server key",
+  "Серверный ключ FCM позволяет рассылать push-уведомления всем пользователям вашего приложения.":
+    "An FCM server key lets one push notifications to all users of your app.",
+  "Отзовите ключ в консоли Firebase (Cloud Messaging) и перейдите на HTTP v1 API с OAuth.":
+    "Revoke the key in the Firebase console (Cloud Messaging) and move to the HTTP v1 API with OAuth.",
+  "Токен Adobe": "Adobe token",
+  "Токен Adobe даёт доступ к API Creative Cloud/Experience Cloud вашей организации.":
+    "An Adobe token grants access to your organization's Creative Cloud/Experience Cloud APIs.",
+  "Отзовите токен в Adobe Developer Console и выпустите новый.":
+    "Revoke the token in the Adobe Developer Console and issue a new one.",
+  "Персональный токен Asana": "Asana personal access token",
+  "Токен Asana даёт доступ к задачам, проектам и рабочим областям вашего аккаунта.":
+    "An Asana token grants access to your account's tasks, projects, and workspaces.",
+  "Отзовите токен в настройках Asana (Apps → Developer) и выпустите новый.":
+    "Revoke the token in Asana settings (Apps → Developer) and issue a new one.",
+  "Mailchimp API-ключ": "Mailchimp API key",
+  "Ключ Mailchimp даёт доступ к спискам рассылки, подписчикам и кампаниям — это персональные данные и вектор для рассылок.":
+    "A Mailchimp key grants access to mailing lists, subscribers, and campaigns — personal data and a mailing vector.",
+  "Отзовите ключ в настройках Mailchimp (Account → API keys) и выпустите новый.":
+    "Revoke the key in Mailchimp settings (Account → API keys) and issue a new one.",
+  // IaC/CI/Docker/nginx config — 18.07.2026
+  "Контейнер работает от root (USER root)": "Container runs as root (USER root)",
+  "Явный USER root оставляет процесс с правами суперпользователя внутри контейнера. Любая уязвимость в приложении сразу даёт root, что упрощает побег.":
+    "An explicit USER root leaves the process with superuser rights inside the container. Any app vulnerability yields root immediately, easing escape.",
+  "Создайте непривилегированного пользователя и переключитесь на него: RUN adduser app && USER app.":
+    "Create an unprivileged user and switch to it: RUN adduser app && USER app.",
+  "sudo внутри RUN": "sudo inside RUN",
+  "sudo в Dockerfile не нужен (сборка и так идёт от root) и приносит setuid-бинарник с известными способами эскалации в итоговый образ.":
+    "sudo is unnecessary in a Dockerfile (the build already runs as root) and brings a setuid binary with known escalation paths into the final image.",
+  "Уберите sudo. Если нужно понизить привилегии — используйте инструкцию USER или gosu.":
+    "Remove sudo. To drop privileges, use the USER instruction or gosu.",
+  "Установка пакетов Python из HTTP-источника": "Installing Python packages from an HTTP source",
+  "--index-url http:// или --trusted-host отключает проверку источника пакетов pip. Пакет можно подменить по пути (man-in-the-middle) — прямой путь к цепочке поставок.":
+    "--index-url http:// or --trusted-host disables verification of the pip package source. A package can be swapped in transit (man-in-the-middle) — a direct supply-chain path.",
+  "Ставьте пакеты только по HTTPS с проверкой хеша; не используйте --trusted-host в продакшене.":
+    "Install packages only over HTTPS with hash checking; do not use --trusted-host in production.",
+  "Установка пакетов без проверки подписи (apt)": "Installing packages without signature checks (apt)",
+  "--allow-unauthenticated и --force-yes отключают проверку GPG-подписи пакетов apt. Атакующий с контролем зеркала подсунет вредоносный пакет.":
+    "--allow-unauthenticated and --force-yes disable apt GPG signature verification. An attacker controlling a mirror slips in a malicious package.",
+  "Не отключайте проверку подписи. Используйте официальные репозитории с корректными ключами.":
+    "Do not disable signature verification. Use official repositories with correct keys.",
+  "GitHub Actions: self-hosted runner": "GitHub Actions: self-hosted runner",
+  "runs-on: self-hosted на публичном репозитории опасно: чужой pull request может выполнить свой код на вашем раннере и закрепиться в вашей сети.":
+    "runs-on: self-hosted on a public repository is dangerous: a stranger's pull request can run its code on your runner and persist in your network.",
+  "Для публичных репозиториев используйте одноразовые GitHub-hosted раннеры; self-hosted — только с ручным одобрением запуска.":
+    "Use ephemeral GitHub-hosted runners for public repositories; use self-hosted only with manual run approval.",
+  "GitHub Actions: включены небезопасные команды": "GitHub Actions: unsecure commands enabled",
+  "ACTIONS_ALLOW_UNSECURE_COMMANDS: true возвращает устаревшие set-env/add-path через stdout. Вывод шага, содержащий ввод, может переопределить переменные окружения и PATH.":
+    "ACTIONS_ALLOW_UNSECURE_COMMANDS: true brings back the deprecated set-env/add-path via stdout. Step output containing input can override environment variables and PATH.",
+  "Не включайте этот флаг. Используйте файлы окружения $GITHUB_ENV и $GITHUB_PATH.":
+    "Do not enable this flag. Use the $GITHUB_ENV and $GITHUB_PATH environment files.",
+  "nginx: proxy_pass по переменной (SSRF)": "nginx: proxy_pass from a variable (SSRF)",
+  "proxy_pass с адресом из переменной (например, из части URL или заголовка) позволяет клиенту управлять тем, куда nginx проксирует запрос. Это server-side request forgery.":
+    "proxy_pass with an address from a variable (e.g. from part of the URL or a header) lets the client control where nginx proxies the request. This is server-side request forgery.",
+  "Проксируйте на фиксированные upstream'ы; не собирайте адрес proxy_pass из пользовательского ввода.":
+    "Proxy to fixed upstreams; do not build the proxy_pass address from user input.",
+  "RDS: финальный снимок при удалении отключён": "RDS: final snapshot on delete disabled",
+  "skip_final_snapshot = true удаляет БД без финального бэкапа. Ошибочный или злонамеренный terraform destroy уничтожает данные безвозвратно.":
+    "skip_final_snapshot = true deletes the database with no final backup. An accidental or malicious terraform destroy wipes the data irrecoverably.",
+  "Оставьте skip_final_snapshot = false и задайте final_snapshot_identifier.":
+    "Keep skip_final_snapshot = false and set final_snapshot_identifier.",
+  "Защита от удаления ресурса отключена": "Resource deletion protection disabled",
+  "deletion_protection = false позволяет снести БД, кластер или LB одной командой. В связке с широкими правами это риск потери данных и простоя.":
+    "deletion_protection = false lets a single command tear down a database, cluster, or LB. Combined with broad rights, it risks data loss and downtime.",
+  "Включите deletion_protection = true для критичных ресурсов.":
+    "Enable deletion_protection = true for critical resources.",
+  "ECR: теги образов изменяемы": "ECR: image tags are mutable",
+  "image_tag_mutability = \"MUTABLE\" позволяет перезаписать тег другим образом. Ранее проверенный тег может подмениться — риск целостности и цепочки поставок.":
+    "image_tag_mutability = \"MUTABLE\" allows overwriting a tag with a different image. A previously vetted tag can be swapped — an integrity and supply-chain risk.",
+  "Задайте image_tag_mutability = \"IMMUTABLE\" и ссылайтесь на образы по дайджесту.":
+    "Set image_tag_mutability = \"IMMUTABLE\" and reference images by digest.",
+  "ECR: сканирование образов при push отключено": "ECR: image scanning on push disabled",
+  "scan_on_push = false отключает проверку образов на известные уязвимости при загрузке. Уязвимые образы попадают в реестр незамеченными.":
+    "scan_on_push = false disables scanning images for known vulnerabilities on upload. Vulnerable images enter the registry unnoticed.",
+  "Включите scan_on_push = true (или Enhanced Scanning) для репозиториев ECR.":
+    "Enable scan_on_push = true (or Enhanced Scanning) for ECR repositories.",
+  "Ansible: проверка TLS-сертификата отключена": "Ansible: TLS certificate verification disabled",
+  "validate_certs: no отключает проверку сертификата в модулях uri/get_url и подобных. Соединение перестаёт защищать от подмены.":
+    "validate_certs: no disables certificate verification in the uri/get_url modules and the like. The connection no longer protects against spoofing.",
+  "Держите validate_certs: yes и корректный набор CA.":
+    "Keep validate_certs: yes and a correct CA set.",
+  "Проверка ключа хоста SSH отключена": "SSH host-key verification disabled",
+  "StrictHostKeyChecking=no принимает ключ хоста автоматически и открывает соединение к возможно подменённому серверу — man-in-the-middle по SSH.":
+    "StrictHostKeyChecking=no accepts the host key automatically and opens a connection to a possibly spoofed server — SSH man-in-the-middle.",
+  "Оставьте StrictHostKeyChecking=yes и заранее раздайте known_hosts.":
+    "Keep StrictHostKeyChecking=yes and distribute known_hosts in advance.",
+  "mode: '0777' даёт полный доступ на чтение, запись и исполнение всем пользователям. Любой на хосте может изменить файл или прочитать секрет.":
+    "mode: '0777' grants full read, write, and execute to everyone. Anyone on the host can modify the file or read a secret.",
+  "Задайте минимально необходимые права (например, '0640' для конфигов, '0600' для секретов).":
+    "Set the minimum necessary permissions (e.g. '0640' for configs, '0600' for secrets).",
+  // More secret detectors — 18.07.2026
+  "Ключ доступа Azure Storage": "Azure Storage access key",
+  "AccountKey в строке подключения Azure Storage даёт полный доступ к аккаунту хранилища: чтение, запись и удаление всех блобов, очередей и таблиц.":
+    "AccountKey in an Azure Storage connection string grants full access to the storage account: reading, writing, and deleting all blobs, queues, and tables.",
+  "Смените ключ (rotate) в портале Azure и перейдите на SAS-токены с ограниченными правами или на управляемые удостоверения.":
+    "Rotate the key in the Azure portal and move to scoped SAS tokens or managed identities.",
+  "Twilio API Key": "Twilio API Key",
+  "SID API-ключа Twilio вместе с секретом даёт доступ к отправке SMS и звонков за ваш счёт и к данным сообщений.":
+    "A Twilio API key SID together with its secret grants access to sending SMS and calls at your expense and to message data.",
+  "Отзовите ключ в консоли Twilio и выпустите новый. Храните секрет вне кода.":
+    "Revoke the key in the Twilio console and issue a new one. Keep the secret out of the code.",
+  "Mailgun API-ключ": "Mailgun API key",
+  "Ключ Mailgun позволяет отправлять письма от имени ваших доменов и читать логи доставки. Утечка ведёт к рассылке спама и фишинга с вашей репутацией.":
+    "A Mailgun key lets one send mail as your domains and read delivery logs. A leak leads to spam and phishing sent under your reputation.",
+  "Смените ключ в панели Mailgun (Settings → API Keys). Держите его в переменных окружения.":
+    "Rotate the key in the Mailgun dashboard (Settings → API Keys). Keep it in environment variables.",
+  "Токен Discord-бота": "Discord bot token",
+  "Токен бота Discord даёт полный контроль над ботом: чтение сообщений, действия на серверах, где он состоит.":
+    "A Discord bot token gives full control of the bot: reading messages and acting on the servers it belongs to.",
+  "Сбросьте токен в Developer Portal (Bot → Reset Token). Храните его в секрет-хранилище.":
+    "Reset the token in the Developer Portal (Bot → Reset Token). Keep it in a secret store.",
+  "Токен доступа Square": "Square access token",
+  "Токен Square даёт доступ к платежам, транзакциям и данным клиентов вашего аккаунта.":
+    "A Square token grants access to payments, transactions, and customer data on your account.",
+  "Отзовите токен в Square Developer Dashboard и выпустите новый. Секрет держите на сервере.":
+    "Revoke the token in the Square Developer Dashboard and issue a new one. Keep the secret on the server.",
+  "Токен Hugging Face": "Hugging Face token",
+  "Токен Hugging Face даёт доступ к приватным моделям и датасетам и позволяет публиковать от вашего имени.":
+    "A Hugging Face token grants access to private models and datasets and lets one publish on your behalf.",
+  "Отзовите токен в настройках Hugging Face (Access Tokens) и выпустите новый с минимальными правами.":
+    "Revoke the token in Hugging Face settings (Access Tokens) and issue a new one with minimal scope.",
+  "Postman API-ключ": "Postman API key",
+  "Ключ Postman API даёт доступ к вашим коллекциям, окружениям и секретам, хранящимся в них.":
+    "A Postman API key grants access to your collections, environments, and the secrets stored in them.",
+  "Отзовите ключ в настройках Postman (API keys) и выпустите новый.":
+    "Revoke the key in Postman settings (API keys) and issue a new one.",
+  "Токен Databricks": "Databricks token",
+  "Персональный токен Databricks даёт доступ к рабочим областям, кластерам и данным через API.":
+    "A Databricks personal access token grants access to workspaces, clusters, and data via the API.",
+  "Отзовите токен в User Settings → Access Tokens и выпустите новый с ограниченным сроком.":
+    "Revoke the token in User Settings → Access Tokens and issue a new one with a limited lifetime.",
+  "New Relic API-ключ": "New Relic API key",
+  "Ключ New Relic API даёт доступ к телеметрии, дашбордам и настройкам мониторинга вашего аккаунта.":
+    "A New Relic API key grants access to telemetry, dashboards, and monitoring settings on your account.",
+  "Отзовите ключ в New Relic (API keys) и выпустите новый.":
+    "Revoke the key in New Relic (API keys) and issue a new one.",
+  "Токен интеграции Notion": "Notion integration token",
+  "Токен интеграции Notion даёт доступ к страницам и базам, к которым подключена интеграция.":
+    "A Notion integration token grants access to the pages and databases the integration is connected to.",
+  "Отзовите токен в настройках интеграции Notion и выпустите новый.":
+    "Revoke the token in the Notion integration settings and issue a new one.",
+  "Sentry DSN с секретным ключом": "Sentry DSN with a secret key",
+  "DSN Sentry с секретной частью позволяет отправлять и, в старом формате, читать события проекта. Он раскрывает адрес и идентификатор проекта.":
+    "A Sentry DSN with the secret part lets one send and, in the legacy format, read project events. It reveals the project's address and id.",
+  "Используйте публичный DSN (без секретной части) и держите его в переменных окружения, а не в клиентском коде.":
+    "Use a public DSN (without the secret part) and keep it in environment variables, not in client code.",
+  "Slack Incoming Webhook": "Slack incoming webhook",
+  "URL входящего вебхука Slack позволяет любому отправлять сообщения в привязанный канал. Это удобный вектор для фишинга внутри рабочего пространства.":
+    "A Slack incoming webhook URL lets anyone post messages to the linked channel. It is a convenient phishing vector inside the workspace.",
+  "Отзовите вебхук в настройках приложения Slack и выпустите новый. URL держите в секрет-хранилище.":
+    "Revoke the webhook in the Slack app settings and issue a new one. Keep the URL in a secret store.",
+  // Weak TLS/crypto and insecure protocols — 18.07.2026
+  "Явно выбран устаревший протокол TLS/SSL": "Obsolete TLS/SSL protocol explicitly selected",
+  "ssl.PROTOCOL_SSLv23/SSLv3/TLSv1 фиксирует давно скомпрометированную версию (POODLE, BEAST). Соединение можно понизить до уязвимого протокола.":
+    "ssl.PROTOCOL_SSLv23/SSLv3/TLSv1 pins a long-broken version (POODLE, BEAST). The connection can be downgraded to a vulnerable protocol.",
+  "Используйте ssl.PROTOCOL_TLS_CLIENT/SERVER и minimum_version = TLSVersion.TLSv1_2.":
+    "Use ssl.PROTOCOL_TLS_CLIENT/SERVER and minimum_version = TLSVersion.TLSv1_2.",
+  "Слабый шифр (DES/RC4/Blowfish)": "Weak cipher (DES/RC4/Blowfish)",
+  "DES, 3DES, RC4 и Blowfish считаются сломанными: короткий блок/ключ и практические атаки. Данные под ними защищены слабо.":
+    "DES, 3DES, RC4, and Blowfish are considered broken: short block/key and practical attacks. Data under them is weakly protected.",
+  "Используйте AES-GCM (Crypto.Cipher.AES с MODE_GCM) или ChaCha20-Poly1305.":
+    "Use AES-GCM (Crypto.Cipher.AES with MODE_GCM) or ChaCha20-Poly1305.",
+  "Использование telnet (незашифрованный протокол)": "Use of telnet (unencrypted protocol)",
+  "telnetlib открывает соединение по Telnet — без шифрования. Логин, пароль и данные передаются открытым текстом и перехватываются в сети.":
+    "telnetlib opens a Telnet connection — with no encryption. Login, password, and data travel in cleartext and are intercepted on the network.",
+  "Используйте SSH (paramiko) вместо Telnet.":
+    "Use SSH (paramiko) instead of Telnet.",
+  "Открытый редирект: redirect по данным запроса": "Open redirect: redirect from request data",
+  "res.redirect() с данными из req (query/params/body) отправляет пользователя по адресу, который задаёт он сам. Атакующий уводит жертву на фишинговый сайт с доверенного домена.":
+    "res.redirect() with data from req (query/params/body) sends the user to an address they control. An attacker lures the victim to a phishing site from a trusted domain.",
+  "Редиректьте только по белому списку или относительным путям; проверяйте, что цель принадлежит вашему домену.":
+    "Redirect only to an allowlist or relative paths; verify the target belongs to your domain.",
+  "Явно выбран устаревший протокол TLS": "Obsolete TLS protocol explicitly selected",
+  "secureProtocol: 'SSLv3_method'/'TLSv1_method' привязывает соединение к сломанной версии протокола. Это открывает атаки понижения и известные уязвимости.":
+    "secureProtocol: 'SSLv3_method'/'TLSv1_method' pins the connection to a broken protocol version. This opens downgrade attacks and known vulnerabilities.",
+  "Не задавайте secureProtocol вручную; при необходимости используйте minVersion: 'TLSv1.2'.":
+    "Do not set secureProtocol manually; if needed, use minVersion: 'TLSv1.2'.",
+  "Слабый протокол в SSLContext": "Weak protocol in SSLContext",
+  "SSLContext.getInstance(\"SSL\"/\"SSLv3\"/\"TLSv1\") создаёт контекст со сломанным протоколом. Соединение уязвимо к POODLE/BEAST и понижению версии.":
+    "SSLContext.getInstance(\"SSL\"/\"SSLv3\"/\"TLSv1\") creates a context with a broken protocol. The connection is vulnerable to POODLE/BEAST and version downgrade.",
+  "Запрашивайте SSLContext.getInstance(\"TLSv1.2\") или \"TLS\" и ограничивайте минимальную версию.":
+    "Request SSLContext.getInstance(\"TLSv1.2\") or \"TLS\" and constrain the minimum version.",
+  "Слабый шифр (DES/RC2/3DES)": "Weak cipher (DES/RC2/3DES)",
+  "DESCryptoServiceProvider, RC2 и TripleDES используют сломанные или устаревшие алгоритмы с коротким ключом/блоком. Шифрование ими ненадёжно.":
+    "DESCryptoServiceProvider, RC2, and TripleDES use broken or outdated algorithms with a short key/block. Encryption with them is unreliable.",
+  "Используйте AES (Aes.Create) в режиме GCM или CBC со случайным IV.":
+    "Use AES (Aes.Create) in GCM mode or CBC with a random IV.",
+  "cURL: проверка TLS-сертификата отключена": "cURL: TLS certificate verification disabled",
+  "CURLOPT_SSL_VERIFYPEER = false или CURLOPT_SSL_VERIFYHOST = 0 отключает проверку сертификата сервера. Соединение больше не защищено от man-in-the-middle.":
+    "CURLOPT_SSL_VERIFYPEER = false or CURLOPT_SSL_VERIFYHOST = 0 turns off server certificate verification. The connection is no longer protected against man-in-the-middle.",
+  "Держите CURLOPT_SSL_VERIFYPEER = true и CURLOPT_SSL_VERIFYHOST = 2; при необходимости укажите CURLOPT_CAINFO.":
+    "Keep CURLOPT_SSL_VERIFYPEER = true and CURLOPT_SSL_VERIFYHOST = 2; set CURLOPT_CAINFO if needed.",
+  "Проверка TLS-сертификата отключена (VERIFY_NONE)": "TLS certificate verification disabled (VERIFY_NONE)",
+  "verify_mode = OpenSSL::SSL::VERIFY_NONE заставляет клиент принимать любой сертификат. HTTPS-соединение перестаёт защищать от подмены.":
+    "verify_mode = OpenSSL::SSL::VERIFY_NONE makes the client accept any certificate. The HTTPS connection no longer protects against spoofing.",
+  "Используйте VERIFY_PEER и корректный набор корневых сертификатов.":
+    "Use VERIFY_PEER and a correct set of root certificates.",
+  "Kernel#open с пайпом или пользовательскими данными": "Kernel#open with a pipe or user data",
+  "open(\"| cmd\") запускает команду ОС, а open(params[...]) читает произвольный путь или URL. Первое даёт инъекцию команд, второе — чтение файлов/SSRF.":
+    "open(\"| cmd\") runs an OS command, while open(params[...]) reads an arbitrary path or URL. The former is command injection, the latter file read/SSRF.",
+  "Используйте File.open для файлов и URI.open только с проверенным адресом; не передавайте ввод в Kernel#open.":
+    "Use File.open for files and URI.open only with a validated address; do not pass input to Kernel#open.",
+  "String.to_atom на пользовательских данных": "String.to_atom on user data",
+  "String.to_atom создаёт атом из строки. Атомы не собираются сборщиком мусора: поток разных значений извне исчерпывает таблицу атомов и роняет узел BEAM.":
+    "String.to_atom creates an atom from a string. Atoms are not garbage-collected: a stream of distinct external values exhausts the atom table and crashes the BEAM node.",
+  "Используйте String.to_existing_atom, если набор атомов заранее известен.":
+    "Use String.to_existing_atom when the set of atoms is known in advance.",
+  // Web frameworks: CSRF, CORS, XXE, JWT, hosts — 18.07.2026
+  "Django: защита CSRF отключена (@csrf_exempt)": "Django: CSRF protection disabled (@csrf_exempt)",
+  "@csrf_exempt снимает проверку CSRF-токена с представления. Форму или API можно вызвать с чужого сайта от имени залогиненного пользователя.":
+    "@csrf_exempt removes the CSRF token check from the view. The form or API can be invoked from another site on behalf of a logged-in user.",
+  "Не отключайте CSRF для операций, меняющих состояние. Для API используйте токен-аутентификацию, а не сессионные куки.":
+    "Do not disable CSRF for state-changing operations. For APIs use token authentication rather than session cookies.",
+  "Django: ALLOWED_HOSTS = ['*']": "Django: ALLOWED_HOSTS = ['*']",
+  "ALLOWED_HOSTS = ['*'] принимает запросы с любым заголовком Host. Это открывает подмену Host-заголовка: отравление ссылок сброса пароля и кэша.":
+    "ALLOWED_HOSTS = ['*'] accepts requests with any Host header. This enables Host-header injection: poisoned password-reset links and cache.",
+  "Перечислите конкретные домены в ALLOWED_HOSTS.":
+    "List the specific domains in ALLOWED_HOSTS.",
+  "flask-cors с origins=\"*\" (или голый CORS(app)) отдаёт Access-Control-Allow-Origin: * для всех маршрутов. Любой сайт может обращаться к API из браузера жертвы.":
+    "flask-cors with origins=\"*\" (or a bare CORS(app)) returns Access-Control-Allow-Origin: * for every route. Any site can call the API from the victim's browser.",
+  "Задайте явный список доверенных источников вместо \"*\", особенно если используются куки/креденшелы.":
+    "Set an explicit list of trusted origins instead of \"*\", especially when cookies/credentials are used.",
+  "Access-Control-Allow-Origin: * или cors({ origin: \"*\" }) открывает API любому сайту. В связке с куками или credentials это позволяет чужой странице действовать от имени пользователя.":
+    "Access-Control-Allow-Origin: * or cors({ origin: \"*\" }) opens the API to any site. Combined with cookies or credentials, it lets a foreign page act on the user's behalf.",
+  "Укажите конкретный список доверенных источников; не сочетайте \"*\" с credentials.":
+    "Specify a concrete list of trusted origins; never combine \"*\" with credentials.",
+  "Spring @CrossOrigin без ограничения источника": "Spring @CrossOrigin without origin restriction",
+  "@CrossOrigin() без аргументов или с origins = \"*\" разрешает кросс-доменные запросы с любого сайта. Это ослабляет same-origin policy для аннотированного контроллера.":
+    "@CrossOrigin() with no arguments, or origins = \"*\", allows cross-origin requests from any site. It weakens the same-origin policy for the annotated controller.",
+  "Перечислите доверенные источники: @CrossOrigin(origins = {\"https://app.example.com\"}).":
+    "List the trusted origins: @CrossOrigin(origins = {\"https://app.example.com\"}).",
+  "JWT подписан алгоритмом none": "JWT signed with the none algorithm",
+  "SigningMethodNone/UnsafeAllowNoneSignatureType выпускает или принимает JWT без подписи. Атакующий подделывает любой токен, просто убрав подпись.":
+    "SigningMethodNone/UnsafeAllowNoneSignatureType issues or accepts a JWT without a signature. An attacker forges any token simply by dropping the signature.",
+  "Подписывайте и проверяйте токены сильным алгоритмом (HS256/RS256) и явно запрещайте none при разборе.":
+    "Sign and verify tokens with a strong algorithm (HS256/RS256) and explicitly reject none when parsing.",
+  "CORS: AllowAnyOrigin()": "CORS: AllowAnyOrigin()",
+  "AllowAnyOrigin() в политике CORS ASP.NET Core разрешает запросы с любого сайта. С AllowCredentials это даёт чужой странице действовать от имени пользователя.":
+    "AllowAnyOrigin() in an ASP.NET Core CORS policy allows requests from any site. With AllowCredentials it lets a foreign page act on the user's behalf.",
+  "Используйте WithOrigins(\"https://app.example.com\") со списком доверенных источников.":
+    "Use WithOrigins(\"https://app.example.com\") with a list of trusted origins.",
+  "DtdProcessing.Parse или назначенный XmlResolver заставляют .NET разбирать DTD и внешние сущности. XML со ссылкой на файл или URL раскрывает содержимое и бьёт по SSRF.":
+    "DtdProcessing.Parse or an assigned XmlResolver makes .NET parse DTDs and external entities. XML referencing a file or URL discloses its contents and drives SSRF.",
+  "Задайте DtdProcessing = DtdProcessing.Prohibit и XmlResolver = null у XmlReaderSettings.":
+    "Set DtdProcessing = DtdProcessing.Prohibit and XmlResolver = null on the XmlReaderSettings.",
+  "Разбор XML с подстановкой внешних сущностей (LIBXML_NOENT)": "XML parsing with external entity substitution (LIBXML_NOENT)",
+  "Флаг LIBXML_NOENT включает подстановку внешних сущностей при разборе XML. Документ со ссылкой на файл или URL приводит к чтению локальных файлов и SSRF (XXE).":
+    "The LIBXML_NOENT flag enables external entity substitution when parsing XML. A document referencing a file or URL leads to local file reads and SSRF (XXE).",
+  "Не используйте LIBXML_NOENT для недоверенного XML. На PHP < 8 вызовите libxml_disable_entity_loader(true).":
+    "Do not use LIBXML_NOENT for untrusted XML. On PHP < 8 call libxml_disable_entity_loader(true).",
+  "Rails: защита CSRF отключена": "Rails: CSRF protection disabled",
+  "skip_before_action :verify_authenticity_token или protect_from_forgery with: :null_session снимает проверку CSRF. Меняющие состояние запросы проходят с чужого сайта.":
+    "skip_before_action :verify_authenticity_token or protect_from_forgery with: :null_session removes the CSRF check. State-changing requests go through from another site.",
+  "Не отключайте verify_authenticity_token для форм и state-changing действий; для API используйте токен-аутентификацию.":
+    "Do not disable verify_authenticity_token for forms and state-changing actions; use token authentication for APIs.",
+  "Path traversal: файл отдаётся по пути из params": "Path traversal: file served by a path from params",
+  "send_file или File.read/open с params[...] отдаёт файл по имени, которое задаёт пользователь. Через ../ он выходит за пределы каталога и читает произвольные файлы.":
+    "send_file or File.read/open with params[...] serves a file by a name the user controls. With ../ they escape the directory and read arbitrary files.",
+  "Сопоставляйте запрошенное имя с белым списком или берите только basename и фиксируйте базовый каталог.":
+    "Match the requested name against an allowlist, or take only the basename and pin the base directory.",
+  // Kubernetes hardening + mobile (Android/iOS) — 18.07.2026
+  "Токен сервис-аккаунта монтируется автоматически": "Service account token is auto-mounted",
+  "automountServiceAccountToken: true кладёт токен API в каждый под. Захватив контейнер, атакующий этим токеном ходит в Kubernetes API с правами сервис-аккаунта.":
+    "automountServiceAccountToken: true places an API token in every pod. Having taken the container, an attacker uses that token to reach the Kubernetes API with the service account's rights.",
+  "Ставьте automountServiceAccountToken: false там, где под не обращается к API, и выдавайте минимальные RBAC-права.":
+    "Set automountServiceAccountToken: false where the pod does not call the API, and grant minimal RBAC rights.",
+  "Корневая ФС контейнера доступна на запись": "Container root filesystem is writable",
+  "readOnlyRootFilesystem: false позволяет процессу писать в файловую систему контейнера. Атакующий подменяет бинарники и роняет закладки, которые переживут перезапуск процесса.":
+    "readOnlyRootFilesystem: false lets the process write to the container filesystem. An attacker replaces binaries and drops implants that survive a process restart.",
+  "Ставьте readOnlyRootFilesystem: true, а для временных данных подключайте emptyDir-том.":
+    "Set readOnlyRootFilesystem: true, and mount an emptyDir volume for temporary data.",
+  "Образ по плавающему тегу latest": "Image on the floating latest tag",
+  "Тег latest не фиксирует версию: под может поднять неожиданный или подменённый образ, а откатиться по манифесту нельзя. Это и риск целостности, и риск воспроизводимости.":
+    "The latest tag pins no version: a pod may pull an unexpected or tampered image, and the manifest cannot roll back. This is both an integrity and a reproducibility risk.",
+  "Пиньте образ по неизменяемому дайджесту (image@sha256:...) или по конкретной версии.":
+    "Pin the image by an immutable digest (image@sha256:...) or a specific version.",
+  "Профиль seccomp отключён (Unconfined)": "seccomp profile disabled (Unconfined)",
+  "seccompProfile type: Unconfined снимает фильтр системных вызовов. Контейнеру снова доступны опасные syscalls, которыми пользуются для побега и эскалации.":
+    "seccompProfile type: Unconfined removes the syscall filter. The container regains access to dangerous syscalls used for escape and escalation.",
+  "Используйте seccompProfile type: RuntimeDefault (или собственный профиль).":
+    "Use seccompProfile type: RuntimeDefault (or a custom profile).",
+  "Контейнер публикует hostPort": "Container publishes a hostPort",
+  "hostPort привязывает порт контейнера к сетевому интерфейсу узла в обход Service. Служба становится доступна напрямую по IP узла, минуя сетевые политики.":
+    "hostPort binds the container port to the node's network interface, bypassing the Service. The workload becomes reachable directly by node IP, skipping network policies.",
+  "Публикуйте приложения через Service/Ingress, а не hostPort.":
+    "Expose applications via a Service/Ingress rather than hostPort.",
+  "WebView: addJavascriptInterface открывает мост в нативный код": "WebView: addJavascriptInterface opens a bridge to native code",
+  "addJavascriptInterface даёт JavaScript в WebView вызывать методы Java-объекта. Если загружается недоверенный контент, страница через рефлексию исполняет команды в приложении (на старых Android — прямой RCE).":
+    "addJavascriptInterface lets JavaScript in the WebView call methods on a Java object. If untrusted content loads, the page runs commands in the app via reflection (direct RCE on older Android).",
+  "Избегайте моста для недоверенного контента. Помечайте методы @JavascriptInterface, загружайте только доверенные страницы, ограничьте API.":
+    "Avoid the bridge for untrusted content. Annotate methods with @JavascriptInterface, load only trusted pages, and limit the API.",
+  "WebView: доступ к файлам из URL включён": "WebView: file access from URLs enabled",
+  "setAllowUniversalAccessFromFileURLs/setAllowFileAccessFromFileURLs(true) позволяет странице по file:// читать локальные файлы и обходить same-origin. Вредоносный HTML утаскивает данные приложения.":
+    "setAllowUniversalAccessFromFileURLs/setAllowFileAccessFromFileURLs(true) lets a file:// page read local files and bypass same-origin. Malicious HTML exfiltrates app data.",
+  "Держите оба флага в false. Не смешивайте file:// и удалённый контент в одном WebView.":
+    "Keep both flags false. Do not mix file:// and remote content in the same WebView.",
+  "Файл создаётся в режиме WORLD_READABLE/WRITEABLE": "File created in WORLD_READABLE/WRITEABLE mode",
+  "MODE_WORLD_READABLE и MODE_WORLD_WRITEABLE делают файл или SharedPreferences доступными любому приложению на устройстве. Так утекают токены и настройки, а запись позволяет их подменить.":
+    "MODE_WORLD_READABLE and MODE_WORLD_WRITEABLE make a file or SharedPreferences readable by any app on the device. Tokens and settings leak this way, and write access lets them be tampered with.",
+  "Используйте MODE_PRIVATE. Для обмена данными между приложениями применяйте ContentProvider с правами.":
+    "Use MODE_PRIVATE. To share data between apps, use a ContentProvider with permissions.",
+  "Keychain: элемент доступен без блокировки экрана": "Keychain: item accessible without a locked screen",
+  "kSecAttrAccessibleAlways (и ...AlwaysThisDeviceOnly) хранит секрет доступным, даже когда устройство заблокировано. При краже разблокировать телефон не нужно, чтобы вытащить данные.":
+    "kSecAttrAccessibleAlways (and ...AlwaysThisDeviceOnly) keeps the secret accessible even while the device is locked. On theft, the phone need not be unlocked to extract the data.",
+  "Используйте kSecAttrAccessibleWhenUnlocked или ...WhenPasscodeSetThisDeviceOnly.":
+    "Use kSecAttrAccessibleWhenUnlocked or ...WhenPasscodeSetThisDeviceOnly.",
+  "App Transport Security отключён": "App Transport Security disabled",
+  "NSAllowsArbitraryLoads = true снимает ATS и разрешает приложению незашифрованные HTTP-соединения. Трафик становится доступен для перехвата и подмены.":
+    "NSAllowsArbitraryLoads = true removes ATS and lets the app make unencrypted HTTP connections. Traffic becomes open to interception and tampering.",
+  "Не включайте NSAllowsArbitraryLoads. Ходите по HTTPS; для отдельных доменов используйте точечные исключения.":
+    "Do not enable NSAllowsArbitraryLoads. Use HTTPS; add narrow per-domain exceptions where truly needed.",
+  // Terraform cloud misconfig (AWS/Azure/GCP) — 18.07.2026
+  "S3: снята блокировка публичного доступа": "S3: public access block removed",
+  "block_public_acls/ignore_public_acls/restrict_public_buckets = false отключают защиту от случайной публикации бакета. Одна публичная ACL или политика — и содержимое доступно всему интернету.":
+    "block_public_acls/ignore_public_acls/restrict_public_buckets = false disable the guard against accidentally publishing the bucket. One public ACL or policy and the contents are open to the whole internet.",
+  "Держите все четыре флага aws_s3_bucket_public_access_block в true, если бакет не обязан быть публичным.":
+    "Keep all four aws_s3_bucket_public_access_block flags at true unless the bucket must be public.",
+  "RDS: резервные копии отключены": "RDS: backups disabled",
+  "backup_retention_period = 0 выключает автоматические бэкапы БД. При сбое, атаке шифровальщика или ошибочном DROP восстанавливать будет нечего.":
+    "backup_retention_period = 0 turns off automated database backups. After a failure, ransomware, or an accidental DROP there is nothing to restore from.",
+  "Задайте разумный срок хранения (например, backup_retention_period = 7) и проверяйте восстановление.":
+    "Set a sensible retention (e.g. backup_retention_period = 7) and test restores.",
+  "Инстансу назначается публичный IP": "Instance is assigned a public IP",
+  "associate_public_ip_address = true выставляет инстанс напрямую в интернет. Любая открытая служба на нём становится доступна снаружи, минуя внутреннюю сеть.":
+    "associate_public_ip_address = true exposes the instance directly to the internet. Any open service on it becomes reachable from outside, bypassing the internal network.",
+  "Держите рабочие нагрузки в приватных подсетях за NAT/балансировщиком; публичный IP давайте только явным точкам входа.":
+    "Keep workloads in private subnets behind NAT/a load balancer; give a public IP only to explicit entry points.",
+  "KMS: ротация ключа отключена": "KMS: key rotation disabled",
+  "enable_key_rotation = false оставляет ключ шифрования неизменным навсегда. Чем дольше живёт ключ, тем больше данных он защищает и тем тяжелее последствия его компрометации.":
+    "enable_key_rotation = false leaves the encryption key unchanged forever. The longer a key lives, the more data it protects and the worse a compromise becomes.",
+  "Включите enable_key_rotation = true для CMK — AWS будет менять криптоматериал ежегодно автоматически.":
+    "Enable enable_key_rotation = true for the CMK — AWS then rotates the key material yearly automatically.",
+  "CloudTrail: журналирование урезано": "CloudTrail: logging cut down",
+  "is_multi_region_trail = false или enable_logging = false оставляют аудит-события без записи. Действия атакующего в других регионах или после отключения трейла не попадут в лог.":
+    "is_multi_region_trail = false or enable_logging = false leave audit events unrecorded. An attacker's actions in other regions, or after the trail is turned off, never reach the log.",
+  "Включите enable_logging = true и is_multi_region_trail = true, а логи защитите от изменения.":
+    "Enable enable_logging = true and is_multi_region_trail = true, and protect the logs from tampering.",
+  "Политика доступна анонимно (Principal \"*\")": "Policy is anonymous (Principal \"*\")",
+  "\"Principal\": \"*\" (или {\"AWS\": \"*\"}) в ресурсной политике разрешает действие всем, включая анонимных пользователей. Это типовая причина утечки S3-бакетов и открытых очередей.":
+    "\"Principal\": \"*\" (or {\"AWS\": \"*\"}) in a resource policy allows the action to everyone, including anonymous users. It is a common cause of leaked S3 buckets and open queues.",
+  "Укажите конкретные ARN доверенных аккаунтов или ролей вместо \"*\".":
+    "Specify the concrete ARNs of trusted accounts or roles instead of \"*\".",
+  "CloudFront допускает незашифрованный HTTP": "CloudFront allows unencrypted HTTP",
+  "viewer_protocol_policy = \"allow-all\" позволяет клиентам ходить по HTTP. Трафик и куки идут открытым текстом и доступны для перехвата и подмены.":
+    "viewer_protocol_policy = \"allow-all\" lets clients use HTTP. Traffic and cookies travel in cleartext, open to interception and tampering.",
+  "Задайте viewer_protocol_policy = \"redirect-to-https\" или \"https-only\".":
+    "Set viewer_protocol_policy = \"redirect-to-https\" or \"https-only\".",
+  "Разрешён устаревший TLS (1.0/1.1)": "Obsolete TLS (1.0/1.1) allowed",
+  "min_tls_version = TLS1_0/TLS1_1 позволяет клиентам согласовать давно скомпрометированные версии протокола. Их следует отключать на стороне сервиса.":
+    "min_tls_version = TLS1_0/TLS1_1 lets clients negotiate long-broken protocol versions. They should be disabled on the service side.",
+  "Поднимите минимум до TLS 1.2 (min_tls_version = \"TLS1_2\").":
+    "Raise the minimum to TLS 1.2 (min_tls_version = \"TLS1_2\").",
+  "Azure: публичный доступ к блобам включён": "Azure: public blob access enabled",
+  "allow_blob_public_access/allow_nested_items_to_be_public = true разрешает анонимное чтение контейнеров и блобов. Это частая причина утечек данных из Azure Storage.":
+    "allow_blob_public_access/allow_nested_items_to_be_public = true permits anonymous reads of containers and blobs. It is a frequent cause of data leaks from Azure Storage.",
+  "Держите allow_nested_items_to_be_public = false и выдавайте доступ через SAS-токены или приватные эндпойнты.":
+    "Keep allow_nested_items_to_be_public = false and grant access via SAS tokens or private endpoints.",
+  "Azure: разрешён незашифрованный HTTP к хранилищу": "Azure: unencrypted HTTP to storage allowed",
+  "enable_https_traffic_only = false позволяет обращаться к Storage по HTTP. Данные и ключи доступа идут открытым текстом.":
+    "enable_https_traffic_only = false allows reaching Storage over HTTP. Data and access keys travel in cleartext.",
+  "Установите enable_https_traffic_only = true (в новых версиях провайдера — https_traffic_only_enabled).":
+    "Set enable_https_traffic_only = true (https_traffic_only_enabled in newer provider versions).",
+  "Azure: публичный сетевой доступ к сервису": "Azure: public network access to the service",
+  "public_network_access_enabled = true открывает управляемый сервис (БД, Key Vault, аккаунт) в публичную сеть. Поверхность атаки расширяется на весь интернет.":
+    "public_network_access_enabled = true opens the managed service (DB, Key Vault, account) to the public network. The attack surface widens to the whole internet.",
+  "Отключите публичный доступ и подключайтесь через Private Endpoint/Service Endpoint.":
+    "Disable public access and connect via a Private Endpoint/Service Endpoint.",
+  "Azure Key Vault: защита от удаления выключена": "Azure Key Vault: purge protection off",
+  "purge_protection_enabled = false позволяет безвозвратно удалить хранилище и ключи. Атакующий с доступом уничтожит криптоматериал, оставив данные нерасшифровываемыми.":
+    "purge_protection_enabled = false allows permanently deleting the vault and its keys. An attacker with access destroys the key material, leaving data undecryptable.",
+  "Включите purge_protection_enabled = true и soft delete для Key Vault.":
+    "Enable purge_protection_enabled = true and soft delete for the Key Vault.",
+  "Azure NSG: правило разрешает любой источник": "Azure NSG: rule allows any source",
+  "source_address_prefix = \"*\" во входящем разрешающем правиле NSG открывает порт всему интернету — аналог 0.0.0.0/0. Часто так случайно выставляют RDP/SSH наружу.":
+    "source_address_prefix = \"*\" in an inbound allow NSG rule opens the port to the whole internet — the equivalent of 0.0.0.0/0. RDP/SSH often gets exposed this way by accident.",
+  "Ограничьте source_address_prefix конкретными диапазонами; для управления используйте бастион/VPN.":
+    "Restrict source_address_prefix to specific ranges; use a bastion/VPN for management.",
+  "GCP: ресурс открыт для allUsers/allAuthenticatedUsers": "GCP: resource open to allUsers/allAuthenticatedUsers",
+  "Привязка IAM к allUsers или allAuthenticatedUsers делает ресурс (бакет, топик, функцию) публичным. allUsers — это буквально «кто угодно из интернета».":
+    "An IAM binding to allUsers or allAuthenticatedUsers makes the resource (bucket, topic, function) public. allUsers is literally \"anyone on the internet\".",
+  "Удалите привязку к allUsers/allAuthenticatedUsers; выдавайте роли конкретным сервис-аккаунтам и группам.":
+    "Remove the allUsers/allAuthenticatedUsers binding; grant roles to specific service accounts and groups.",
+  "GCP firewall: источник 0.0.0.0/0": "GCP firewall: source 0.0.0.0/0",
+  "source_ranges = [\"0.0.0.0/0\"] открывает правило файрвола всему интернету. В связке с разрешёнными портами администрирования это выставляет узлы наружу.":
+    "source_ranges = [\"0.0.0.0/0\"] opens the firewall rule to the whole internet. Combined with allowed admin ports, it exposes the nodes externally.",
+  "Сузьте source_ranges до нужных диапазонов; доступ к SSH/RDP давайте через IAP или бастион.":
+    "Narrow source_ranges to the ranges you need; grant SSH/RDP access via IAP or a bastion.",
+  "GKE: клиентский сертификат как метод входа": "GKE: client certificate as a login method",
+  "issue_client_certificate = true включает статический клиентский сертификат для доступа к кластеру. Его нельзя отозвать по отдельности, и это слабый метод аутентификации.":
+    "issue_client_certificate = true enables a static client certificate for cluster access. It cannot be revoked individually and is a weak authentication method.",
+  "Отключите client certificate (issue_client_certificate = false) и используйте IAM/OIDC.":
+    "Disable the client certificate (issue_client_certificate = false) and use IAM/OIDC.",
+  "GKE: экранированные узлы отключены": "GKE: shielded nodes disabled",
+  "enable_shielded_nodes = false отключает Shielded GKE Nodes — проверку загрузки и целостности узлов. Это ослабляет защиту от руткитов и подмены образа узла.":
+    "enable_shielded_nodes = false turns off Shielded GKE Nodes — boot and node integrity verification. This weakens protection against rootkits and node image tampering.",
+  "Включите enable_shielded_nodes = true и Secure Boot для узлов.":
+    "Enable enable_shielded_nodes = true and Secure Boot for the nodes.",
   // Dynamic code, unsafe reflection, path traversal — 18.07.2026
   "create_function() — динамический код": "create_function() — dynamic code",
   "create_function() компилирует переданную строку тела как код PHP — это eval с другого входа. Если в тело попадает ввод, атакующий исполняет произвольный код.":
