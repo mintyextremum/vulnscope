@@ -199,6 +199,37 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Dynamic code, unsafe reflection, path traversal — 18.07.2026
+  "create_function() — динамический код": "create_function() — dynamic code",
+  "create_function() компилирует переданную строку тела как код PHP — это eval с другого входа. Если в тело попадает ввод, атакующий исполняет произвольный код.":
+    "create_function() compiles the given body string as PHP code — eval through another door. If input reaches the body, an attacker runs arbitrary code.",
+  "Уберите create_function() (удалён в PHP 8). Используйте обычные анонимные функции (замыкания).":
+    "Drop create_function() (removed in PHP 8). Use ordinary anonymous functions (closures).",
+  "parse_str() без второго аргумента засоряет область видимости": "parse_str() without a second argument pollutes the scope",
+  "parse_str() с одним аргументом создаёт переменные из строки запроса прямо в текущей области — как register_globals. Атакующий переопределяет любые переменные через query string.":
+    "parse_str() with a single argument creates variables from the query string right in the current scope — like register_globals. An attacker overrides any variable via the query string.",
+  "Всегда передавайте второй аргумент-массив: parse_str($input, $result) и работайте с $result.":
+    "Always pass the second array argument: parse_str($input, $result), and work with $result.",
+  "Небезопасная рефлексия: Class.forName по переменной": "Unsafe reflection: Class.forName from a variable",
+  "Class.forName() с именем класса из переменной позволяет атакующему загрузить и инстанцировать произвольный класс. В связке с гаджетами это ведёт к выполнению кода.":
+    "Class.forName() with a class name from a variable lets an attacker load and instantiate an arbitrary class. Combined with gadgets, this leads to code execution.",
+  "Не берите имя класса из ввода. Сопоставьте разрешённые значения белым списком или фабрикой с фиксированным набором типов.":
+    "Do not take the class name from input. Map allowed values with an allowlist or a factory with a fixed set of types.",
+  "Небезопасная рефлексия: constantize / const_get": "Unsafe reflection: constantize / const_get",
+  "constantize и const_get превращают строку в константу (класс). Со строкой из params атакующий получает доступ к произвольному классу и его методам — обход логики и иногда выполнение кода.":
+    "constantize and const_get turn a string into a constant (a class). With a string from params, an attacker reaches an arbitrary class and its methods — bypassed logic and sometimes code execution.",
+  "Не вызывайте constantize на пользовательском вводе. Сопоставьте допустимые значения явным белым списком (хэшом строка → класс).":
+    "Do not call constantize on user input. Map allowed values with an explicit allowlist (a string → class hash).",
+  "Path traversal: ServeFile по пути из запроса": "Path traversal: ServeFile with a path from the request",
+  "http.ServeFile с путём из r.URL отдаёт файл по имени, которое задаёт клиент. Через ../ пользователь выходит за пределы каталога и читает произвольные файлы.":
+    "http.ServeFile with a path from r.URL serves a file by a name the client controls. With ../ the user escapes the directory and reads arbitrary files.",
+  "ServeFile сам предупреждает об этом: очистите путь через filepath.Clean и проверьте, что он внутри разрешённого каталога, либо используйте http.FileServer с http.Dir.":
+    "ServeFile itself warns about this: clean the path with filepath.Clean and check it stays inside the allowed directory, or use http.FileServer with http.Dir.",
+  "Path traversal: путь собран из данных запроса": "Path traversal: path built from request data",
+  "filepath.Join с сегментом из запроса (r.URL, r.FormValue) даёт клиенту влиять на путь. filepath.Join не защищает от ../ — файл может оказаться вне каталога.":
+    "filepath.Join with a segment from the request (r.URL, r.FormValue) lets the client influence the path. filepath.Join does not guard against ../ — the file may end up outside the directory.",
+  "После Join проверьте, что результат под нужным корнем (strings.HasPrefix по filepath.Clean), или сопоставляйте имя с белым списком.":
+    "After Join, verify the result stays under the intended root (strings.HasPrefix on filepath.Clean), or match the name against an allowlist.",
   // RCE gadgets: deserialization, JNDI, script eval, K8s host/caps — 18.07.2026
   "Jackson: полиморфная десериализация включена": "Jackson: polymorphic deserialization enabled",
   "enableDefaultTyping()/activateDefaultTyping() заставляет Jackson читать имя класса из JSON и создавать его. Атакующий подсовывает гаджет-класс и получает выполнение кода — классическая цепочка Jackson RCE.":
@@ -1163,6 +1194,7 @@ export const EN: Record<string, string> = {
   "LDAP-инъекция": "LDAP injection",
   "XPath-инъекция": "XPath injection",
   "Загрязнение прототипа": "Prototype pollution",
+  "Небезопасная рефлексия": "Unsafe reflection",
   "Криптография": "Cryptography",
   "Транспортная безопасность": "Transport security",
   "Конфигурация": "Configuration",

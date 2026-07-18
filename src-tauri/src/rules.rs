@@ -2479,6 +2479,104 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ------------------ Динамический код, небезопасная рефлексия, path traversal
+    Rule {
+        id: "VS-PH-014",
+        title: "create_function() — динамический код",
+        description: "create_function() компилирует переданную строку тела как код PHP — это eval с другого входа. Если в тело попадает ввод, атакующий исполняет произвольный код.",
+        recommendation: "Уберите create_function() (удалён в PHP 8). Используйте обычные анонимные функции (замыкания).",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Выполнение кода",
+        languages: &[Language::Php],
+        pattern: r"\bcreate_function\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-95"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/95.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-015",
+        title: "parse_str() без второго аргумента засоряет область видимости",
+        description: "parse_str() с одним аргументом создаёт переменные из строки запроса прямо в текущей области — как register_globals. Атакующий переопределяет любые переменные через query string.",
+        recommendation: "Всегда передавайте второй аргумент-массив: parse_str($input, $result) и работайте с $result.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Контроль доступа",
+        languages: &[Language::Php],
+        pattern: r"\bparse_str\s*\(\s*[^,)]+\)",
+        unless_contains: &[],
+        cwe: &["CWE-621"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/621.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-025",
+        title: "Небезопасная рефлексия: Class.forName по переменной",
+        description: "Class.forName() с именем класса из переменной позволяет атакующему загрузить и инстанцировать произвольный класс. В связке с гаджетами это ведёт к выполнению кода.",
+        recommendation: "Не берите имя класса из ввода. Сопоставьте разрешённые значения белым списком или фабрикой с фиксированным набором типов.",
+        severity: Severity::Medium,
+        confidence: Confidence::Low,
+        category: "Небезопасная рефлексия",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"Class\.forName\s*\(\s*[a-zA-Z_]\w*\s*[),]",
+        unless_contains: &[],
+        cwe: &["CWE-470"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/470.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-RB-010",
+        title: "Небезопасная рефлексия: constantize / const_get",
+        description: "constantize и const_get превращают строку в константу (класс). Со строкой из params атакующий получает доступ к произвольному классу и его методам — обход логики и иногда выполнение кода.",
+        recommendation: "Не вызывайте constantize на пользовательском вводе. Сопоставьте допустимые значения явным белым списком (хэшом строка → класс).",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Небезопасная рефлексия",
+        languages: &[Language::Ruby],
+        pattern: r"\.constantize\b|\.const_get\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-470"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/470.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-GO-011",
+        title: "Path traversal: ServeFile по пути из запроса",
+        description: "http.ServeFile с путём из r.URL отдаёт файл по имени, которое задаёт клиент. Через ../ пользователь выходит за пределы каталога и читает произвольные файлы.",
+        recommendation: "ServeFile сам предупреждает об этом: очистите путь через filepath.Clean и проверьте, что он внутри разрешённого каталога, либо используйте http.FileServer с http.Dir.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Path traversal",
+        languages: &[Language::Go],
+        pattern: r"http\.ServeFile\s*\([^)]*r\.URL",
+        unless_contains: &[],
+        cwe: &["CWE-22"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/22.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-GO-012",
+        title: "Path traversal: путь собран из данных запроса",
+        description: "filepath.Join с сегментом из запроса (r.URL, r.FormValue) даёт клиенту влиять на путь. filepath.Join не защищает от ../ — файл может оказаться вне каталога.",
+        recommendation: "После Join проверьте, что результат под нужным корнем (strings.HasPrefix по filepath.Clean), или сопоставляйте имя с белым списком.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Path traversal",
+        languages: &[Language::Go],
+        pattern: r"filepath\.Join\s*\([^)]*\br\.(?:URL|FormValue|PostFormValue|Form)\b",
+        unless_contains: &[],
+        cwe: &["CWE-22"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/22.html"],
+        skip_in_tests: false,
+    },
+
     // ------------------------ Громкие RCE-гаджеты: десериализация, JNDI, eval
     Rule {
         id: "VS-JV-021",
@@ -4086,6 +4184,37 @@ mod tests {
         // Dropping ALL is the recommended hardening, not a finding.
         let ok = "            - ALL\n";
         assert!(!hit_ids(ok, Language::Kubernetes, "pod.yaml").contains(&"VS-K8-006"));
+    }
+
+    #[test]
+    fn finds_php_dynamic_code_and_scope_pollution() {
+        assert!(hit_ids("<?php $f = create_function('$a', $body);", Language::Php, "d.php").contains(&"VS-PH-014"));
+        assert!(hit_ids("<?php parse_str($_SERVER['QUERY_STRING']);", Language::Php, "p.php").contains(&"VS-PH-015"));
+        // parse_str with a result array is the safe form.
+        let ok = "<?php parse_str($input, $result);";
+        assert!(!hit_ids(ok, Language::Php, "p.php").contains(&"VS-PH-015"));
+    }
+
+    #[test]
+    fn finds_unsafe_reflection() {
+        let jv = "Class<?> c = Class.forName(className);\n";
+        assert!(hit_ids(jv, Language::Java, "R.java").contains(&"VS-JV-025"));
+        // A constant class name is the ordinary, safe case.
+        let ok = "Class.forName(\"com.mysql.jdbc.Driver\");\n";
+        assert!(!hit_ids(ok, Language::Java, "R.java").contains(&"VS-JV-025"));
+        let rb = "klass = params[:type].constantize\n";
+        assert!(hit_ids(rb, Language::Ruby, "r.rb").contains(&"VS-RB-010"));
+    }
+
+    #[test]
+    fn finds_go_path_traversal() {
+        let sf = "http.ServeFile(w, r, r.URL.Path)\n";
+        assert!(hit_ids(sf, Language::Go, "h.go").contains(&"VS-GO-011"));
+        let join = "p := filepath.Join(root, r.FormValue(\"name\"))\n";
+        assert!(hit_ids(join, Language::Go, "h.go").contains(&"VS-GO-012"));
+        // A static join is fine.
+        let ok = "p := filepath.Join(root, \"config.yaml\")\n";
+        assert!(!hit_ids(ok, Language::Go, "h.go").contains(&"VS-GO-012"));
     }
 
     #[test]
