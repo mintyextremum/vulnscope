@@ -199,6 +199,8 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Rule catalogue: confidence filter + filtered count — 18.07.2026
+  "{n} из {total}": "{n} of {total}",
   // Perl string eval — 18.07.2026
   "Строковый eval (выполнение кода)": "String eval (code execution)",
   "eval со строкой (eval \"...\" или eval $code) компилирует и исполняет её как Perl. Ввод в этой строке даёт выполнение произвольного кода. Блочный eval { ... } для перехвата ошибок безопасен и не подпадает.":

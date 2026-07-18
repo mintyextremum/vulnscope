@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
+  Confidence,
+  CONFIDENCE_LABEL,
   RuleInfo,
   Severity,
   SEVERITY_LABEL,
@@ -19,6 +21,7 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
   const [rules, setRules] = useState<RuleInfo[] | null>(null);
   const [query, setQuery] = useState("");
   const [sevFilter, setSevFilter] = useState<Set<Severity>>(new Set());
+  const [confFilter, setConfFilter] = useState<Set<Confidence>>(new Set());
   const [langFilter, setLangFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -40,6 +43,7 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
     const q = query.trim().toLowerCase();
     return rules.filter((r) => {
       if (sevFilter.size > 0 && !sevFilter.has(r.severity)) return false;
+      if (confFilter.size > 0 && !confFilter.has(r.confidence)) return false;
       if (langFilter && !r.languages.includes(langFilter)) return false;
       if (!q) return true;
       return (
@@ -50,7 +54,13 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
         (r.owasp ?? "").toLowerCase().includes(q)
       );
     });
-  }, [rules, query, sevFilter, langFilter]);
+  }, [rules, query, sevFilter, confFilter, langFilter]);
+
+  const filtersActive =
+    query.trim() !== "" ||
+    sevFilter.size > 0 ||
+    confFilter.size > 0 ||
+    langFilter !== null;
 
   const byCategory = useMemo(() => {
     const m = new Map<string, RuleInfo[]>();
@@ -70,6 +80,14 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
       return next;
     });
 
+  const toggleConf = (c: Confidence) =>
+    setConfFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
+
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     (rules ?? []).forEach((r) => {
@@ -77,6 +95,16 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
     });
     return c;
   }, [rules]);
+
+  const confCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    (rules ?? []).forEach((r) => {
+      c[r.confidence] = (c[r.confidence] ?? 0) + 1;
+    });
+    return c;
+  }, [rules]);
+
+  const CONF_ORDER: Confidence[] = ["high", "medium", "low"];
 
   return (
     <div className="rules-screen">
@@ -88,7 +116,18 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
         <div className="rules-title">
           <Icon name="rule" />
           {t("Каталог правил")}
-          <span className="tool-badge">{rules?.length ?? 0}</span>
+          <span
+            className="tool-badge"
+            title={
+              filtersActive
+                ? t("{n} из {total}")
+                    .replace("{n}", String(filtered.length))
+                    .replace("{total}", String(rules?.length ?? 0))
+                : undefined
+            }
+          >
+            {filtersActive ? filtered.length : rules?.length ?? 0}
+          </span>
         </div>
         <div style={{ flex: 1 }} />
         <div className="sev-pills">
@@ -116,6 +155,21 @@ export function RulesScreen({ onClose }: { onClose: () => void }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+        </div>
+        <div className="conf-chips">
+          {CONF_ORDER.map((c) => (
+            <button
+              key={c}
+              className={`lang-chip conf-chip conf-${c} ${
+                confFilter.has(c) ? "active" : ""
+              } ${!confCounts[c] ? "zero" : ""}`}
+              onClick={() => toggleConf(c)}
+              title={t(CONFIDENCE_LABEL[c])}
+            >
+              {t(CONFIDENCE_LABEL[c])}
+              <span className="chip-count">{confCounts[c] ?? 0}</span>
+            </button>
+          ))}
         </div>
         <div className="lang-chips">
           <button
