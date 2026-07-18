@@ -2479,6 +2479,184 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ------------------------- Слабый TLS/крипто и небезопасные протоколы
+    Rule {
+        id: "VS-PY-037",
+        title: "Явно выбран устаревший протокол TLS/SSL",
+        description: "ssl.PROTOCOL_SSLv23/SSLv3/TLSv1 фиксирует давно скомпрометированную версию (POODLE, BEAST). Соединение можно понизить до уязвимого протокола.",
+        recommendation: "Используйте ssl.PROTOCOL_TLS_CLIENT/SERVER и minimum_version = TLSVersion.TLSv1_2.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: PY,
+        pattern: r"ssl\.PROTOCOL_(?:SSLv23|SSLv2|SSLv3|TLSv1)\b",
+        unless_contains: &[],
+        cwe: &["CWE-326"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://docs.python.org/3/library/ssl.html#ssl.PROTOCOL_TLS_CLIENT"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-038",
+        title: "Слабый шифр (DES/RC4/Blowfish)",
+        description: "DES, 3DES, RC4 и Blowfish считаются сломанными: короткий блок/ключ и практические атаки. Данные под ними защищены слабо.",
+        recommendation: "Используйте AES-GCM (Crypto.Cipher.AES с MODE_GCM) или ChaCha20-Poly1305.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: PY,
+        pattern: r"\b(?:DES|DES3|ARC4|ARC2|Blowfish)\.new\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-327"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-039",
+        title: "Использование telnet (незашифрованный протокол)",
+        description: "telnetlib открывает соединение по Telnet — без шифрования. Логин, пароль и данные передаются открытым текстом и перехватываются в сети.",
+        recommendation: "Используйте SSH (paramiko) вместо Telnet.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: PY,
+        pattern: r"\btelnetlib\b",
+        unless_contains: &[],
+        cwe: &["CWE-319"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/319.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JS-035",
+        title: "Открытый редирект: redirect по данным запроса",
+        description: "res.redirect() с данными из req (query/params/body) отправляет пользователя по адресу, который задаёт он сам. Атакующий уводит жертву на фишинговый сайт с доверенного домена.",
+        recommendation: "Редиректьте только по белому списку или относительным путям; проверяйте, что цель принадлежит вашему домену.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Открытый редирект",
+        languages: JS_FAMILY,
+        pattern: r"res\.redirect\s*\(\s*(?:req\.|request\.)",
+        unless_contains: &[],
+        cwe: &["CWE-601"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/601.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JS-036",
+        title: "Явно выбран устаревший протокол TLS",
+        description: "secureProtocol: 'SSLv3_method'/'TLSv1_method' привязывает соединение к сломанной версии протокола. Это открывает атаки понижения и известные уязвимости.",
+        recommendation: "Не задавайте secureProtocol вручную; при необходимости используйте minVersion: 'TLSv1.2'.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: JS_FAMILY,
+        pattern: r#"secureProtocol\s*:\s*["'](?:SSLv3|SSLv2|TLSv1)_method"#,
+        unless_contains: &[],
+        cwe: &["CWE-326"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://nodejs.org/api/tls.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-030",
+        title: "Слабый протокол в SSLContext",
+        description: "SSLContext.getInstance(\"SSL\"/\"SSLv3\"/\"TLSv1\") создаёт контекст со сломанным протоколом. Соединение уязвимо к POODLE/BEAST и понижению версии.",
+        recommendation: "Запрашивайте SSLContext.getInstance(\"TLSv1.2\") или \"TLS\" и ограничивайте минимальную версию.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"SSLContext\.getInstance\s*\(\s*"(?:SSL|SSLv3|SSLv2|TLSv1)""#,
+        unless_contains: &[],
+        cwe: &["CWE-326"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/326.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-014",
+        title: "Слабый шифр (DES/RC2/3DES)",
+        description: "DESCryptoServiceProvider, RC2 и TripleDES используют сломанные или устаревшие алгоритмы с коротким ключом/блоком. Шифрование ими ненадёжно.",
+        recommendation: "Используйте AES (Aes.Create) в режиме GCM или CBC со случайным IV.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Криптография",
+        languages: &[Language::CSharp],
+        pattern: r"(?:DES|RC2|TripleDES)CryptoServiceProvider",
+        unless_contains: &[],
+        cwe: &["CWE-327"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/327.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-017",
+        title: "cURL: проверка TLS-сертификата отключена",
+        description: "CURLOPT_SSL_VERIFYPEER = false или CURLOPT_SSL_VERIFYHOST = 0 отключает проверку сертификата сервера. Соединение больше не защищено от man-in-the-middle.",
+        recommendation: "Держите CURLOPT_SSL_VERIFYPEER = true и CURLOPT_SSL_VERIFYHOST = 2; при необходимости укажите CURLOPT_CAINFO.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::Php],
+        pattern: r"CURLOPT_SSL_VERIFY(?:PEER\s*,\s*(?:false|0)|HOST\s*,\s*0)\b",
+        unless_contains: &[],
+        cwe: &["CWE-295"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/295.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-RB-013",
+        title: "Проверка TLS-сертификата отключена (VERIFY_NONE)",
+        description: "verify_mode = OpenSSL::SSL::VERIFY_NONE заставляет клиент принимать любой сертификат. HTTPS-соединение перестаёт защищать от подмены.",
+        recommendation: "Используйте VERIFY_PEER и корректный набор корневых сертификатов.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Транспортная безопасность",
+        languages: &[Language::Ruby],
+        pattern: r"OpenSSL::SSL::VERIFY_NONE",
+        unless_contains: &[],
+        cwe: &["CWE-295"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://cwe.mitre.org/data/definitions/295.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-RB-014",
+        title: "Kernel#open с пайпом или пользовательскими данными",
+        description: "open(\"| cmd\") запускает команду ОС, а open(params[...]) читает произвольный путь или URL. Первое даёт инъекцию команд, второе — чтение файлов/SSRF.",
+        recommendation: "Используйте File.open для файлов и URI.open только с проверенным адресом; не передавайте ввод в Kernel#open.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Инъекция команд",
+        languages: &[Language::Ruby],
+        pattern: r#"\bopen\s*\(\s*(?:["']\s*\||params\b)"#,
+        unless_contains: &["File.open", "URI.open"],
+        cwe: &["CWE-78"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/78.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-EX-004",
+        title: "String.to_atom на пользовательских данных",
+        description: "String.to_atom создаёт атом из строки. Атомы не собираются сборщиком мусора: поток разных значений извне исчерпывает таблицу атомов и роняет узел BEAM.",
+        recommendation: "Используйте String.to_existing_atom, если набор атомов заранее известен.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Отказ в обслуживании",
+        languages: &[Language::Elixir],
+        pattern: r"String\.to_atom\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-400"],
+        owasp: Some(OWASP_DESIGN),
+        references: &["https://cwe.mitre.org/data/definitions/400.html"],
+        skip_in_tests: false,
+    },
+
     // ----------------------------- Веб-фреймворки: CSRF, CORS, XXE, JWT, hosts
     Rule {
         id: "VS-PY-034",
@@ -4899,6 +5077,24 @@ mod tests {
         assert!(!hit_ids(ok_cors, Language::Java, "C.java").contains(&"VS-JV-029"));
         let ok_hosts = "ALLOWED_HOSTS = ['app.example.com']\n";
         assert!(!hit_ids(ok_hosts, Language::Python, "settings.py").contains(&"VS-PY-035"));
+    }
+
+    #[test]
+    fn finds_weak_tls_crypto_and_protocols() {
+        assert!(hit_ids("ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)\n", Language::Python, "s.py").contains(&"VS-PY-037"));
+        assert!(hit_ids("cipher = DES.new(key, DES.MODE_CBC)\n", Language::Python, "c.py").contains(&"VS-PY-038"));
+        assert!(hit_ids("import telnetlib\n", Language::Python, "t.py").contains(&"VS-PY-039"));
+        assert!(hit_ids("res.redirect(req.query.next)\n", Language::JavaScript, "r.js").contains(&"VS-JS-035"));
+        assert!(hit_ids("tls.connect({ secureProtocol: 'TLSv1_method' })\n", Language::JavaScript, "t.js").contains(&"VS-JS-036"));
+        assert!(hit_ids("SSLContext.getInstance(\"SSLv3\");\n", Language::Java, "S.java").contains(&"VS-JV-030"));
+        assert!(hit_ids("var p = new DESCryptoServiceProvider();\n", Language::CSharp, "C.cs").contains(&"VS-CS-014"));
+        assert!(hit_ids("curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);", Language::Php, "c.php").contains(&"VS-PH-017"));
+        assert!(hit_ids("http.verify_mode = OpenSSL::SSL::VERIFY_NONE\n", Language::Ruby, "h.rb").contains(&"VS-RB-013"));
+        assert!(hit_ids("open(\"| /bin/sh\")\n", Language::Ruby, "o.rb").contains(&"VS-RB-014"));
+        assert!(hit_ids("atom = String.to_atom(user_input)\n", Language::Elixir, "a.ex").contains(&"VS-EX-004"));
+        // Safe counterparts must not fire.
+        assert!(!hit_ids("String.to_existing_atom(name)\n", Language::Elixir, "a.ex").contains(&"VS-EX-004"));
+        assert!(!hit_ids("File.open(path)\n", Language::Ruby, "o.rb").contains(&"VS-RB-014"));
     }
 
     #[test]

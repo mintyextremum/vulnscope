@@ -199,6 +199,62 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Weak TLS/crypto and insecure protocols — 18.07.2026
+  "Явно выбран устаревший протокол TLS/SSL": "Obsolete TLS/SSL protocol explicitly selected",
+  "ssl.PROTOCOL_SSLv23/SSLv3/TLSv1 фиксирует давно скомпрометированную версию (POODLE, BEAST). Соединение можно понизить до уязвимого протокола.":
+    "ssl.PROTOCOL_SSLv23/SSLv3/TLSv1 pins a long-broken version (POODLE, BEAST). The connection can be downgraded to a vulnerable protocol.",
+  "Используйте ssl.PROTOCOL_TLS_CLIENT/SERVER и minimum_version = TLSVersion.TLSv1_2.":
+    "Use ssl.PROTOCOL_TLS_CLIENT/SERVER and minimum_version = TLSVersion.TLSv1_2.",
+  "Слабый шифр (DES/RC4/Blowfish)": "Weak cipher (DES/RC4/Blowfish)",
+  "DES, 3DES, RC4 и Blowfish считаются сломанными: короткий блок/ключ и практические атаки. Данные под ними защищены слабо.":
+    "DES, 3DES, RC4, and Blowfish are considered broken: short block/key and practical attacks. Data under them is weakly protected.",
+  "Используйте AES-GCM (Crypto.Cipher.AES с MODE_GCM) или ChaCha20-Poly1305.":
+    "Use AES-GCM (Crypto.Cipher.AES with MODE_GCM) or ChaCha20-Poly1305.",
+  "Использование telnet (незашифрованный протокол)": "Use of telnet (unencrypted protocol)",
+  "telnetlib открывает соединение по Telnet — без шифрования. Логин, пароль и данные передаются открытым текстом и перехватываются в сети.":
+    "telnetlib opens a Telnet connection — with no encryption. Login, password, and data travel in cleartext and are intercepted on the network.",
+  "Используйте SSH (paramiko) вместо Telnet.":
+    "Use SSH (paramiko) instead of Telnet.",
+  "Открытый редирект: redirect по данным запроса": "Open redirect: redirect from request data",
+  "res.redirect() с данными из req (query/params/body) отправляет пользователя по адресу, который задаёт он сам. Атакующий уводит жертву на фишинговый сайт с доверенного домена.":
+    "res.redirect() with data from req (query/params/body) sends the user to an address they control. An attacker lures the victim to a phishing site from a trusted domain.",
+  "Редиректьте только по белому списку или относительным путям; проверяйте, что цель принадлежит вашему домену.":
+    "Redirect only to an allowlist or relative paths; verify the target belongs to your domain.",
+  "Явно выбран устаревший протокол TLS": "Obsolete TLS protocol explicitly selected",
+  "secureProtocol: 'SSLv3_method'/'TLSv1_method' привязывает соединение к сломанной версии протокола. Это открывает атаки понижения и известные уязвимости.":
+    "secureProtocol: 'SSLv3_method'/'TLSv1_method' pins the connection to a broken protocol version. This opens downgrade attacks and known vulnerabilities.",
+  "Не задавайте secureProtocol вручную; при необходимости используйте minVersion: 'TLSv1.2'.":
+    "Do not set secureProtocol manually; if needed, use minVersion: 'TLSv1.2'.",
+  "Слабый протокол в SSLContext": "Weak protocol in SSLContext",
+  "SSLContext.getInstance(\"SSL\"/\"SSLv3\"/\"TLSv1\") создаёт контекст со сломанным протоколом. Соединение уязвимо к POODLE/BEAST и понижению версии.":
+    "SSLContext.getInstance(\"SSL\"/\"SSLv3\"/\"TLSv1\") creates a context with a broken protocol. The connection is vulnerable to POODLE/BEAST and version downgrade.",
+  "Запрашивайте SSLContext.getInstance(\"TLSv1.2\") или \"TLS\" и ограничивайте минимальную версию.":
+    "Request SSLContext.getInstance(\"TLSv1.2\") or \"TLS\" and constrain the minimum version.",
+  "Слабый шифр (DES/RC2/3DES)": "Weak cipher (DES/RC2/3DES)",
+  "DESCryptoServiceProvider, RC2 и TripleDES используют сломанные или устаревшие алгоритмы с коротким ключом/блоком. Шифрование ими ненадёжно.":
+    "DESCryptoServiceProvider, RC2, and TripleDES use broken or outdated algorithms with a short key/block. Encryption with them is unreliable.",
+  "Используйте AES (Aes.Create) в режиме GCM или CBC со случайным IV.":
+    "Use AES (Aes.Create) in GCM mode or CBC with a random IV.",
+  "cURL: проверка TLS-сертификата отключена": "cURL: TLS certificate verification disabled",
+  "CURLOPT_SSL_VERIFYPEER = false или CURLOPT_SSL_VERIFYHOST = 0 отключает проверку сертификата сервера. Соединение больше не защищено от man-in-the-middle.":
+    "CURLOPT_SSL_VERIFYPEER = false or CURLOPT_SSL_VERIFYHOST = 0 turns off server certificate verification. The connection is no longer protected against man-in-the-middle.",
+  "Держите CURLOPT_SSL_VERIFYPEER = true и CURLOPT_SSL_VERIFYHOST = 2; при необходимости укажите CURLOPT_CAINFO.":
+    "Keep CURLOPT_SSL_VERIFYPEER = true and CURLOPT_SSL_VERIFYHOST = 2; set CURLOPT_CAINFO if needed.",
+  "Проверка TLS-сертификата отключена (VERIFY_NONE)": "TLS certificate verification disabled (VERIFY_NONE)",
+  "verify_mode = OpenSSL::SSL::VERIFY_NONE заставляет клиент принимать любой сертификат. HTTPS-соединение перестаёт защищать от подмены.":
+    "verify_mode = OpenSSL::SSL::VERIFY_NONE makes the client accept any certificate. The HTTPS connection no longer protects against spoofing.",
+  "Используйте VERIFY_PEER и корректный набор корневых сертификатов.":
+    "Use VERIFY_PEER and a correct set of root certificates.",
+  "Kernel#open с пайпом или пользовательскими данными": "Kernel#open with a pipe or user data",
+  "open(\"| cmd\") запускает команду ОС, а open(params[...]) читает произвольный путь или URL. Первое даёт инъекцию команд, второе — чтение файлов/SSRF.":
+    "open(\"| cmd\") runs an OS command, while open(params[...]) reads an arbitrary path or URL. The former is command injection, the latter file read/SSRF.",
+  "Используйте File.open для файлов и URI.open только с проверенным адресом; не передавайте ввод в Kernel#open.":
+    "Use File.open for files and URI.open only with a validated address; do not pass input to Kernel#open.",
+  "String.to_atom на пользовательских данных": "String.to_atom on user data",
+  "String.to_atom создаёт атом из строки. Атомы не собираются сборщиком мусора: поток разных значений извне исчерпывает таблицу атомов и роняет узел BEAM.":
+    "String.to_atom creates an atom from a string. Atoms are not garbage-collected: a stream of distinct external values exhausts the atom table and crashes the BEAM node.",
+  "Используйте String.to_existing_atom, если набор атомов заранее известен.":
+    "Use String.to_existing_atom when the set of atoms is known in advance.",
   // Web frameworks: CSRF, CORS, XXE, JWT, hosts — 18.07.2026
   "Django: защита CSRF отключена (@csrf_exempt)": "Django: CSRF protection disabled (@csrf_exempt)",
   "@csrf_exempt снимает проверку CSRF-токена с представления. Форму или API можно вызвать с чужого сайта от имени залогиненного пользователя.":
