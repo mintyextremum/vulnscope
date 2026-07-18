@@ -201,6 +201,37 @@ export const EN: Record<string, string> = {
   "Показать файл в проводнике": "Reveal the file in the file manager",
   // Rule catalogue: confidence filter + filtered count — 18.07.2026
   "{n} из {total}": "{n} of {total}",
+  // Experimental (BETA) heuristics — setup toggle, badge tooltips, heuristic text
+  "Экспериментальные проверки": "Experimental checks",
+  "Эвристики: помечают возможные уязвимости, которые не поймали точные правила":
+    "Heuristics: flag possible vulnerabilities the precise rules missed",
+  "Экспериментальная эвристика: возможная уязвимость, которую не поймали точные правила. Требует ручной проверки.":
+    "Experimental heuristic: a possible vulnerability the precise rules missed. Needs manual review.",
+  "Возможная инъекция команд": "Possible command injection",
+  "В одной строке встречаются пользовательский ввод и запуск системной команды. Если ввод попадает в команду без экранирования, это инъекция команд ОС. Это эвристика (BETA): точное правило здесь не сработало, проверьте поток данных вручную.":
+    "User input and a system-command call appear on the same line. If the input reaches the command unescaped, this is OS command injection. This is a heuristic (BETA): no precise rule fired here — check the data flow manually.",
+  "Убедитесь, что ввод не попадает в команду. Запускайте процессы с массивом аргументов без шелла и с белым списком.":
+    "Make sure input never reaches the command. Launch processes with an argument array (no shell) and an allowlist.",
+  "Возможная SQL-инъекция": "Possible SQL injection",
+  "В одной строке встречаются пользовательский ввод и выполнение SQL-запроса. Если ввод склеивается в текст запроса, это SQL-инъекция. Это эвристика (BETA): проверьте, используется ли параметризация.":
+    "User input and a SQL query execution appear on the same line. If the input is concatenated into the query text, this is SQL injection. This is a heuristic (BETA): check whether parameterization is used.",
+  "Используйте параметризованные запросы (placeholders), а не конкатенацию/интерполяцию ввода в SQL.":
+    "Use parameterized queries (placeholders) rather than concatenating/interpolating input into SQL.",
+  "Возможный path traversal": "Possible path traversal",
+  "В одной строке встречаются пользовательский ввод и открытие файла. Если имя файла задаёт пользователь, через ../ он выйдет за пределы каталога. Это эвристика (BETA): проверьте, ограничен ли путь.":
+    "User input and a file open appear on the same line. If the user controls the file name, ../ escapes the directory. This is a heuristic (BETA): check whether the path is constrained.",
+  "Сопоставляйте имя с белым списком или берите только basename и фиксируйте базовый каталог; проверяйте результат после нормализации пути.":
+    "Match the name against an allowlist, or take only the basename and pin the base directory; verify the result after normalizing the path.",
+  "Возможный SSRF": "Possible SSRF",
+  "В одной строке встречаются пользовательский ввод и исходящий HTTP-запрос. Если адрес задаёт пользователь, сервер сходит куда угодно — вплоть до внутренних сервисов и метаданных облака. Это эвристика (BETA).":
+    "User input and an outbound HTTP request appear on the same line. If the user controls the address, the server can reach anywhere — including internal services and cloud metadata. This is a heuristic (BETA).",
+  "Проверяйте и ограничивайте целевой адрес белым списком доменов/сетей; запрещайте приватные диапазоны и редиректы на них.":
+    "Validate and restrict the target address with a domain/network allowlist; block private ranges and redirects to them.",
+  "Возможное выполнение кода": "Possible code execution",
+  "В одной строке встречаются пользовательский ввод и eval/exec-подобный вызов. Если ввод исполняется как код или десериализуется небезопасно, это выполнение произвольного кода. Это эвристика (BETA).":
+    "User input and an eval/exec-like call appear on the same line. If the input is run as code or deserialized unsafely, this is arbitrary code execution. This is a heuristic (BETA).",
+  "Не исполняйте и не десериализуйте пользовательские данные. Используйте безопасные парсеры и белые списки.":
+    "Do not run or deserialize user data. Use safe parsers and allowlists.",
   // Finding detail: exploitation example, impact, fix code, sink corroboration
   "Пример эксплуатации": "Exploitation example",
   "Возможные последствия": "Potential impact",

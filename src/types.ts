@@ -174,6 +174,8 @@ export interface FindingExtra {
   fixCode: string | null;
   /** A corroborating sink was found in the same file, raising confidence. */
   corroborated: boolean;
+  /** Experimental (BETA) heuristic finding: a suspected issue for review. */
+  experimental?: boolean;
 }
 
 export interface SeverityCounts {
@@ -322,6 +324,7 @@ export interface ScanOptions {
   includeVendor: boolean;
   checkSecrets: boolean;
   checkDependencies: boolean;
+  experimental: boolean;
   externalTools: ToolId[];
 }
 
