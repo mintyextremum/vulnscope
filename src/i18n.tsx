@@ -199,6 +199,59 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Web frameworks: CSRF, CORS, XXE, JWT, hosts — 18.07.2026
+  "Django: защита CSRF отключена (@csrf_exempt)": "Django: CSRF protection disabled (@csrf_exempt)",
+  "@csrf_exempt снимает проверку CSRF-токена с представления. Форму или API можно вызвать с чужого сайта от имени залогиненного пользователя.":
+    "@csrf_exempt removes the CSRF token check from the view. The form or API can be invoked from another site on behalf of a logged-in user.",
+  "Не отключайте CSRF для операций, меняющих состояние. Для API используйте токен-аутентификацию, а не сессионные куки.":
+    "Do not disable CSRF for state-changing operations. For APIs use token authentication rather than session cookies.",
+  "Django: ALLOWED_HOSTS = ['*']": "Django: ALLOWED_HOSTS = ['*']",
+  "ALLOWED_HOSTS = ['*'] принимает запросы с любым заголовком Host. Это открывает подмену Host-заголовка: отравление ссылок сброса пароля и кэша.":
+    "ALLOWED_HOSTS = ['*'] accepts requests with any Host header. This enables Host-header injection: poisoned password-reset links and cache.",
+  "Перечислите конкретные домены в ALLOWED_HOSTS.":
+    "List the specific domains in ALLOWED_HOSTS.",
+  "flask-cors с origins=\"*\" (или голый CORS(app)) отдаёт Access-Control-Allow-Origin: * для всех маршрутов. Любой сайт может обращаться к API из браузера жертвы.":
+    "flask-cors with origins=\"*\" (or a bare CORS(app)) returns Access-Control-Allow-Origin: * for every route. Any site can call the API from the victim's browser.",
+  "Задайте явный список доверенных источников вместо \"*\", особенно если используются куки/креденшелы.":
+    "Set an explicit list of trusted origins instead of \"*\", especially when cookies/credentials are used.",
+  "Access-Control-Allow-Origin: * или cors({ origin: \"*\" }) открывает API любому сайту. В связке с куками или credentials это позволяет чужой странице действовать от имени пользователя.":
+    "Access-Control-Allow-Origin: * or cors({ origin: \"*\" }) opens the API to any site. Combined with cookies or credentials, it lets a foreign page act on the user's behalf.",
+  "Укажите конкретный список доверенных источников; не сочетайте \"*\" с credentials.":
+    "Specify a concrete list of trusted origins; never combine \"*\" with credentials.",
+  "Spring @CrossOrigin без ограничения источника": "Spring @CrossOrigin without origin restriction",
+  "@CrossOrigin() без аргументов или с origins = \"*\" разрешает кросс-доменные запросы с любого сайта. Это ослабляет same-origin policy для аннотированного контроллера.":
+    "@CrossOrigin() with no arguments, or origins = \"*\", allows cross-origin requests from any site. It weakens the same-origin policy for the annotated controller.",
+  "Перечислите доверенные источники: @CrossOrigin(origins = {\"https://app.example.com\"}).":
+    "List the trusted origins: @CrossOrigin(origins = {\"https://app.example.com\"}).",
+  "JWT подписан алгоритмом none": "JWT signed with the none algorithm",
+  "SigningMethodNone/UnsafeAllowNoneSignatureType выпускает или принимает JWT без подписи. Атакующий подделывает любой токен, просто убрав подпись.":
+    "SigningMethodNone/UnsafeAllowNoneSignatureType issues or accepts a JWT without a signature. An attacker forges any token simply by dropping the signature.",
+  "Подписывайте и проверяйте токены сильным алгоритмом (HS256/RS256) и явно запрещайте none при разборе.":
+    "Sign and verify tokens with a strong algorithm (HS256/RS256) and explicitly reject none when parsing.",
+  "CORS: AllowAnyOrigin()": "CORS: AllowAnyOrigin()",
+  "AllowAnyOrigin() в политике CORS ASP.NET Core разрешает запросы с любого сайта. С AllowCredentials это даёт чужой странице действовать от имени пользователя.":
+    "AllowAnyOrigin() in an ASP.NET Core CORS policy allows requests from any site. With AllowCredentials it lets a foreign page act on the user's behalf.",
+  "Используйте WithOrigins(\"https://app.example.com\") со списком доверенных источников.":
+    "Use WithOrigins(\"https://app.example.com\") with a list of trusted origins.",
+  "DtdProcessing.Parse или назначенный XmlResolver заставляют .NET разбирать DTD и внешние сущности. XML со ссылкой на файл или URL раскрывает содержимое и бьёт по SSRF.":
+    "DtdProcessing.Parse or an assigned XmlResolver makes .NET parse DTDs and external entities. XML referencing a file or URL discloses its contents and drives SSRF.",
+  "Задайте DtdProcessing = DtdProcessing.Prohibit и XmlResolver = null у XmlReaderSettings.":
+    "Set DtdProcessing = DtdProcessing.Prohibit and XmlResolver = null on the XmlReaderSettings.",
+  "Разбор XML с подстановкой внешних сущностей (LIBXML_NOENT)": "XML parsing with external entity substitution (LIBXML_NOENT)",
+  "Флаг LIBXML_NOENT включает подстановку внешних сущностей при разборе XML. Документ со ссылкой на файл или URL приводит к чтению локальных файлов и SSRF (XXE).":
+    "The LIBXML_NOENT flag enables external entity substitution when parsing XML. A document referencing a file or URL leads to local file reads and SSRF (XXE).",
+  "Не используйте LIBXML_NOENT для недоверенного XML. На PHP < 8 вызовите libxml_disable_entity_loader(true).":
+    "Do not use LIBXML_NOENT for untrusted XML. On PHP < 8 call libxml_disable_entity_loader(true).",
+  "Rails: защита CSRF отключена": "Rails: CSRF protection disabled",
+  "skip_before_action :verify_authenticity_token или protect_from_forgery with: :null_session снимает проверку CSRF. Меняющие состояние запросы проходят с чужого сайта.":
+    "skip_before_action :verify_authenticity_token or protect_from_forgery with: :null_session removes the CSRF check. State-changing requests go through from another site.",
+  "Не отключайте verify_authenticity_token для форм и state-changing действий; для API используйте токен-аутентификацию.":
+    "Do not disable verify_authenticity_token for forms and state-changing actions; use token authentication for APIs.",
+  "Path traversal: файл отдаётся по пути из params": "Path traversal: file served by a path from params",
+  "send_file или File.read/open с params[...] отдаёт файл по имени, которое задаёт пользователь. Через ../ он выходит за пределы каталога и читает произвольные файлы.":
+    "send_file or File.read/open with params[...] serves a file by a name the user controls. With ../ they escape the directory and read arbitrary files.",
+  "Сопоставляйте запрошенное имя с белым списком или берите только basename и фиксируйте базовый каталог.":
+    "Match the requested name against an allowlist, or take only the basename and pin the base directory.",
   // Kubernetes hardening + mobile (Android/iOS) — 18.07.2026
   "Токен сервис-аккаунта монтируется автоматически": "Service account token is auto-mounted",
   "automountServiceAccountToken: true кладёт токен API в каждый под. Захватив контейнер, атакующий этим токеном ходит в Kubernetes API с правами сервис-аккаунта.":

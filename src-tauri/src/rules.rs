@@ -2479,6 +2479,184 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ----------------------------- Веб-фреймворки: CSRF, CORS, XXE, JWT, hosts
+    Rule {
+        id: "VS-PY-034",
+        title: "Django: защита CSRF отключена (@csrf_exempt)",
+        description: "@csrf_exempt снимает проверку CSRF-токена с представления. Форму или API можно вызвать с чужого сайта от имени залогиненного пользователя.",
+        recommendation: "Не отключайте CSRF для операций, меняющих состояние. Для API используйте токен-аутентификацию, а не сессионные куки.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Контроль доступа",
+        languages: PY,
+        pattern: r"@csrf_exempt\b",
+        unless_contains: &[],
+        cwe: &["CWE-352"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/352.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-035",
+        title: "Django: ALLOWED_HOSTS = ['*']",
+        description: "ALLOWED_HOSTS = ['*'] принимает запросы с любым заголовком Host. Это открывает подмену Host-заголовка: отравление ссылок сброса пароля и кэша.",
+        recommendation: "Перечислите конкретные домены в ALLOWED_HOSTS.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: PY,
+        pattern: r#"ALLOWED_HOSTS\s*=\s*\[[^\]]*["']\*["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-16"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://docs.djangoproject.com/en/stable/ref/settings/#allowed-hosts"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PY-036",
+        title: "CORS разрешён для любого источника",
+        description: "flask-cors с origins=\"*\" (или голый CORS(app)) отдаёт Access-Control-Allow-Origin: * для всех маршрутов. Любой сайт может обращаться к API из браузера жертвы.",
+        recommendation: "Задайте явный список доверенных источников вместо \"*\", особенно если используются куки/креденшелы.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: PY,
+        pattern: r#"origins\s*=\s*["']\*["']|CORS\s*\(\s*app\s*\)"#,
+        unless_contains: &[],
+        cwe: &["CWE-942"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/942.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JS-034",
+        title: "CORS разрешён для любого источника",
+        description: "Access-Control-Allow-Origin: * или cors({ origin: \"*\" }) открывает API любому сайту. В связке с куками или credentials это позволяет чужой странице действовать от имени пользователя.",
+        recommendation: "Укажите конкретный список доверенных источников; не сочетайте \"*\" с credentials.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: JS_FAMILY,
+        pattern: r#"Access-Control-Allow-Origin["'\s,]+["']\*["']|origin\s*:\s*["']\*["']"#,
+        unless_contains: &[],
+        cwe: &["CWE-942"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/942.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-029",
+        title: "Spring @CrossOrigin без ограничения источника",
+        description: "@CrossOrigin() без аргументов или с origins = \"*\" разрешает кросс-доменные запросы с любого сайта. Это ослабляет same-origin policy для аннотированного контроллера.",
+        recommendation: "Перечислите доверенные источники: @CrossOrigin(origins = {\"https://app.example.com\"}).",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"@CrossOrigin\s*(?:\(\s*\)|\([^)]*"\*")"#,
+        unless_contains: &[],
+        cwe: &["CWE-942"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/942.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-GO-013",
+        title: "JWT подписан алгоритмом none",
+        description: "SigningMethodNone/UnsafeAllowNoneSignatureType выпускает или принимает JWT без подписи. Атакующий подделывает любой токен, просто убрав подпись.",
+        recommendation: "Подписывайте и проверяйте токены сильным алгоритмом (HS256/RS256) и явно запрещайте none при разборе.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Аутентификация",
+        languages: &[Language::Go],
+        pattern: r"SigningMethodNone|UnsafeAllowNoneSignatureType",
+        unless_contains: &[],
+        cwe: &["CWE-347"],
+        owasp: Some(OWASP_AUTH),
+        references: &["https://cwe.mitre.org/data/definitions/347.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-012",
+        title: "CORS: AllowAnyOrigin()",
+        description: "AllowAnyOrigin() в политике CORS ASP.NET Core разрешает запросы с любого сайта. С AllowCredentials это даёт чужой странице действовать от имени пользователя.",
+        recommendation: "Используйте WithOrigins(\"https://app.example.com\") со списком доверенных источников.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::CSharp],
+        pattern: r"\.AllowAnyOrigin\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-942"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/942.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-013",
+        title: "Разбор XML уязвим к XXE",
+        description: "DtdProcessing.Parse или назначенный XmlResolver заставляют .NET разбирать DTD и внешние сущности. XML со ссылкой на файл или URL раскрывает содержимое и бьёт по SSRF.",
+        recommendation: "Задайте DtdProcessing = DtdProcessing.Prohibit и XmlResolver = null у XmlReaderSettings.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "XXE",
+        languages: &[Language::CSharp],
+        pattern: r"DtdProcessing\s*\.\s*Parse|XmlResolver\s*=\s*new\s+Xml",
+        unless_contains: &[],
+        cwe: &["CWE-611"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/611.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-PH-016",
+        title: "Разбор XML с подстановкой внешних сущностей (LIBXML_NOENT)",
+        description: "Флаг LIBXML_NOENT включает подстановку внешних сущностей при разборе XML. Документ со ссылкой на файл или URL приводит к чтению локальных файлов и SSRF (XXE).",
+        recommendation: "Не используйте LIBXML_NOENT для недоверенного XML. На PHP < 8 вызовите libxml_disable_entity_loader(true).",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "XXE",
+        languages: &[Language::Php],
+        pattern: r"\bLIBXML_NOENT\b",
+        unless_contains: &[],
+        cwe: &["CWE-611"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/611.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-RB-011",
+        title: "Rails: защита CSRF отключена",
+        description: "skip_before_action :verify_authenticity_token или protect_from_forgery with: :null_session снимает проверку CSRF. Меняющие состояние запросы проходят с чужого сайта.",
+        recommendation: "Не отключайте verify_authenticity_token для форм и state-changing действий; для API используйте токен-аутентификацию.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Контроль доступа",
+        languages: &[Language::Ruby],
+        pattern: r"skip_before_action\s+:verify_authenticity_token|protect_from_forgery\s+with:\s*:null_session",
+        unless_contains: &[],
+        cwe: &["CWE-352"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://cwe.mitre.org/data/definitions/352.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-RB-012",
+        title: "Path traversal: файл отдаётся по пути из params",
+        description: "send_file или File.read/open с params[...] отдаёт файл по имени, которое задаёт пользователь. Через ../ он выходит за пределы каталога и читает произвольные файлы.",
+        recommendation: "Сопоставляйте запрошенное имя с белым списком или берите только basename и фиксируйте базовый каталог.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Path traversal",
+        languages: &[Language::Ruby],
+        pattern: r"(?:send_file|File\.(?:read|open)|render\s+file:)\s*\(?\s*params\b",
+        unless_contains: &[],
+        cwe: &["CWE-22"],
+        owasp: Some(OWASP_ACCESS),
+        references: &["https://cwe.mitre.org/data/definitions/22.html"],
+        skip_in_tests: false,
+    },
+
     // ------------------ Динамический код, небезопасная рефлексия, path traversal
     Rule {
         id: "VS-PH-014",
@@ -4701,6 +4879,26 @@ mod tests {
         assert!(hit_ids("openFileOutput(\"f\", Context.MODE_WORLD_READABLE);\n", Language::Java, "A.java").contains(&"VS-JV-028"));
         assert!(hit_ids("kSecAttrAccessible as String: kSecAttrAccessibleAlways\n", Language::Swift, "K.swift").contains(&"VS-SW-005"));
         assert!(hit_ids("<key>NSAllowsArbitraryLoads</key><true/>\n", Language::Swift, "Info.swift").contains(&"VS-SW-006"));
+    }
+
+    #[test]
+    fn finds_web_framework_misconfig() {
+        assert!(hit_ids("@csrf_exempt\ndef view(r): pass\n", Language::Python, "v.py").contains(&"VS-PY-034"));
+        assert!(hit_ids("ALLOWED_HOSTS = ['*']\n", Language::Python, "settings.py").contains(&"VS-PY-035"));
+        assert!(hit_ids("CORS(app)\n", Language::Python, "app.py").contains(&"VS-PY-036"));
+        assert!(hit_ids("app.use(cors({ origin: \"*\" }))\n", Language::JavaScript, "s.js").contains(&"VS-JS-034"));
+        assert!(hit_ids("@CrossOrigin(origins = \"*\")\n", Language::Java, "C.java").contains(&"VS-JV-029"));
+        assert!(hit_ids("token.Method = jwt.SigningMethodNone\n", Language::Go, "j.go").contains(&"VS-GO-013"));
+        assert!(hit_ids("policy.AllowAnyOrigin();\n", Language::CSharp, "S.cs").contains(&"VS-CS-012"));
+        assert!(hit_ids("settings.DtdProcessing = DtdProcessing.Parse;\n", Language::CSharp, "X.cs").contains(&"VS-CS-013"));
+        assert!(hit_ids("$d->loadXML($xml, LIBXML_NOENT);", Language::Php, "x.php").contains(&"VS-PH-016"));
+        assert!(hit_ids("skip_before_action :verify_authenticity_token\n", Language::Ruby, "c.rb").contains(&"VS-RB-011"));
+        assert!(hit_ids("send_file params[:path]\n", Language::Ruby, "c.rb").contains(&"VS-RB-012"));
+        // A restricted CORS origin and a real Host list must not fire.
+        let ok_cors = "@CrossOrigin(origins = \"https://app.example.com\")\n";
+        assert!(!hit_ids(ok_cors, Language::Java, "C.java").contains(&"VS-JV-029"));
+        let ok_hosts = "ALLOWED_HOSTS = ['app.example.com']\n";
+        assert!(!hit_ids(ok_hosts, Language::Python, "settings.py").contains(&"VS-PY-035"));
     }
 
     #[test]

@@ -14,7 +14,7 @@
 
 ## Что оно находит
 
-**Код — 237 встроенных правил** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
+**Код — 248 встроенных правил** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
 XPath, JNDI и шаблонов (SSTI, SpEL), XSS, загрязнение прототипа, небезопасная
 рефлексия (`Class.forName`, `constantize`), path traversal, открытые редиректы,
 небезопасная десериализация (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`, XStream,
