@@ -2503,6 +2503,52 @@ kbd,
   color: var(--on-a);
 }
 
+.conf-chips {
+  display: flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.conf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.conf-chip .chip-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* Left accent dot keyed to the confidence level, so the three chips read as a
+   scale rather than three identical pills. */
+.conf-chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: currentColor;
+}
+
+.conf-chip.conf-high {
+  color: var(--ok, var(--t-2));
+}
+.conf-chip.conf-medium {
+  color: var(--high, var(--t-2));
+}
+.conf-chip.conf-low {
+  color: var(--t-3);
+}
+
+.conf-chip.active {
+  background: var(--a);
+  color: var(--on-a);
+}
+
+.conf-chip.zero {
+  opacity: 0.4;
+}
+
 .rules-body {
   flex: 1;
   overflow-y: auto;
