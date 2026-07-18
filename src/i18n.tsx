@@ -199,6 +199,67 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // SaaS provider secret detectors — 18.07.2026
+  "Токен Atlassian (Jira/Confluence)": "Atlassian token (Jira/Confluence)",
+  "API-токен Atlassian даёт доступ к Jira и Confluence вашего аккаунта: задачам, страницам и вложениям.":
+    "An Atlassian API token grants access to your account's Jira and Confluence: issues, pages, and attachments.",
+  "Отзовите токен в настройках Atlassian (Security → API tokens) и выпустите новый.":
+    "Revoke the token in Atlassian settings (Security → API tokens) and issue a new one.",
+  "Linear API-ключ": "Linear API key",
+  "Ключ Linear API даёт доступ к задачам, проектам и комментариям вашей рабочей области.":
+    "A Linear API key grants access to your workspace's issues, projects, and comments.",
+  "Отзовите ключ в настройках Linear (API) и выпустите новый.":
+    "Revoke the key in Linear settings (API) and issue a new one.",
+  "Токен Doppler": "Doppler token",
+  "Токен Doppler открывает доступ к секретам проектов и окружений, которыми управляет Doppler. Это ключ ко всем остальным секретам.":
+    "A Doppler token opens access to the project and environment secrets Doppler manages. It is a key to all your other secrets.",
+  "Отзовите токен в панели Doppler и выпустите новый с минимальной областью.":
+    "Revoke the token in the Doppler dashboard and issue a new one with minimal scope.",
+  "Токен PlanetScale": "PlanetScale token",
+  "Токен PlanetScale даёт доступ к базам данных, веткам и паролям подключения вашей организации.":
+    "A PlanetScale token grants access to your organization's databases, branches, and connection passwords.",
+  "Отзовите токен в настройках PlanetScale и выпустите новый.":
+    "Revoke the token in PlanetScale settings and issue a new one.",
+  "Токен HashiCorp Vault": "HashiCorp Vault token",
+  "Токен Vault даёт доступ к секретам, которыми управляет хранилище: ключам, паролям и сертификатам в рамках своих политик.":
+    "A Vault token grants access to the secrets the vault manages: keys, passwords, and certificates within its policies.",
+  "Отзовите токен (vault token revoke) и выпустите новый с ограниченным TTL и политиками.":
+    "Revoke the token (vault token revoke) and issue a new one with a limited TTL and policies.",
+  "Токен сервис-аккаунта Grafana": "Grafana service account token",
+  "Токен Grafana даёт доступ к дашбордам, источникам данных и настройкам мониторинга.":
+    "A Grafana token grants access to dashboards, data sources, and monitoring settings.",
+  "Отзовите токен в Grafana (Service accounts) и выпустите новый.":
+    "Revoke the token in Grafana (Service accounts) and issue a new one.",
+  "Токен Dropbox": "Dropbox token",
+  "Токен Dropbox даёт доступ к файлам и папкам аккаунта: чтение, запись и удаление.":
+    "A Dropbox token grants access to the account's files and folders: read, write, and delete.",
+  "Отзовите токен в App Console Dropbox и выпустите новый с нужной областью.":
+    "Revoke the token in the Dropbox App Console and issue a new one with the needed scope.",
+  "Токен Terraform Cloud": "Terraform Cloud token",
+  "Токен Terraform Cloud даёт доступ к рабочим областям, состоянию (state) и переменным — включая другие секреты инфраструктуры.":
+    "A Terraform Cloud token grants access to workspaces, state, and variables — including your other infrastructure secrets.",
+  "Отзовите токен в настройках Terraform Cloud (Tokens) и выпустите новый.":
+    "Revoke the token in Terraform Cloud settings (Tokens) and issue a new one.",
+  "Серверный ключ Firebase Cloud Messaging": "Firebase Cloud Messaging server key",
+  "Серверный ключ FCM позволяет рассылать push-уведомления всем пользователям вашего приложения.":
+    "An FCM server key lets one push notifications to all users of your app.",
+  "Отзовите ключ в консоли Firebase (Cloud Messaging) и перейдите на HTTP v1 API с OAuth.":
+    "Revoke the key in the Firebase console (Cloud Messaging) and move to the HTTP v1 API with OAuth.",
+  "Токен Adobe": "Adobe token",
+  "Токен Adobe даёт доступ к API Creative Cloud/Experience Cloud вашей организации.":
+    "An Adobe token grants access to your organization's Creative Cloud/Experience Cloud APIs.",
+  "Отзовите токен в Adobe Developer Console и выпустите новый.":
+    "Revoke the token in the Adobe Developer Console and issue a new one.",
+  "Персональный токен Asana": "Asana personal access token",
+  "Токен Asana даёт доступ к задачам, проектам и рабочим областям вашего аккаунта.":
+    "An Asana token grants access to your account's tasks, projects, and workspaces.",
+  "Отзовите токен в настройках Asana (Apps → Developer) и выпустите новый.":
+    "Revoke the token in Asana settings (Apps → Developer) and issue a new one.",
+  "Mailchimp API-ключ": "Mailchimp API key",
+  "Ключ Mailchimp даёт доступ к спискам рассылки, подписчикам и кампаниям — это персональные данные и вектор для рассылок.":
+    "A Mailchimp key grants access to mailing lists, subscribers, and campaigns — personal data and a mailing vector.",
+  "Отзовите ключ в настройках Mailchimp (Account → API keys) и выпустите новый.":
+    "Revoke the key in Mailchimp settings (Account → API keys) and issue a new one.",
   // IaC/CI/Docker/nginx config — 18.07.2026
   "Контейнер работает от root (USER root)": "Container runs as root (USER root)",
   "Явный USER root оставляет процесс с правами суперпользователя внутри контейнера. Любая уязвимость в приложении сразу даёт root, что упрощает побег.":
