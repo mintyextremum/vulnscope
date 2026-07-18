@@ -383,8 +383,32 @@ pub struct Finding {
     pub cve: Vec<String>,
     pub references: Vec<String>,
 
+    /// Extra developer-facing detail (exploitation example, consequences,
+    /// concrete fix, sink corroboration) attached to select high-value findings.
+    #[serde(default)]
+    pub extra: Option<FindingExtra>,
+
     /// Set for dependency findings only.
     pub package: Option<PackageInfo>,
+}
+
+/// Actionable detail beyond the base rule text, populated for select rules.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FindingExtra {
+    /// Concrete attacker input and its effect on the query/logic.
+    #[serde(default)]
+    pub exploit: Option<String>,
+    /// Bullet-point consequences, most severe first.
+    #[serde(default)]
+    pub impact: Vec<String>,
+    /// A ready-to-paste remediation snippet, more concrete than the prose fix.
+    #[serde(default)]
+    pub fix_code: Option<String>,
+    /// True when a corroborating sink was found in the same file, which raised
+    /// this finding's confidence above the rule's baseline.
+    #[serde(default)]
+    pub corroborated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

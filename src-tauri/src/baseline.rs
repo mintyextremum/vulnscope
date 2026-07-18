@@ -385,6 +385,7 @@ mod tests {
             owasp: None,
             cve: vec![],
             references: vec![],
+            extra: None,
             package: None,
         }
     }

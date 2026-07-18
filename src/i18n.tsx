@@ -201,6 +201,50 @@ export const EN: Record<string, string> = {
   "Показать файл в проводнике": "Reveal the file in the file manager",
   // Rule catalogue: confidence filter + filtered count — 18.07.2026
   "{n} из {total}": "{n} of {total}",
+  // Finding detail: exploitation example, impact, fix code, sink corroboration
+  "Пример эксплуатации": "Exploitation example",
+  "Возможные последствия": "Potential impact",
+  "подтверждено sink": "sink-corroborated",
+  "В этом же файле найден вызов-приёмник, подтверждающий использование данных — достоверность повышена.":
+    "A consuming sink was found in the same file, confirming the data is used — confidence was raised.",
+  // Rule extras (exploit + impact), rendered via t() from backend data
+  "Ввод username = *)(uid=* превращает фильтр «(uid=» + username + «)» в (uid=*)(uid=*): звёздочка совпадает с любым пользователем, а лишние скобки меняют структуру фильтра.":
+    "Input username = *)(uid=* turns the filter \"(uid=\" + username + \")\" into (uid=*)(uid=*): the asterisk matches any user and the extra parentheses change the filter's structure.",
+  "Обход аутентификации (вход без корректного пароля)": "Authentication bypass (login without a valid password)",
+  "Перечисление и чтение чужих записей каталога (LDAP enumeration)": "Enumerating and reading other directory entries (LDAP enumeration)",
+  "Раскрытие атрибутов, к которым не должно быть доступа": "Disclosure of attributes that should be out of reach",
+  "Ввод username = *)(uid=* даёт фильтр (uid=*)(uid=*) — звёздочка совпадает со всеми, а скобки меняют логику фильтра.":
+    "Input username = *)(uid=* yields the filter (uid=*)(uid=*) — the asterisk matches everyone and the parentheses change the filter logic.",
+  "Обход аутентификации": "Authentication bypass",
+  "Перечисление записей каталога (LDAP enumeration)": "Directory enumeration (LDAP enumeration)",
+  "Раскрытие чужих атрибутов": "Disclosure of other users' attributes",
+  "Ввод name = ' or '1'='1 превращает /users/user[name='...'] в выражение, которое всегда истинно и возвращает всех пользователей.":
+    "Input name = ' or '1'='1 turns /users/user[name='...'] into an always-true expression that returns every user.",
+  "Обход проверки (возврат чужого пользователя)": "Check bypass (returning someone else's user)",
+  "Чтение произвольных узлов XML-документа": "Reading arbitrary nodes of the XML document",
+  "Раскрытие данных, скрытых за фильтром": "Disclosure of data hidden behind the filter",
+  "Ввод T(java.lang.Runtime).getRuntime().exec('calc') компилируется как Spring EL и выполняется — это выполнение произвольного кода.":
+    "Input T(java.lang.Runtime).getRuntime().exec('calc') is compiled as Spring EL and executed — arbitrary code execution.",
+  "Выполнение произвольного кода на сервере (RCE)": "Arbitrary code execution on the server (RCE)",
+  "Доступ к любым бинам и статическим методам JVM": "Access to any beans and static JVM methods",
+  "Полная компрометация приложения": "Full compromise of the application",
+  "Ввод <%= system('id') %> в params[:template] компилируется ERB и выполняется как Ruby — это RCE.":
+    "Input <%= system('id') %> in params[:template] is compiled by ERB and run as Ruby — RCE.",
+  "Чтение и запись файлов от имени приложения": "Reading and writing files as the application",
+  "Полная компрометация процесса": "Full compromise of the process",
+  "Тело запроса {\"__proto__\":{\"isAdmin\":true}} при рекурсивном слиянии пишет isAdmin в Object.prototype — свойство появляется у всех объектов.":
+    "A request body {\"__proto__\":{\"isAdmin\":true}} in a recursive merge writes isAdmin onto Object.prototype — the property appears on every object.",
+  "Обход проверок доступа (свойство «всплывает» везде)": "Access-check bypass (the property surfaces everywhere)",
+  "Порча логики приложения и отказ в обслуживании": "Corrupted application logic and denial of service",
+  "Иногда — выполнение кода через загрязнённые gadget-свойства": "Sometimes code execution via polluted gadget properties",
+  "Запрос GET /..%2f..%2fetc/passwd проходит в r.URL.Path и ServeFile отдаёт /etc/passwd за пределами каталога.":
+    "A request GET /..%2f..%2fetc/passwd flows into r.URL.Path and ServeFile returns /etc/passwd outside the directory.",
+  "Чтение произвольных файлов сервера (path traversal)": "Reading arbitrary server files (path traversal)",
+  "Утечка конфигов, ключей и исходников": "Leaking configs, keys, and source code",
+  "JSON вида {\"$type\":\"System.Windows.Data.ObjectDataProvider, ...\"} заставляет Json.NET создать gadget-тип и выполнить код при десериализации.":
+    "JSON like {\"$type\":\"System.Windows.Data.ObjectDataProvider, ...\"} makes Json.NET create a gadget type and run code on deserialization.",
+  "Выполнение произвольного кода при десериализации (RCE)": "Arbitrary code execution on deserialization (RCE)",
+  "Создание произвольных типов из недоверенных данных": "Instantiating arbitrary types from untrusted data",
   // Perl string eval — 18.07.2026
   "Строковый eval (выполнение кода)": "String eval (code execution)",
   "eval со строкой (eval \"...\" или eval $code) компилирует и исполняет её как Perl. Ввод в этой строке даёт выполнение произвольного кода. Блочный eval { ... } для перехвата ошибок безопасен и не подпадает.":

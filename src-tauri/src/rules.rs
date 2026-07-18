@@ -4499,6 +4499,139 @@ pub static RULES: &[Rule] = &[
     },
 ];
 
+/// High-value, developer-facing detail attached to select rules by id, so the
+/// large `RULES` table above stays untouched. Populated where it matters most —
+/// the injection/RCE family — and rendered in the finding detail.
+///
+/// `sink` is a *corroborating* pattern. The base rule (e.g. an LDAP filter built
+/// by string concatenation) is only "potentially dangerous" on its own; when the
+/// same file also contains the sink that consumes the value (e.g. a real
+/// `DirContext.search(...)` call), the finding is far more likely a true
+/// positive, so its confidence is raised a notch and it is marked corroborated.
+/// This is a deliberately lightweight, honest substitute for full taint tracking,
+/// which a regex engine cannot do.
+pub struct RuleExtra {
+    pub id: &'static str,
+    /// A concrete attacker input and what it does to the query/logic.
+    pub exploit: &'static str,
+    /// Bullet-point consequences, most severe first.
+    pub impact: &'static [&'static str],
+    /// A ready-to-paste remediation snippet.
+    pub fix_code: &'static str,
+    /// Regex; when the scanned file also matches it, confidence is elevated.
+    pub sink: Option<&'static str>,
+}
+
+pub static RULE_EXTRAS: &[RuleExtra] = &[
+    RuleExtra {
+        id: "VS-JV-016",
+        exploit: "Ввод username = *)(uid=* превращает фильтр «(uid=» + username + «)» в (uid=*)(uid=*): звёздочка совпадает с любым пользователем, а лишние скобки меняют структуру фильтра.",
+        impact: &[
+            "Обход аутентификации (вход без корректного пароля)",
+            "Перечисление и чтение чужих записей каталога (LDAP enumeration)",
+            "Раскрытие атрибутов, к которым не должно быть доступа",
+        ],
+        fix_code: "String safe = com.unboundid.ldap.sdk.Filter.encodeValue(username);\n// либо org.springframework.ldap: LdapEncoder.filterEncode(username)\nString filter = \"(uid=\" + safe + \")\";",
+        sink: Some(r"(?:DirContext|InitialLdapContext|LdapContext|LdapTemplate|NamingEnumeration)|\.search\s*\("),
+    },
+    RuleExtra {
+        id: "VS-PY-031",
+        exploit: "Ввод username = *)(uid=* даёт фильтр (uid=*)(uid=*) — звёздочка совпадает со всеми, а скобки меняют логику фильтра.",
+        impact: &[
+            "Обход аутентификации",
+            "Перечисление записей каталога (LDAP enumeration)",
+            "Раскрытие чужих атрибутов",
+        ],
+        fix_code: "import ldap.filter\nsafe = ldap.filter.escape_filter_chars(username)\nflt = \"(uid=\" + safe + \")\"",
+        sink: Some(r"\.search(?:_s|_st|_ext)?\s*\(|ldap3?\."),
+    },
+    RuleExtra {
+        id: "VS-JV-017",
+        exploit: "Ввод name = ' or '1'='1 превращает /users/user[name='...'] в выражение, которое всегда истинно и возвращает всех пользователей.",
+        impact: &[
+            "Обход проверки (возврат чужого пользователя)",
+            "Чтение произвольных узлов XML-документа",
+            "Раскрытие данных, скрытых за фильтром",
+        ],
+        fix_code: "XPath xp = XPathFactory.newInstance().newXPath();\nxp.setXPathVariableResolver(v -> name);\nxp.evaluate(\"/users/user[name=$name]\", doc);",
+        sink: Some(r"\.(?:evaluate|compile|selectNodes|selectSingleNode)\s*\("),
+    },
+    RuleExtra {
+        id: "VS-JV-018",
+        exploit: "Ввод T(java.lang.Runtime).getRuntime().exec('calc') компилируется как Spring EL и выполняется — это выполнение произвольного кода.",
+        impact: &[
+            "Выполнение произвольного кода на сервере (RCE)",
+            "Доступ к любым бинам и статическим методам JVM",
+            "Полная компрометация приложения",
+        ],
+        fix_code: "SimpleEvaluationContext ctx = SimpleEvaluationContext\n    .forReadOnlyDataBinding().build();\nparser.parseExpression(fixedTemplate).getValue(ctx);",
+        sink: None,
+    },
+    RuleExtra {
+        id: "VS-RB-009",
+        exploit: "Ввод <%= system('id') %> в params[:template] компилируется ERB и выполняется как Ruby — это RCE.",
+        impact: &[
+            "Выполнение произвольного кода на сервере (RCE)",
+            "Чтение и запись файлов от имени приложения",
+            "Полная компрометация процесса",
+        ],
+        fix_code: "# Не собирайте шаблон из ввода. Статичный шаблон + локальные переменные:\nERB.new(File.read(\"views/page.erb\")).result_with_hash(name: params[:name])",
+        sink: None,
+    },
+    RuleExtra {
+        id: "VS-JS-032",
+        exploit: "Тело запроса {\"__proto__\":{\"isAdmin\":true}} при рекурсивном слиянии пишет isAdmin в Object.prototype — свойство появляется у всех объектов.",
+        impact: &[
+            "Обход проверок доступа (свойство «всплывает» везде)",
+            "Порча логики приложения и отказ в обслуживании",
+            "Иногда — выполнение кода через загрязнённые gadget-свойства",
+        ],
+        fix_code: "if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;\n// либо: используйте Map, или Object.create(null) для словарей",
+        sink: None,
+    },
+    RuleExtra {
+        id: "VS-GO-011",
+        exploit: "Запрос GET /..%2f..%2fetc/passwd проходит в r.URL.Path и ServeFile отдаёт /etc/passwd за пределами каталога.",
+        impact: &[
+            "Чтение произвольных файлов сервера (path traversal)",
+            "Утечка конфигов, ключей и исходников",
+        ],
+        fix_code: "clean := filepath.Clean(\"/\" + r.URL.Path)\np := filepath.Join(root, clean)\nif !strings.HasPrefix(p, root) { http.Error(w, \"\", 400); return }\nhttp.ServeFile(w, r, p)",
+        sink: None,
+    },
+    RuleExtra {
+        id: "VS-CS-011",
+        exploit: "JSON вида {\"$type\":\"System.Windows.Data.ObjectDataProvider, ...\"} заставляет Json.NET создать gadget-тип и выполнить код при десериализации.",
+        impact: &[
+            "Выполнение произвольного кода при десериализации (RCE)",
+            "Создание произвольных типов из недоверенных данных",
+        ],
+        fix_code: "var settings = new JsonSerializerSettings {\n    TypeNameHandling = TypeNameHandling.None\n};",
+        sink: None,
+    },
+];
+
+/// Compiled `sink` patterns, keyed by rule id, built once.
+static SINK_REGEXES: Lazy<Vec<(&'static str, Regex)>> = Lazy::new(|| {
+    RULE_EXTRAS
+        .iter()
+        .filter_map(|e| e.sink.map(|s| (e.id, Regex::new(s).expect("bad sink pattern"))))
+        .collect()
+});
+
+pub fn extra_for(id: &str) -> Option<&'static RuleExtra> {
+    RULE_EXTRAS.iter().find(|e| e.id == id)
+}
+
+/// True when the rule has a corroborating sink and the file content matches it.
+pub fn sink_present(id: &str, content: &str) -> bool {
+    SINK_REGEXES
+        .iter()
+        .find(|(rid, _)| *rid == id)
+        .map(|(_, re)| re.is_match(content))
+        .unwrap_or(false)
+}
+
 pub struct CompiledRule {
     pub index: usize,
     pub regex: Regex,
@@ -5362,6 +5495,30 @@ mod tests {
         assert!(hit_ids("eval \"$user_code\";\n", Language::Perl, "s.pl").contains(&"VS-PL-003"));
         // Block eval for error handling is safe.
         assert!(!hit_ids("eval { risky() };\n", Language::Perl, "s.pl").contains(&"VS-PL-003"));
+    }
+
+    #[test]
+    fn rule_extras_reference_real_rules_and_compile() {
+        // Every extra must point at a real rule id, and each sink must compile.
+        let ids: std::collections::HashSet<&str> = RULES.iter().map(|r| r.id).collect();
+        for ex in RULE_EXTRAS {
+            assert!(ids.contains(ex.id), "extra {} has no matching rule", ex.id);
+            assert!(!ex.exploit.is_empty() && !ex.fix_code.is_empty());
+            if let Some(s) = ex.sink {
+                assert!(Regex::new(s).is_ok(), "bad sink for {}", ex.id);
+            }
+        }
+    }
+
+    #[test]
+    fn ldap_sink_corroboration() {
+        // Concatenation alone: no corroborating sink in the file.
+        let concat_only = "String f = \"(uid=\" + user + \")\";\n";
+        assert!(!sink_present("VS-JV-016", concat_only));
+        // Same file also performs the LDAP search: corroborated.
+        let with_sink = "String f = \"(uid=\" + user + \")\";\nctx.search(base, f, controls);\n";
+        assert!(sink_present("VS-JV-016", with_sink));
+        assert!(extra_for("VS-JV-016").is_some());
     }
 
     #[test]

@@ -163,7 +163,17 @@ export interface Finding {
   owasp: string | null;
   cve: string[];
   references: string[];
+  extra?: FindingExtra | null;
   package: PackageInfo | null;
+}
+
+/** Actionable detail beyond the base rule text, present on select findings. */
+export interface FindingExtra {
+  exploit: string | null;
+  impact: string[];
+  fixCode: string | null;
+  /** A corroborating sink was found in the same file, raising confidence. */
+  corroborated: boolean;
 }
 
 export interface SeverityCounts {
@@ -327,6 +337,9 @@ export interface RuleInfo {
   cwe: string[];
   owasp: string | null;
   references: string[];
+  exploit?: string | null;
+  impact?: string[];
+  fixCode?: string | null;
 }
 
 export const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
