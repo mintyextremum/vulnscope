@@ -14,7 +14,7 @@ code) — and only when the CVE check is enabled.
 
 ## What it finds
 
-**Code — 259 built-in rules** across 38 languages: command, SQL, NoSQL, LDAP,
+**Code — 274 built-in rules** across 38 languages: command, SQL, NoSQL, LDAP,
 XPath, JNDI and template injection (SSTI, SpEL), XSS, prototype pollution, unsafe
 reflection (`Class.forName`, `constantize`), path traversal, open redirects,
 unsafe deserialization (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`,

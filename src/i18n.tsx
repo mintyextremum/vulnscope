@@ -199,6 +199,76 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // IaC/CI/Docker/nginx config — 18.07.2026
+  "Контейнер работает от root (USER root)": "Container runs as root (USER root)",
+  "Явный USER root оставляет процесс с правами суперпользователя внутри контейнера. Любая уязвимость в приложении сразу даёт root, что упрощает побег.":
+    "An explicit USER root leaves the process with superuser rights inside the container. Any app vulnerability yields root immediately, easing escape.",
+  "Создайте непривилегированного пользователя и переключитесь на него: RUN adduser app && USER app.":
+    "Create an unprivileged user and switch to it: RUN adduser app && USER app.",
+  "sudo внутри RUN": "sudo inside RUN",
+  "sudo в Dockerfile не нужен (сборка и так идёт от root) и приносит setuid-бинарник с известными способами эскалации в итоговый образ.":
+    "sudo is unnecessary in a Dockerfile (the build already runs as root) and brings a setuid binary with known escalation paths into the final image.",
+  "Уберите sudo. Если нужно понизить привилегии — используйте инструкцию USER или gosu.":
+    "Remove sudo. To drop privileges, use the USER instruction or gosu.",
+  "Установка пакетов Python из HTTP-источника": "Installing Python packages from an HTTP source",
+  "--index-url http:// или --trusted-host отключает проверку источника пакетов pip. Пакет можно подменить по пути (man-in-the-middle) — прямой путь к цепочке поставок.":
+    "--index-url http:// or --trusted-host disables verification of the pip package source. A package can be swapped in transit (man-in-the-middle) — a direct supply-chain path.",
+  "Ставьте пакеты только по HTTPS с проверкой хеша; не используйте --trusted-host в продакшене.":
+    "Install packages only over HTTPS with hash checking; do not use --trusted-host in production.",
+  "Установка пакетов без проверки подписи (apt)": "Installing packages without signature checks (apt)",
+  "--allow-unauthenticated и --force-yes отключают проверку GPG-подписи пакетов apt. Атакующий с контролем зеркала подсунет вредоносный пакет.":
+    "--allow-unauthenticated and --force-yes disable apt GPG signature verification. An attacker controlling a mirror slips in a malicious package.",
+  "Не отключайте проверку подписи. Используйте официальные репозитории с корректными ключами.":
+    "Do not disable signature verification. Use official repositories with correct keys.",
+  "GitHub Actions: self-hosted runner": "GitHub Actions: self-hosted runner",
+  "runs-on: self-hosted на публичном репозитории опасно: чужой pull request может выполнить свой код на вашем раннере и закрепиться в вашей сети.":
+    "runs-on: self-hosted on a public repository is dangerous: a stranger's pull request can run its code on your runner and persist in your network.",
+  "Для публичных репозиториев используйте одноразовые GitHub-hosted раннеры; self-hosted — только с ручным одобрением запуска.":
+    "Use ephemeral GitHub-hosted runners for public repositories; use self-hosted only with manual run approval.",
+  "GitHub Actions: включены небезопасные команды": "GitHub Actions: unsecure commands enabled",
+  "ACTIONS_ALLOW_UNSECURE_COMMANDS: true возвращает устаревшие set-env/add-path через stdout. Вывод шага, содержащий ввод, может переопределить переменные окружения и PATH.":
+    "ACTIONS_ALLOW_UNSECURE_COMMANDS: true brings back the deprecated set-env/add-path via stdout. Step output containing input can override environment variables and PATH.",
+  "Не включайте этот флаг. Используйте файлы окружения $GITHUB_ENV и $GITHUB_PATH.":
+    "Do not enable this flag. Use the $GITHUB_ENV and $GITHUB_PATH environment files.",
+  "nginx: proxy_pass по переменной (SSRF)": "nginx: proxy_pass from a variable (SSRF)",
+  "proxy_pass с адресом из переменной (например, из части URL или заголовка) позволяет клиенту управлять тем, куда nginx проксирует запрос. Это server-side request forgery.":
+    "proxy_pass with an address from a variable (e.g. from part of the URL or a header) lets the client control where nginx proxies the request. This is server-side request forgery.",
+  "Проксируйте на фиксированные upstream'ы; не собирайте адрес proxy_pass из пользовательского ввода.":
+    "Proxy to fixed upstreams; do not build the proxy_pass address from user input.",
+  "RDS: финальный снимок при удалении отключён": "RDS: final snapshot on delete disabled",
+  "skip_final_snapshot = true удаляет БД без финального бэкапа. Ошибочный или злонамеренный terraform destroy уничтожает данные безвозвратно.":
+    "skip_final_snapshot = true deletes the database with no final backup. An accidental or malicious terraform destroy wipes the data irrecoverably.",
+  "Оставьте skip_final_snapshot = false и задайте final_snapshot_identifier.":
+    "Keep skip_final_snapshot = false and set final_snapshot_identifier.",
+  "Защита от удаления ресурса отключена": "Resource deletion protection disabled",
+  "deletion_protection = false позволяет снести БД, кластер или LB одной командой. В связке с широкими правами это риск потери данных и простоя.":
+    "deletion_protection = false lets a single command tear down a database, cluster, or LB. Combined with broad rights, it risks data loss and downtime.",
+  "Включите deletion_protection = true для критичных ресурсов.":
+    "Enable deletion_protection = true for critical resources.",
+  "ECR: теги образов изменяемы": "ECR: image tags are mutable",
+  "image_tag_mutability = \"MUTABLE\" позволяет перезаписать тег другим образом. Ранее проверенный тег может подмениться — риск целостности и цепочки поставок.":
+    "image_tag_mutability = \"MUTABLE\" allows overwriting a tag with a different image. A previously vetted tag can be swapped — an integrity and supply-chain risk.",
+  "Задайте image_tag_mutability = \"IMMUTABLE\" и ссылайтесь на образы по дайджесту.":
+    "Set image_tag_mutability = \"IMMUTABLE\" and reference images by digest.",
+  "ECR: сканирование образов при push отключено": "ECR: image scanning on push disabled",
+  "scan_on_push = false отключает проверку образов на известные уязвимости при загрузке. Уязвимые образы попадают в реестр незамеченными.":
+    "scan_on_push = false disables scanning images for known vulnerabilities on upload. Vulnerable images enter the registry unnoticed.",
+  "Включите scan_on_push = true (или Enhanced Scanning) для репозиториев ECR.":
+    "Enable scan_on_push = true (or Enhanced Scanning) for ECR repositories.",
+  "Ansible: проверка TLS-сертификата отключена": "Ansible: TLS certificate verification disabled",
+  "validate_certs: no отключает проверку сертификата в модулях uri/get_url и подобных. Соединение перестаёт защищать от подмены.":
+    "validate_certs: no disables certificate verification in the uri/get_url modules and the like. The connection no longer protects against spoofing.",
+  "Держите validate_certs: yes и корректный набор CA.":
+    "Keep validate_certs: yes and a correct CA set.",
+  "Проверка ключа хоста SSH отключена": "SSH host-key verification disabled",
+  "StrictHostKeyChecking=no принимает ключ хоста автоматически и открывает соединение к возможно подменённому серверу — man-in-the-middle по SSH.":
+    "StrictHostKeyChecking=no accepts the host key automatically and opens a connection to a possibly spoofed server — SSH man-in-the-middle.",
+  "Оставьте StrictHostKeyChecking=yes и заранее раздайте known_hosts.":
+    "Keep StrictHostKeyChecking=yes and distribute known_hosts in advance.",
+  "mode: '0777' даёт полный доступ на чтение, запись и исполнение всем пользователям. Любой на хосте может изменить файл или прочитать секрет.":
+    "mode: '0777' grants full read, write, and execute to everyone. Anyone on the host can modify the file or read a secret.",
+  "Задайте минимально необходимые права (например, '0640' для конфигов, '0600' для секретов).":
+    "Set the minimum necessary permissions (e.g. '0640' for configs, '0600' for secrets).",
   // More secret detectors — 18.07.2026
   "Ключ доступа Azure Storage": "Azure Storage access key",
   "AccountKey в строке подключения Azure Storage даёт полный доступ к аккаунту хранилища: чтение, запись и удаление всех блобов, очередей и таблиц.":
