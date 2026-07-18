@@ -14,14 +14,16 @@ code) — and only when the CVE check is enabled.
 
 ## What it finds
 
-**Code — 197 built-in rules** across 38 languages: command, SQL, NoSQL, LDAP,
-XPath and template injection (SSTI, SpEL), XSS, prototype pollution, open
+**Code — 204 built-in rules** across 38 languages: command, SQL, NoSQL, LDAP,
+XPath, JNDI and template injection (SSTI, SpEL), XSS, prototype pollution, open
 redirects, unsafe deserialization (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`,
-`binary_to_term`), XXE, disabled TLS and SSH host-key verification, weak
-cryptography (ECB, hardcoded key, zero IV), non-constant-time secret comparison,
-mass assignment, path traversal and Zip Slip, JWT verification bypass, a hardcoded
-`SECRET_KEY`, `xp_cmdshell` and file operations in SQL, `unsafe` pitfalls in Rust,
-and misconfigurations in Dockerfiles, GitHub Actions, Terraform and nginx. Every
+XStream, Jackson default typing, Json.NET `TypeNameHandling`, `binary_to_term`),
+XXE, code execution via ScriptEngine/Groovy, disabled TLS and SSH host-key
+verification, weak cryptography (ECB, hardcoded key, zero IV), non-constant-time
+secret comparison, mass assignment, path traversal and Zip Slip, JWT verification
+bypass, a hardcoded `SECRET_KEY`, `xp_cmdshell` and file operations in SQL, `unsafe`
+pitfalls in Rust, and misconfigurations in Dockerfiles, GitHub Actions, Terraform,
+nginx and Kubernetes (privileges, host namespaces, dangerous capabilities). Every
 finding is tagged with a CWE and an OWASP Top 10 category and comes with a fix.
 
 **Compromise indicators.** A dedicated category catches not "risky patterns" but
@@ -37,13 +39,14 @@ already owned.
 |---|---|
 | JavaScript / TypeScript / React | 33 |
 | Python | 33 |
-| Java / Kotlin | 20 |
+| Java / Kotlin | 24 |
 | PHP | 13 |
+| C# | 11 |
 | Rust | 10 |
 | Go | 10 |
-| C# | 10 |
 | Ruby | 9 |
 | Terraform | 7 |
+| Kubernetes | 6 |
 | Dockerfile | 6 |
 | C / C++ | 6 |
 | Swift | 4 |
@@ -51,7 +54,6 @@ already owned.
 | Shell | 4 |
 | PowerShell | 4 |
 | Nginx | 4 |
-| Kubernetes | 4 |
 | GitHub Actions | 4 |
 | Scala / Elixir | 3 each |
 | Perl / Lua | 2 each |
