@@ -14,7 +14,7 @@ code) — and only when the CVE check is enabled.
 
 ## What it finds
 
-**Code — 227 built-in rules** across 38 languages: command, SQL, NoSQL, LDAP,
+**Code — 237 built-in rules** across 38 languages: command, SQL, NoSQL, LDAP,
 XPath, JNDI and template injection (SSTI, SpEL), XSS, prototype pollution, unsafe
 reflection (`Class.forName`, `constantize`), path traversal, open redirects,
 unsafe deserialization (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`,
@@ -40,17 +40,17 @@ already owned.
 |---|---|
 | JavaScript / TypeScript / React | 33 |
 | Python | 33 |
-| Java / Kotlin | 25 |
+| Java / Kotlin | 28 |
 | Terraform | 24 |
 | PHP | 15 |
 | Go | 12 |
+| Kubernetes | 11 |
 | C# | 11 |
 | Rust | 10 |
 | Ruby | 10 |
-| Kubernetes | 6 |
 | Dockerfile | 6 |
 | C / C++ | 6 |
-| Swift | 4 |
+| Swift | 6 |
 | SQL | 4 |
 | Shell | 4 |
 | PowerShell | 4 |

@@ -3703,6 +3703,168 @@ pub static RULES: &[Rule] = &[
         references: &["https://kubernetes.io/docs/concepts/security/pod-security-standards/"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-K8-007",
+        title: "Токен сервис-аккаунта монтируется автоматически",
+        description: "automountServiceAccountToken: true кладёт токен API в каждый под. Захватив контейнер, атакующий этим токеном ходит в Kubernetes API с правами сервис-аккаунта.",
+        recommendation: "Ставьте automountServiceAccountToken: false там, где под не обращается к API, и выдавайте минимальные RBAC-права.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Kubernetes, Language::Yaml],
+        pattern: r"automountServiceAccountToken\s*:\s*true",
+        unless_contains: &[],
+        cwe: &["CWE-276"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-K8-008",
+        title: "Корневая ФС контейнера доступна на запись",
+        description: "readOnlyRootFilesystem: false позволяет процессу писать в файловую систему контейнера. Атакующий подменяет бинарники и роняет закладки, которые переживут перезапуск процесса.",
+        recommendation: "Ставьте readOnlyRootFilesystem: true, а для временных данных подключайте emptyDir-том.",
+        severity: Severity::Low,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Kubernetes, Language::Yaml],
+        pattern: r"readOnlyRootFilesystem\s*:\s*false",
+        unless_contains: &[],
+        cwe: &["CWE-732"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://kubernetes.io/docs/concepts/security/pod-security-standards/"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-K8-009",
+        title: "Образ по плавающему тегу latest",
+        description: "Тег latest не фиксирует версию: под может поднять неожиданный или подменённый образ, а откатиться по манифесту нельзя. Это и риск целостности, и риск воспроизводимости.",
+        recommendation: "Пиньте образ по неизменяемому дайджесту (image@sha256:...) или по конкретной версии.",
+        severity: Severity::Low,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: &[Language::Kubernetes, Language::Yaml],
+        pattern: r#"image\s*:\s*["']?\S+:latest\b"#,
+        unless_contains: &[],
+        cwe: &["CWE-1104"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://kubernetes.io/docs/concepts/containers/images/#image-names"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-K8-010",
+        title: "Профиль seccomp отключён (Unconfined)",
+        description: "seccompProfile type: Unconfined снимает фильтр системных вызовов. Контейнеру снова доступны опасные syscalls, которыми пользуются для побега и эскалации.",
+        recommendation: "Используйте seccompProfile type: RuntimeDefault (или собственный профиль).",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Kubernetes, Language::Yaml],
+        pattern: r"type\s*:\s*[\x22\x27]?Unconfined\b",
+        unless_contains: &[],
+        cwe: &["CWE-693"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://kubernetes.io/docs/tutorials/security/seccomp/"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-K8-011",
+        title: "Контейнер публикует hostPort",
+        description: "hostPort привязывает порт контейнера к сетевому интерфейсу узла в обход Service. Служба становится доступна напрямую по IP узла, минуя сетевые политики.",
+        recommendation: "Публикуйте приложения через Service/Ingress, а не hostPort.",
+        severity: Severity::Low,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: &[Language::Kubernetes, Language::Yaml],
+        pattern: r"hostPort\s*:\s*\d+",
+        unless_contains: &[],
+        cwe: &["CWE-668"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://kubernetes.io/docs/concepts/configuration/overview/"],
+        skip_in_tests: false,
+    },
+
+    // -------------------------------------------------- Мобильные (Android/iOS)
+    Rule {
+        id: "VS-JV-026",
+        title: "WebView: addJavascriptInterface открывает мост в нативный код",
+        description: "addJavascriptInterface даёт JavaScript в WebView вызывать методы Java-объекта. Если загружается недоверенный контент, страница через рефлексию исполняет команды в приложении (на старых Android — прямой RCE).",
+        recommendation: "Избегайте моста для недоверенного контента. Помечайте методы @JavascriptInterface, загружайте только доверенные страницы, ограничьте API.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"\.addJavascriptInterface\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-749"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://developer.android.com/reference/android/webkit/WebView#addJavascriptInterface(java.lang.Object,%20java.lang.String)"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-027",
+        title: "WebView: доступ к файлам из URL включён",
+        description: "setAllowUniversalAccessFromFileURLs/setAllowFileAccessFromFileURLs(true) позволяет странице по file:// читать локальные файлы и обходить same-origin. Вредоносный HTML утаскивает данные приложения.",
+        recommendation: "Держите оба флага в false. Не смешивайте file:// и удалённый контент в одном WebView.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Контроль доступа",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"setAllow(?:Universal|File)AccessFromFileURLs\s*\(\s*true",
+        unless_contains: &[],
+        cwe: &["CWE-668"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://developer.android.com/reference/android/webkit/WebSettings#setAllowUniversalAccessFromFileURLs(boolean)"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-028",
+        title: "Файл создаётся в режиме WORLD_READABLE/WRITEABLE",
+        description: "MODE_WORLD_READABLE и MODE_WORLD_WRITEABLE делают файл или SharedPreferences доступными любому приложению на устройстве. Так утекают токены и настройки, а запись позволяет их подменить.",
+        recommendation: "Используйте MODE_PRIVATE. Для обмена данными между приложениями применяйте ContentProvider с правами.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Контроль доступа",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"MODE_WORLD_(?:READABLE|WRITEABLE)",
+        unless_contains: &[],
+        cwe: &["CWE-276"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://developer.android.com/reference/android/content/Context#MODE_WORLD_READABLE"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SW-005",
+        title: "Keychain: элемент доступен без блокировки экрана",
+        description: "kSecAttrAccessibleAlways (и ...AlwaysThisDeviceOnly) хранит секрет доступным, даже когда устройство заблокировано. При краже разблокировать телефон не нужно, чтобы вытащить данные.",
+        recommendation: "Используйте kSecAttrAccessibleWhenUnlocked или ...WhenPasscodeSetThisDeviceOnly.",
+        severity: Severity::Medium,
+        confidence: Confidence::High,
+        category: "Хранение секретов",
+        languages: &[Language::Swift],
+        pattern: r"kSecAttrAccessibleAlways",
+        unless_contains: &[],
+        cwe: &["CWE-311"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://developer.apple.com/documentation/security/ksecattraccessiblewhenunlocked"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-SW-006",
+        title: "App Transport Security отключён",
+        description: "NSAllowsArbitraryLoads = true снимает ATS и разрешает приложению незашифрованные HTTP-соединения. Трафик становится доступен для перехвата и подмены.",
+        recommendation: "Не включайте NSAllowsArbitraryLoads. Ходите по HTTPS; для отдельных доменов используйте точечные исключения.",
+        severity: Severity::Medium,
+        confidence: Confidence::Medium,
+        category: "Транспортная безопасность",
+        languages: &[Language::Swift, Language::Xml],
+        pattern: r"NSAllowsArbitraryLoads",
+        unless_contains: &[],
+        cwe: &["CWE-319"],
+        owasp: Some(OWASP_CRYPTO),
+        references: &["https://developer.apple.com/documentation/bundleresources/information_property_list/nsapptransportsecurity"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------------ PowerShell
     Rule {
@@ -4517,6 +4679,28 @@ mod tests {
         let ok = "  min_tls_version = \"TLS1_2\"\n  enable_key_rotation = true\n";
         let ids = hit_ids(ok, Language::Terraform, "main.tf");
         assert!(!ids.contains(&"VS-TF-011") && !ids.contains(&"VS-TF-015"));
+    }
+
+    #[test]
+    fn finds_k8s_hardening_gaps() {
+        assert!(hit_ids("      automountServiceAccountToken: true\n", Language::Kubernetes, "p.yaml").contains(&"VS-K8-007"));
+        assert!(hit_ids("        readOnlyRootFilesystem: false\n", Language::Kubernetes, "p.yaml").contains(&"VS-K8-008"));
+        assert!(hit_ids("      image: nginx:latest\n", Language::Kubernetes, "p.yaml").contains(&"VS-K8-009"));
+        assert!(hit_ids("          type: Unconfined\n", Language::Kubernetes, "p.yaml").contains(&"VS-K8-010"));
+        assert!(hit_ids("        - hostPort: 8080\n", Language::Kubernetes, "p.yaml").contains(&"VS-K8-011"));
+        // A pinned image and RuntimeDefault seccomp are fine.
+        let ok = "      image: nginx@sha256:abc123\n          type: RuntimeDefault\n";
+        let ids = hit_ids(ok, Language::Kubernetes, "p.yaml");
+        assert!(!ids.contains(&"VS-K8-009") && !ids.contains(&"VS-K8-010"));
+    }
+
+    #[test]
+    fn finds_mobile_webview_and_storage() {
+        assert!(hit_ids("webView.addJavascriptInterface(bridge, \"Android\");\n", Language::Java, "A.java").contains(&"VS-JV-026"));
+        assert!(hit_ids("settings.setAllowUniversalAccessFromFileURLs(true);\n", Language::Java, "A.java").contains(&"VS-JV-027"));
+        assert!(hit_ids("openFileOutput(\"f\", Context.MODE_WORLD_READABLE);\n", Language::Java, "A.java").contains(&"VS-JV-028"));
+        assert!(hit_ids("kSecAttrAccessible as String: kSecAttrAccessibleAlways\n", Language::Swift, "K.swift").contains(&"VS-SW-005"));
+        assert!(hit_ids("<key>NSAllowsArbitraryLoads</key><true/>\n", Language::Swift, "Info.swift").contains(&"VS-SW-006"));
     }
 
     #[test]

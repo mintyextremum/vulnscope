@@ -199,6 +199,57 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Kubernetes hardening + mobile (Android/iOS) — 18.07.2026
+  "Токен сервис-аккаунта монтируется автоматически": "Service account token is auto-mounted",
+  "automountServiceAccountToken: true кладёт токен API в каждый под. Захватив контейнер, атакующий этим токеном ходит в Kubernetes API с правами сервис-аккаунта.":
+    "automountServiceAccountToken: true places an API token in every pod. Having taken the container, an attacker uses that token to reach the Kubernetes API with the service account's rights.",
+  "Ставьте automountServiceAccountToken: false там, где под не обращается к API, и выдавайте минимальные RBAC-права.":
+    "Set automountServiceAccountToken: false where the pod does not call the API, and grant minimal RBAC rights.",
+  "Корневая ФС контейнера доступна на запись": "Container root filesystem is writable",
+  "readOnlyRootFilesystem: false позволяет процессу писать в файловую систему контейнера. Атакующий подменяет бинарники и роняет закладки, которые переживут перезапуск процесса.":
+    "readOnlyRootFilesystem: false lets the process write to the container filesystem. An attacker replaces binaries and drops implants that survive a process restart.",
+  "Ставьте readOnlyRootFilesystem: true, а для временных данных подключайте emptyDir-том.":
+    "Set readOnlyRootFilesystem: true, and mount an emptyDir volume for temporary data.",
+  "Образ по плавающему тегу latest": "Image on the floating latest tag",
+  "Тег latest не фиксирует версию: под может поднять неожиданный или подменённый образ, а откатиться по манифесту нельзя. Это и риск целостности, и риск воспроизводимости.":
+    "The latest tag pins no version: a pod may pull an unexpected or tampered image, and the manifest cannot roll back. This is both an integrity and a reproducibility risk.",
+  "Пиньте образ по неизменяемому дайджесту (image@sha256:...) или по конкретной версии.":
+    "Pin the image by an immutable digest (image@sha256:...) or a specific version.",
+  "Профиль seccomp отключён (Unconfined)": "seccomp profile disabled (Unconfined)",
+  "seccompProfile type: Unconfined снимает фильтр системных вызовов. Контейнеру снова доступны опасные syscalls, которыми пользуются для побега и эскалации.":
+    "seccompProfile type: Unconfined removes the syscall filter. The container regains access to dangerous syscalls used for escape and escalation.",
+  "Используйте seccompProfile type: RuntimeDefault (или собственный профиль).":
+    "Use seccompProfile type: RuntimeDefault (or a custom profile).",
+  "Контейнер публикует hostPort": "Container publishes a hostPort",
+  "hostPort привязывает порт контейнера к сетевому интерфейсу узла в обход Service. Служба становится доступна напрямую по IP узла, минуя сетевые политики.":
+    "hostPort binds the container port to the node's network interface, bypassing the Service. The workload becomes reachable directly by node IP, skipping network policies.",
+  "Публикуйте приложения через Service/Ingress, а не hostPort.":
+    "Expose applications via a Service/Ingress rather than hostPort.",
+  "WebView: addJavascriptInterface открывает мост в нативный код": "WebView: addJavascriptInterface opens a bridge to native code",
+  "addJavascriptInterface даёт JavaScript в WebView вызывать методы Java-объекта. Если загружается недоверенный контент, страница через рефлексию исполняет команды в приложении (на старых Android — прямой RCE).":
+    "addJavascriptInterface lets JavaScript in the WebView call methods on a Java object. If untrusted content loads, the page runs commands in the app via reflection (direct RCE on older Android).",
+  "Избегайте моста для недоверенного контента. Помечайте методы @JavascriptInterface, загружайте только доверенные страницы, ограничьте API.":
+    "Avoid the bridge for untrusted content. Annotate methods with @JavascriptInterface, load only trusted pages, and limit the API.",
+  "WebView: доступ к файлам из URL включён": "WebView: file access from URLs enabled",
+  "setAllowUniversalAccessFromFileURLs/setAllowFileAccessFromFileURLs(true) позволяет странице по file:// читать локальные файлы и обходить same-origin. Вредоносный HTML утаскивает данные приложения.":
+    "setAllowUniversalAccessFromFileURLs/setAllowFileAccessFromFileURLs(true) lets a file:// page read local files and bypass same-origin. Malicious HTML exfiltrates app data.",
+  "Держите оба флага в false. Не смешивайте file:// и удалённый контент в одном WebView.":
+    "Keep both flags false. Do not mix file:// and remote content in the same WebView.",
+  "Файл создаётся в режиме WORLD_READABLE/WRITEABLE": "File created in WORLD_READABLE/WRITEABLE mode",
+  "MODE_WORLD_READABLE и MODE_WORLD_WRITEABLE делают файл или SharedPreferences доступными любому приложению на устройстве. Так утекают токены и настройки, а запись позволяет их подменить.":
+    "MODE_WORLD_READABLE and MODE_WORLD_WRITEABLE make a file or SharedPreferences readable by any app on the device. Tokens and settings leak this way, and write access lets them be tampered with.",
+  "Используйте MODE_PRIVATE. Для обмена данными между приложениями применяйте ContentProvider с правами.":
+    "Use MODE_PRIVATE. To share data between apps, use a ContentProvider with permissions.",
+  "Keychain: элемент доступен без блокировки экрана": "Keychain: item accessible without a locked screen",
+  "kSecAttrAccessibleAlways (и ...AlwaysThisDeviceOnly) хранит секрет доступным, даже когда устройство заблокировано. При краже разблокировать телефон не нужно, чтобы вытащить данные.":
+    "kSecAttrAccessibleAlways (and ...AlwaysThisDeviceOnly) keeps the secret accessible even while the device is locked. On theft, the phone need not be unlocked to extract the data.",
+  "Используйте kSecAttrAccessibleWhenUnlocked или ...WhenPasscodeSetThisDeviceOnly.":
+    "Use kSecAttrAccessibleWhenUnlocked or ...WhenPasscodeSetThisDeviceOnly.",
+  "App Transport Security отключён": "App Transport Security disabled",
+  "NSAllowsArbitraryLoads = true снимает ATS и разрешает приложению незашифрованные HTTP-соединения. Трафик становится доступен для перехвата и подмены.":
+    "NSAllowsArbitraryLoads = true removes ATS and lets the app make unencrypted HTTP connections. Traffic becomes open to interception and tampering.",
+  "Не включайте NSAllowsArbitraryLoads. Ходите по HTTPS; для отдельных доменов используйте точечные исключения.":
+    "Do not enable NSAllowsArbitraryLoads. Use HTTPS; add narrow per-domain exceptions where truly needed.",
   // Terraform cloud misconfig (AWS/Azure/GCP) — 18.07.2026
   "S3: снята блокировка публичного доступа": "S3: public access block removed",
   "block_public_acls/ignore_public_acls/restrict_public_buckets = false отключают защиту от случайной публикации бакета. Одна публичная ACL или политика — и содержимое доступно всему интернету.":
