@@ -199,6 +199,42 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Prototype pollution / postMessage / SpEL / XXE / secrets / timing — 18.07.2026
+  "Загрязнение прототипа (запись в __proto__)": "Prototype pollution (write to __proto__)",
+  "Присваивание в __proto__ или constructor.prototype меняет прототип всех объектов сразу. Через управляемый ключ атакующий подсовывает свойства, которые всплывают везде, — обход проверок, порча логики, иногда RCE.":
+    "Assigning to __proto__ or constructor.prototype changes the prototype of every object at once. Through a controlled key an attacker plants properties that surface everywhere — bypassed checks, corrupted logic, sometimes RCE.",
+  "Не пишите в __proto__/prototype по вычисляемому ключу. Отклоняйте ключи __proto__, constructor, prototype; используйте Map или Object.create(null).":
+    "Do not write to __proto__/prototype via a computed key. Reject the keys __proto__, constructor, prototype; use a Map or Object.create(null).",
+  "postMessage с origin \"*\"": "postMessage with origin \"*\"",
+  "postMessage(data, \"*\") отправляет сообщение в любое окно на любом источнике. Если во фрейме окажется чужая страница, она прочитает данные. Так утекают токены и персональные данные.":
+    "postMessage(data, \"*\") sends the message to any window on any origin. If a foreign page ends up in the frame, it reads the data. This is how tokens and personal data leak.",
+  "Указывайте конкретный целевой origin вместо \"*\", а на приёмной стороне проверяйте event.origin.":
+    "Specify a concrete target origin instead of \"*\", and check event.origin on the receiving side.",
+  "SpEL-инъекция: выражение из пользовательских данных": "SpEL injection: expression from user data",
+  "parseExpression() с собранной или переменной строкой компилирует и исполняет Spring EL — а через него любой код Java. Это выполнение кода на сервере из ввода.":
+    "parseExpression() with a built or variable string compiles and runs Spring EL — and through it any Java code. This is server-side code execution from input.",
+  "Не собирайте SpEL из ввода. Используйте SimpleEvaluationContext и статические выражения; данные передавайте как переменные.":
+    "Do not build SpEL from input. Use SimpleEvaluationContext and static expressions; pass data as variables.",
+  "XML-фабрика без защиты от XXE": "XML factory without XXE protection",
+  "DocumentBuilderFactory/SAXParserFactory/XMLInputFactory по умолчанию разбирают внешние сущности (DTD). Если внешние сущности не отключены, XML с ссылкой на файл или URL раскрывает содержимое или бьёт по SSRF.":
+    "DocumentBuilderFactory/SAXParserFactory/XMLInputFactory parse external entities (DTDs) by default. If external entities are not disabled, XML referencing a file or URL discloses its contents or drives SSRF.",
+  "Отключите DTD: factory.setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true) и внешние сущности перед разбором.":
+    "Disable DTDs: factory.setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true) and external entities before parsing.",
+  "Десериализация через XMLDecoder": "Deserialization via XMLDecoder",
+  "java.beans.XMLDecoder исполняет инструкции из XML при разборе — создаёт объекты и вызывает методы. XML из недоверенного источника даёт выполнение произвольного кода; это известный RCE-гаджет.":
+    "java.beans.XMLDecoder executes instructions from the XML as it parses — it creates objects and calls methods. Untrusted XML yields arbitrary code execution; it is a well-known RCE gadget.",
+  "Не разбирайте недоверенный XML через XMLDecoder. Возьмите безопасный формат (JSON со схемой) или whitelisting-десериализатор.":
+    "Do not parse untrusted XML with XMLDecoder. Use a safe format (JSON with a schema) or a whitelisting deserializer.",
+  "SECRET_KEY зашит в код": "SECRET_KEY hardcoded",
+  "Строковый литерал в SECRET_KEY (Django/Flask) — это ключ подписи сессий и CSRF-токенов прямо в исходнике. Зная его, атакующий подделает сессию и войдёт кем угодно.":
+    "A string literal in SECRET_KEY (Django/Flask) puts the key that signs sessions and CSRF tokens right in the source. Knowing it, an attacker forges a session and logs in as anyone.",
+  "Читайте SECRET_KEY из окружения или хранилища секретов (os.environ[\"SECRET_KEY\"]). Утёкший ключ смените.":
+    "Read SECRET_KEY from the environment or a secret store (os.environ[\"SECRET_KEY\"]). Rotate a key that has leaked.",
+  "Сравнение дайджестов не за постоянное время": "Digest comparison not in constant time",
+  "Сравнение хеша/HMAC обычным == выходит из цикла на первом несовпавшем байте. По времени ответа атакующий побайтово подбирает правильную подпись (timing attack).":
+    "Comparing a hash/HMAC with a plain == returns on the first mismatched byte. From the response time an attacker recovers the correct signature byte by byte (a timing attack).",
+  "Сравнивайте секреты через hmac.compare_digest(a, b) — оно работает за постоянное время.":
+    "Compare secrets with hmac.compare_digest(a, b) — it runs in constant time.",
   // Crypto / LDAP / XPath / mass-assignment rules added 18.07.2026
   "Фиксированный (нулевой) IV для шифрования": "Fixed (zero) IV for encryption",
   "new IvParameterSpec(new byte[...]) даёт вектор инициализации из нулей — один и тот же для каждого сообщения. В CBC/CTR это раскрывает совпадения открытого текста и ломает семантическую стойкость.":
@@ -1090,6 +1126,7 @@ export const EN: Record<string, string> = {
   "SQL-инъекция": "SQL injection",
   "LDAP-инъекция": "LDAP injection",
   "XPath-инъекция": "XPath injection",
+  "Загрязнение прототипа": "Prototype pollution",
   "Криптография": "Cryptography",
   "Транспортная безопасность": "Transport security",
   "Конфигурация": "Configuration",

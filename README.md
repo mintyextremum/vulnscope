@@ -14,13 +14,15 @@
 
 ## Что оно находит
 
-**Код — 190 встроенных правил** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP и
-XPath, XSS и SSTI, открытые редиректы, небезопасная десериализация (`pickle`,
-`yaml.load`, SnakeYAML, `binary_to_term`), отключённая проверка TLS и ключей SSH,
-слабая криптография (ECB, зашитый ключ, нулевой IV), mass assignment, path traversal
-и Zip Slip, обход проверки JWT, `xp_cmdshell` и файловые операции в SQL, проблемы
-`unsafe` в Rust, ошибки конфигурации в Dockerfile, GitHub Actions, Terraform и nginx.
-Каждая находка размечена CWE и категорией OWASP Top 10 и сопровождается рекомендацией.
+**Код — 197 встроенных правил** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
+XPath и шаблонов (SSTI, SpEL), XSS, загрязнение прототипа, открытые редиректы,
+небезопасная десериализация (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`,
+`binary_to_term`), XXE, отключённая проверка TLS и ключей SSH, слабая криптография
+(ECB, зашитый ключ, нулевой IV), сравнение секретов не за постоянное время, mass
+assignment, path traversal и Zip Slip, обход проверки JWT, зашитый `SECRET_KEY`,
+`xp_cmdshell` и файловые операции в SQL, проблемы `unsafe` в Rust, ошибки
+конфигурации в Dockerfile, GitHub Actions, Terraform и nginx. Каждая находка
+размечена CWE и категорией OWASP Top 10 и сопровождается рекомендацией.
 
 **Индикаторы компрометации.** Отдельная категория ловит не «рискованные приёмы», а
 то, что оставляет атакующий: PHP-веб-шеллы (`eval($_POST[...])`, вызов функции по
@@ -33,9 +35,9 @@ XPath, XSS и SSTI, открытые редиректы, небезопасна�
 
 | Язык | Правил |
 |---|---|
-| JavaScript / TypeScript / React | 31 |
-| Python | 31 |
-| Java / Kotlin | 17 |
+| JavaScript / TypeScript / React | 33 |
+| Python | 33 |
+| Java / Kotlin | 20 |
 | PHP | 13 |
 | Rust | 10 |
 | Go | 10 |
