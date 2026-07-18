@@ -2479,6 +2479,88 @@ pub static RULES: &[Rule] = &[
         skip_in_tests: true,
     },
 
+    // ------------------------ Громкие RCE-гаджеты: десериализация, JNDI, eval
+    Rule {
+        id: "VS-JV-021",
+        title: "Jackson: полиморфная десериализация включена",
+        description: "enableDefaultTyping()/activateDefaultTyping() заставляет Jackson читать имя класса из JSON и создавать его. Атакующий подсовывает гаджет-класс и получает выполнение кода — классическая цепочка Jackson RCE.",
+        recommendation: "Не включайте default typing. Если полиморфизм нужен — используйте @JsonTypeInfo с явным белым списком через PolymorphicTypeValidator.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Небезопасная десериализация",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"(?:enableDefaultTyping|activateDefaultTyping)\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-502"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://cwe.mitre.org/data/definitions/502.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-022",
+        title: "JNDI-поиск по управляемому имени",
+        description: "Context.lookup() с переменной или собранной строкой позволяет указать удалённый LDAP/RMI-адрес. Сервер загрузит и выполнит класс оттуда — тот самый механизм, что стоит за Log4Shell.",
+        recommendation: "Не подставляйте ввод в JNDI-имя. Ограничьте поиск локальным java:comp/env со статическими именами; отключите удалённую загрузку классов.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r#"\.lookup\s*\(\s*(?:[a-zA-Z_]\w*\s*\)|"[^"]*"\s*\+)"#,
+        unless_contains: &[],
+        cwe: &["CWE-74"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/74.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-023",
+        title: "Выполнение кода через ScriptEngine/Groovy",
+        description: "ScriptEngine (Nashorn) или GroovyShell исполняют переданный текст как скрипт с полным доступом к JVM. Если в него попадает ввод — это выполнение произвольного кода на сервере.",
+        recommendation: "Не исполняйте пользовательский текст как скрипт. Если нужен сценарий — используйте песочницу (SecureASTCustomizer у Groovy) и белый список.",
+        severity: Severity::Critical,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"getEngineByName\s*\(|new\s+GroovyShell\s*\(|new\s+GroovyClassLoader\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-94"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/94.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-JV-024",
+        title: "Десериализация через XStream",
+        description: "XStream.fromXML() без настройки безопасности воссоздаёт произвольные объекты из XML и вызывает их методы. Недоверенный XML даёт выполнение кода — известная цепочка гаджетов XStream.",
+        recommendation: "Обновите XStream и включите защиту: XStream.setupDefaultSecurity(x) плюс явный allowTypes для нужных классов.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Небезопасная десериализация",
+        languages: &[Language::Java, Language::Kotlin],
+        pattern: r"\.fromXML\s*\(",
+        unless_contains: &[],
+        cwe: &["CWE-502"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://cwe.mitre.org/data/definitions/502.html"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-CS-011",
+        title: "Json.NET: TypeNameHandling не None",
+        description: "TypeNameHandling.All/Auto/Objects заставляет Json.NET читать имя типа ($type) из JSON и создавать его. Атакующий подставляет гаджет-тип и получает выполнение кода при десериализации.",
+        recommendation: "Держите TypeNameHandling = None. Если полиморфизм необходим — задайте строгий SerializationBinder с белым списком типов.",
+        severity: Severity::Critical,
+        confidence: Confidence::High,
+        category: "Небезопасная десериализация",
+        languages: &[Language::CSharp],
+        pattern: r"TypeNameHandling\s*\.\s*(?:All|Auto|Objects|Arrays)",
+        unless_contains: &[],
+        cwe: &["CWE-502"],
+        owasp: Some(OWASP_INTEGRITY),
+        references: &["https://cwe.mitre.org/data/definitions/502.html"],
+        skip_in_tests: false,
+    },
+
     // -------------------- Прототип, postMessage, SpEL, XXE, секреты, тайминг
     Rule {
         id: "VS-JS-032",
@@ -3219,6 +3301,38 @@ pub static RULES: &[Rule] = &[
         references: &["https://kubernetes.io/docs/concepts/security/pod-security-standards/"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-K8-005",
+        title: "Под использует пространства имён хоста",
+        description: "hostNetwork/hostPID/hostIPC: true снимают изоляцию контейнера от хоста. Процесс видит сеть, процессы или IPC узла — из контейнера легко разведать и атаковать хост и соседей.",
+        recommendation: "Уберите hostNetwork/hostPID/hostIPC. Если нужен доступ к сети узла — используйте Service и точечные права.",
+        severity: Severity::High,
+        confidence: Confidence::High,
+        category: "Конфигурация",
+        languages: &[Language::Kubernetes, Language::Yaml],
+        pattern: r"(?:hostNetwork|hostPID|hostIPC)\s*:\s*true",
+        unless_contains: &[],
+        cwe: &["CWE-668"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://kubernetes.io/docs/concepts/security/pod-security-standards/"],
+        skip_in_tests: false,
+    },
+    Rule {
+        id: "VS-K8-006",
+        title: "Контейнеру выданы опасные Linux-возможности",
+        description: "Добавление SYS_ADMIN, NET_ADMIN, SYS_PTRACE или SYS_MODULE через capabilities.add почти равно привилегированному режиму: с ними можно монтировать ФС, менять сеть, читать чужую память и выходить из контейнера.",
+        recommendation: "Не добавляйте эти capabilities. Начните с drop: [ALL] и выдавайте только строго необходимое.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Конфигурация",
+        languages: &[Language::Kubernetes, Language::Yaml],
+        pattern: r"(?i)\b(?:SYS_ADMIN|NET_ADMIN|SYS_PTRACE|SYS_MODULE|SYS_BOOT|DAC_READ_SEARCH)\b",
+        unless_contains: &[],
+        cwe: &["CWE-250"],
+        owasp: Some(OWASP_MISCONFIG),
+        references: &["https://kubernetes.io/docs/concepts/security/pod-security-standards/"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------------ PowerShell
     Rule {
@@ -3929,6 +4043,49 @@ mod tests {
         // compare_digest is the constant-time fix.
         let ok = "if hmac.compare_digest(mac.hexdigest(), provided):\n    ok()\n";
         assert!(!hit_ids(ok, Language::Python, "verify.py").contains(&"VS-PY-033"));
+    }
+
+    #[test]
+    fn finds_java_deser_rce_gadgets() {
+        let jackson = "mapper.enableDefaultTyping();\n";
+        assert!(hit_ids(jackson, Language::Java, "M.java").contains(&"VS-JV-021"));
+        let xstream = "Object o = xstream.fromXML(xml);\n";
+        assert!(hit_ids(xstream, Language::Java, "X.java").contains(&"VS-JV-024"));
+    }
+
+    #[test]
+    fn finds_jndi_lookup_from_variable() {
+        let bad = "Object o = ctx.lookup(name);\n";
+        assert!(hit_ids(bad, Language::Java, "J.java").contains(&"VS-JV-022"));
+        // A static resource name is the safe, ordinary case.
+        let ok = "DataSource ds = (DataSource) ctx.lookup(\"java:comp/env/jdbc/DB\");\n";
+        assert!(!hit_ids(ok, Language::Java, "J.java").contains(&"VS-JV-022"));
+    }
+
+    #[test]
+    fn finds_scriptengine_eval() {
+        let se = "engine = manager.getEngineByName(\"nashorn\");\n";
+        assert!(hit_ids(se, Language::Java, "S.java").contains(&"VS-JV-023"));
+        let groovy = "Object r = new GroovyShell().evaluate(script);\n";
+        assert!(hit_ids(groovy, Language::Java, "G.java").contains(&"VS-JV-023"));
+    }
+
+    #[test]
+    fn finds_csharp_typenamehandling() {
+        let bad = "var s = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All };\n";
+        assert!(hit_ids(bad, Language::CSharp, "S.cs").contains(&"VS-CS-011"));
+        // None is the safe setting.
+        let ok = "var s = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.None };\n";
+        assert!(!hit_ids(ok, Language::CSharp, "S.cs").contains(&"VS-CS-011"));
+    }
+
+    #[test]
+    fn finds_k8s_host_namespaces_and_caps() {
+        assert!(hit_ids("      hostPID: true\n", Language::Kubernetes, "pod.yaml").contains(&"VS-K8-005"));
+        assert!(hit_ids("            - SYS_ADMIN\n", Language::Kubernetes, "pod.yaml").contains(&"VS-K8-006"));
+        // Dropping ALL is the recommended hardening, not a finding.
+        let ok = "            - ALL\n";
+        assert!(!hit_ids(ok, Language::Kubernetes, "pod.yaml").contains(&"VS-K8-006"));
     }
 
     #[test]

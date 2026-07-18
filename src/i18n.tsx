@@ -199,6 +199,42 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // RCE gadgets: deserialization, JNDI, script eval, K8s host/caps — 18.07.2026
+  "Jackson: полиморфная десериализация включена": "Jackson: polymorphic deserialization enabled",
+  "enableDefaultTyping()/activateDefaultTyping() заставляет Jackson читать имя класса из JSON и создавать его. Атакующий подсовывает гаджет-класс и получает выполнение кода — классическая цепочка Jackson RCE.":
+    "enableDefaultTyping()/activateDefaultTyping() makes Jackson read the class name from the JSON and instantiate it. An attacker supplies a gadget class and gets code execution — the classic Jackson RCE chain.",
+  "Не включайте default typing. Если полиморфизм нужен — используйте @JsonTypeInfo с явным белым списком через PolymorphicTypeValidator.":
+    "Do not enable default typing. If you need polymorphism, use @JsonTypeInfo with an explicit allowlist via PolymorphicTypeValidator.",
+  "JNDI-поиск по управляемому имени": "JNDI lookup with a controlled name",
+  "Context.lookup() с переменной или собранной строкой позволяет указать удалённый LDAP/RMI-адрес. Сервер загрузит и выполнит класс оттуда — тот самый механизм, что стоит за Log4Shell.":
+    "Context.lookup() with a variable or built string lets an attacker point to a remote LDAP/RMI address. The server loads and runs a class from there — the very mechanism behind Log4Shell.",
+  "Не подставляйте ввод в JNDI-имя. Ограничьте поиск локальным java:comp/env со статическими именами; отключите удалённую загрузку классов.":
+    "Do not put input into a JNDI name. Restrict lookups to a local java:comp/env with static names; disable remote class loading.",
+  "Выполнение кода через ScriptEngine/Groovy": "Code execution via ScriptEngine/Groovy",
+  "ScriptEngine (Nashorn) или GroovyShell исполняют переданный текст как скрипт с полным доступом к JVM. Если в него попадает ввод — это выполнение произвольного кода на сервере.":
+    "ScriptEngine (Nashorn) or GroovyShell runs the given text as a script with full JVM access. If input reaches it, that is arbitrary server-side code execution.",
+  "Не исполняйте пользовательский текст как скрипт. Если нужен сценарий — используйте песочницу (SecureASTCustomizer у Groovy) и белый список.":
+    "Do not run user text as a script. If scripting is required, use a sandbox (Groovy's SecureASTCustomizer) and an allowlist.",
+  "Десериализация через XStream": "Deserialization via XStream",
+  "XStream.fromXML() без настройки безопасности воссоздаёт произвольные объекты из XML и вызывает их методы. Недоверенный XML даёт выполнение кода — известная цепочка гаджетов XStream.":
+    "XStream.fromXML() without a security setup reconstructs arbitrary objects from XML and calls their methods. Untrusted XML yields code execution — the well-known XStream gadget chain.",
+  "Обновите XStream и включите защиту: XStream.setupDefaultSecurity(x) плюс явный allowTypes для нужных классов.":
+    "Update XStream and enable protection: XStream.setupDefaultSecurity(x) plus an explicit allowTypes for the classes you need.",
+  "Json.NET: TypeNameHandling не None": "Json.NET: TypeNameHandling is not None",
+  "TypeNameHandling.All/Auto/Objects заставляет Json.NET читать имя типа ($type) из JSON и создавать его. Атакующий подставляет гаджет-тип и получает выполнение кода при десериализации.":
+    "TypeNameHandling.All/Auto/Objects makes Json.NET read the type name ($type) from the JSON and instantiate it. An attacker supplies a gadget type and gets code execution on deserialization.",
+  "Держите TypeNameHandling = None. Если полиморфизм необходим — задайте строгий SerializationBinder с белым списком типов.":
+    "Keep TypeNameHandling = None. If polymorphism is required, set a strict SerializationBinder with a type allowlist.",
+  "Под использует пространства имён хоста": "Pod uses host namespaces",
+  "hostNetwork/hostPID/hostIPC: true снимают изоляцию контейнера от хоста. Процесс видит сеть, процессы или IPC узла — из контейнера легко разведать и атаковать хост и соседей.":
+    "hostNetwork/hostPID/hostIPC: true remove the container's isolation from the host. The process sees the node's network, processes, or IPC — from the container it is easy to scout and attack the host and its neighbours.",
+  "Уберите hostNetwork/hostPID/hostIPC. Если нужен доступ к сети узла — используйте Service и точечные права.":
+    "Remove hostNetwork/hostPID/hostIPC. If node network access is needed, use a Service and narrowly scoped rights.",
+  "Контейнеру выданы опасные Linux-возможности": "Container granted dangerous Linux capabilities",
+  "Добавление SYS_ADMIN, NET_ADMIN, SYS_PTRACE или SYS_MODULE через capabilities.add почти равно привилегированному режиму: с ними можно монтировать ФС, менять сеть, читать чужую память и выходить из контейнера.":
+    "Adding SYS_ADMIN, NET_ADMIN, SYS_PTRACE, or SYS_MODULE via capabilities.add is nearly equal to privileged mode: they let you mount filesystems, reconfigure the network, read other processes' memory, and break out of the container.",
+  "Не добавляйте эти capabilities. Начните с drop: [ALL] и выдавайте только строго необходимое.":
+    "Do not add these capabilities. Start from drop: [ALL] and grant only what is strictly required.",
   // Prototype pollution / postMessage / SpEL / XXE / secrets / timing — 18.07.2026
   "Загрязнение прототипа (запись в __proto__)": "Prototype pollution (write to __proto__)",
   "Присваивание в __proto__ или constructor.prototype меняет прототип всех объектов сразу. Через управляемый ключ атакующий подсовывает свойства, которые всплывают везде, — обход проверок, порча логики, иногда RCE.":
