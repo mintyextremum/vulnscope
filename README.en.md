@@ -38,26 +38,29 @@ already owned.
 
 | Language | Rules |
 |---|---|
-| JavaScript / TypeScript / React | 33 |
-| Python | 33 |
-| Java / Kotlin | 28 |
-| Terraform | 24 |
-| PHP | 15 |
-| Go | 12 |
+| Python | 39 |
+| JavaScript / TypeScript / React | 36 |
+| Java / Kotlin | 30 |
+| Terraform | 28 |
+| PHP | 17 |
+| Ruby | 14 |
+| C# | 14 |
+| Go | 13 |
 | Kubernetes | 11 |
-| C# | 11 |
 | Rust | 10 |
-| Ruby | 10 |
-| Dockerfile | 6 |
-| C / C++ | 6 |
+| Dockerfile | 10 |
 | Swift | 6 |
+| GitHub Actions | 6 |
+| C / C++ | 6 |
+| Nginx | 5 |
 | SQL | 4 |
 | Shell | 4 |
 | PowerShell | 4 |
-| Nginx | 4 |
-| GitHub Actions | 4 |
-| Scala / Elixir | 3 each |
-| Perl / Lua | 2 each |
+| Elixir | 4 |
+| Scala | 3 |
+| Perl | 3 |
+| Ansible | 3 |
+| Lua | 2 |
 | Vue / Svelte | 1 each |
 
 Languages are detected by extension and filename — Vue, Svelte, GraphQL, SQL and
@@ -74,10 +77,13 @@ against your own sample before you save it, showing which lines were dropped by
 comment and test-file handling. They live in `%APPDATA%/vulnscope/rules.json` and
 the set can be imported and exported.
 
-**Secrets — 31 detectors**: AWS and Azure Storage keys, GitHub/GitLab/Slack (incl.
-incoming webhook)/npm/PyPI/Discord/Twilio/Mailgun/Square/Hugging Face/Postman/
-Databricks/New Relic/Notion tokens, Stripe, Google and SendGrid keys, Shopify and
-DigitalOcean tokens, Sentry DSNs, private keys, database connection strings, JWTs.
+**Secrets — 55 detectors**: AWS and Azure Storage keys; GitHub, GitLab (incl. runner
+and pipeline-trigger), Slack (incl. incoming webhook), npm, PyPI, Discord, Twilio,
+Mailgun, Square, Hugging Face, Postman, Databricks, New Relic, Notion, Atlassian,
+Linear, Doppler, PlanetScale, HashiCorp Vault, Grafana, Dropbox, Terraform Cloud,
+Firebase, Adobe, Asana, Mailchimp, SonarQube, Figma, Airtable, Docker Hub, RubyGems
+and Pulumi tokens; Stripe (incl. webhook secret), Google and SendGrid keys; Shopify
+and DigitalOcean tokens; Sentry DSNs; private keys; database connection strings; JWTs.
 Values are checked for entropy, so `your-api-key-here`
 and similar placeholders never reach the report. Secret values are **masked**
 everywhere — in the UI and in every export — so the raw value never leaves the

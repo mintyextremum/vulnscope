@@ -2294,6 +2294,22 @@ pub static RULES: &[Rule] = &[
         references: &["https://cwe.mitre.org/data/definitions/78.html"],
         skip_in_tests: false,
     },
+    Rule {
+        id: "VS-PL-003",
+        title: "Строковый eval (выполнение кода)",
+        description: "eval со строкой (eval \"...\" или eval $code) компилирует и исполняет её как Perl. Ввод в этой строке даёт выполнение произвольного кода. Блочный eval { ... } для перехвата ошибок безопасен и не подпадает.",
+        recommendation: "Для обработки ошибок используйте блочный eval { ... } или Try::Tiny. Не исполняйте пользовательский ввод как код.",
+        severity: Severity::High,
+        confidence: Confidence::Medium,
+        category: "Выполнение кода",
+        languages: &[Language::Perl],
+        pattern: r#"\beval\s*["']|\beval\s+\$\w"#,
+        unless_contains: &[],
+        cwe: &["CWE-95"],
+        owasp: Some(OWASP_INJECTION),
+        references: &["https://cwe.mitre.org/data/definitions/95.html"],
+        skip_in_tests: false,
+    },
 
     // ------------------------------------------------------------------- Lua
     Rule {
@@ -5339,6 +5355,13 @@ mod tests {
         assert!(hit_ids("  validate_certs: no\n", Language::Yaml, "play.yml").contains(&"VS-AN-001"));
         assert!(hit_ids("ssh -o StrictHostKeyChecking=no host\n", Language::Shell, "deploy.sh").contains(&"VS-AN-002"));
         assert!(hit_ids("  mode: '0777'\n", Language::Yaml, "play.yml").contains(&"VS-AN-003"));
+    }
+
+    #[test]
+    fn finds_perl_string_eval() {
+        assert!(hit_ids("eval \"$user_code\";\n", Language::Perl, "s.pl").contains(&"VS-PL-003"));
+        // Block eval for error handling is safe.
+        assert!(!hit_ids("eval { risky() };\n", Language::Perl, "s.pl").contains(&"VS-PL-003"));
     }
 
     #[test]

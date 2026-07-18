@@ -199,6 +199,71 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Perl string eval — 18.07.2026
+  "Строковый eval (выполнение кода)": "String eval (code execution)",
+  "eval со строкой (eval \"...\" или eval $code) компилирует и исполняет её как Perl. Ввод в этой строке даёт выполнение произвольного кода. Блочный eval { ... } для перехвата ошибок безопасен и не подпадает.":
+    "eval with a string (eval \"...\" or eval $code) compiles and runs it as Perl. Input in that string yields arbitrary code execution. The block form eval { ... } for error handling is safe and not flagged.",
+  "Для обработки ошибок используйте блочный eval { ... } или Try::Tiny. Не исполняйте пользовательский ввод как код.":
+    "For error handling use the block form eval { ... } or Try::Tiny. Do not run user input as code.",
+  // More SaaS + CI secret detectors — 18.07.2026
+  "Секрет подписи вебхука Stripe": "Stripe webhook signing secret",
+  "Секрет whsec_ проверяет подпись вебхуков Stripe. Зная его, атакующий подделывает события (например, «оплата прошла») и обманывает вашу бизнес-логику.":
+    "The whsec_ secret verifies Stripe webhook signatures. Knowing it, an attacker forges events (e.g. \"payment succeeded\") and deceives your business logic.",
+  "Смените секрет вебхука в дашборде Stripe и храните его в переменных окружения.":
+    "Rotate the webhook secret in the Stripe dashboard and keep it in environment variables.",
+  "Токен SonarQube": "SonarQube token",
+  "Токен SonarQube даёт доступ к результатам анализа кода, проектам и настройкам качества.":
+    "A SonarQube token grants access to code-analysis results, projects, and quality settings.",
+  "Отзовите токен в настройках SonarQube (Security → Tokens) и выпустите новый.":
+    "Revoke the token in SonarQube settings (Security → Tokens) and issue a new one.",
+  "Токен доступа Figma": "Figma access token",
+  "Токен Figma даёт доступ к файлам дизайна, проектам и командам вашего аккаунта.":
+    "A Figma token grants access to your account's design files, projects, and teams.",
+  "Отзовите токен в настройках Figma (Personal access tokens) и выпустите новый.":
+    "Revoke the token in Figma settings (Personal access tokens) and issue a new one.",
+  "Auth-токен Sentry": "Sentry auth token",
+  "Auth-токен Sentry даёт доступ к проектам, событиям ошибок и настройкам организации через API.":
+    "A Sentry auth token grants access to projects, error events, and organization settings via the API.",
+  "Отзовите токен в настройках Sentry (Auth Tokens) и выпустите новый.":
+    "Revoke the token in Sentry settings (Auth Tokens) and issue a new one.",
+  "Персональный токен Airtable": "Airtable personal access token",
+  "Токен Airtable даёт доступ к базам, таблицам и записям, к которым он привязан.":
+    "An Airtable token grants access to the bases, tables, and records it is scoped to.",
+  "Отзовите токен в настройках Airtable (Developer hub → Personal access tokens) и выпустите новый.":
+    "Revoke the token in Airtable settings (Developer hub → Personal access tokens) and issue a new one.",
+  "Токен интеграции Notion (ntn_)": "Notion integration token (ntn_)",
+  "Токен интеграции Notion в новом формате ntn_ даёт доступ к подключённым страницам и базам.":
+    "A Notion integration token in the newer ntn_ format grants access to the connected pages and databases.",
+  "Токен регистрации GitLab Runner": "GitLab Runner registration token",
+  "Токен регистрации GitLab Runner позволяет подключить свой раннер к проекту и перехватывать задания CI вместе с их секретами.":
+    "A GitLab Runner registration token lets one attach a runner to the project and intercept CI jobs together with their secrets.",
+  "Сбросьте токен в настройках CI/CD GitLab и выпустите новый.":
+    "Reset the token in GitLab CI/CD settings and issue a new one.",
+  "GitLab Pipeline Trigger Token": "GitLab pipeline trigger token",
+  "Токен триггера пайплайна GitLab позволяет запускать пайплайны проекта и, через них, выполнять код в CI.":
+    "A GitLab pipeline trigger token lets one run the project's pipelines and, through them, execute code in CI.",
+  "Отзовите токен в настройках CI/CD → Pipeline triggers и выпустите новый.":
+    "Revoke the token in CI/CD settings → Pipeline triggers and issue a new one.",
+  "Docker Hub Personal Access Token": "Docker Hub personal access token",
+  "PAT Docker Hub позволяет публиковать и скачивать образы от вашего имени — вектор атаки на цепочку поставок контейнеров.":
+    "A Docker Hub PAT lets one push and pull images on your behalf — a container supply-chain attack vector.",
+  "Отзовите токен в настройках Docker Hub (Security) и выпустите новый.":
+    "Revoke the token in Docker Hub settings (Security) and issue a new one.",
+  "Токен API RubyGems": "RubyGems API token",
+  "Токен RubyGems позволяет публиковать гемы от вашего имени. Утечка ведёт к компрометации цепочки поставок Ruby.":
+    "A RubyGems token lets one publish gems on your behalf. A leak compromises the Ruby supply chain.",
+  "Отзовите токен на rubygems.org (Settings → API keys) и выпустите новый с ограниченной областью.":
+    "Revoke the token at rubygems.org (Settings → API keys) and issue a new one with limited scope.",
+  "Токен доступа Pulumi": "Pulumi access token",
+  "Токен Pulumi даёт доступ к состоянию инфраструктуры (state) и секретам стеков в Pulumi Cloud.":
+    "A Pulumi token grants access to infrastructure state and stack secrets in Pulumi Cloud.",
+  "Отзовите токен в настройках Pulumi (Access Tokens) и выпустите новый.":
+    "Revoke the token in Pulumi settings (Access Tokens) and issue a new one.",
+  "Twilio Account SID": "Twilio Account SID",
+  "Account SID Twilio идентифицирует аккаунт и в паре с auth-токеном даёт полный доступ к API отправки SMS и звонков.":
+    "A Twilio Account SID identifies the account and, together with the auth token, grants full access to the SMS and call APIs.",
+  "Не храните SID в коде рядом с секретом; держите учётные данные в переменных окружения.":
+    "Do not store the SID in code next to the secret; keep credentials in environment variables.",
   // SaaS provider secret detectors — 18.07.2026
   "Токен Atlassian (Jira/Confluence)": "Atlassian token (Jira/Confluence)",
   "API-токен Atlassian даёт доступ к Jira и Confluence вашего аккаунта: задачам, страницам и вложениям.":
