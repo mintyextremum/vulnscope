@@ -199,6 +199,7 @@ fn scan_user_rules(
                 owasp: cr.rule.owasp.clone(),
                 cve: Vec::new(),
                 references: cr.rule.references.clone(),
+                extra: None,
                 package: None,
             });
         }
@@ -230,6 +231,22 @@ fn scan_one_file(
         let (snippet, snippet_start_line) = index.snippet(line);
         let rule = hit.rule;
 
+        // Attach developer-facing detail and, if a corroborating sink is present
+        // in the file, raise confidence a notch above the rule's baseline.
+        let mut confidence = rule.confidence;
+        let extra = rules::extra_for(rule.id).map(|ex| {
+            let corroborated = ex.sink.is_some() && rules::sink_present(rule.id, &content);
+            if corroborated && confidence == Confidence::Medium {
+                confidence = Confidence::High;
+            }
+            FindingExtra {
+                exploit: Some(ex.exploit.to_string()),
+                impact: ex.impact.iter().map(|s| s.to_string()).collect(),
+                fix_code: Some(ex.fix_code.to_string()),
+                corroborated,
+            }
+        });
+
         findings.push(Finding {
             id: format!("{}:{}:{}:{}", rule.id, rel, line, column),
             fingerprint: String::new(),
@@ -241,7 +258,7 @@ fn scan_one_file(
             description: rule.description.to_string(),
             recommendation: rule.recommendation.to_string(),
             severity: rule.severity,
-            confidence: rule.confidence,
+            confidence,
             source: FindingSource::Builtin,
             source_label: FindingSource::Builtin.label().to_string(),
             category: rule.category.to_string(),
@@ -256,6 +273,7 @@ fn scan_one_file(
             owasp: rule.owasp.map(|s| s.to_string()),
             cve: Vec::new(),
             references: rule.references.iter().map(|s| s.to_string()).collect(),
+            extra,
             package: None,
         });
     }
@@ -296,6 +314,7 @@ fn scan_one_file(
                 owasp: Some("A07:2021 – Identification and Authentication Failures".to_string()),
                 cve: Vec::new(),
                 references: Vec::new(),
+                extra: None,
                 package: None,
             });
         }
@@ -885,6 +904,7 @@ fn advisory_to_finding(dep: &deps::Dependency, adv: &crate::osv::Advisory) -> Fi
         owasp: Some("A06:2021 – Vulnerable and Outdated Components".to_string()),
         cve,
         references: adv.references.clone(),
+        extra: None,
         package: Some(PackageInfo {
             name: dep.name.clone(),
             version: dep.version.clone(),
@@ -1354,6 +1374,7 @@ mod tests {
             owasp: None,
             cve: cve.iter().map(|s| s.to_string()).collect(),
             references: vec![],
+            extra: None,
             package: Some(PackageInfo {
                 name: pkg.into(),
                 version: ver.into(),

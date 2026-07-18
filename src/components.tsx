@@ -1038,6 +1038,30 @@ export function FindingDetail({
           <p>{t(finding.description)}</p>
         </div>
 
+        {finding.extra?.exploit && (
+          <div className="detail-section">
+            <h3>
+              <Icon name="bug_report" />
+              {t("Пример эксплуатации")}
+            </h3>
+            <div className="exploit-box">{t(finding.extra.exploit)}</div>
+          </div>
+        )}
+
+        {finding.extra && finding.extra.impact.length > 0 && (
+          <div className="detail-section">
+            <h3>
+              <Icon name="warning" />
+              {t("Возможные последствия")}
+            </h3>
+            <ul className="impact-list">
+              {finding.extra.impact.map((c, i) => (
+                <li key={i}>{t(c)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {finding.snippet && (
           <div className="detail-section">
             <h3>
@@ -1054,6 +1078,11 @@ export function FindingDetail({
           <div className="fix-box">
             <p>{t(finding.recommendation)}</p>
           </div>
+          {finding.extra?.fixCode && (
+            <pre className="fix-code">
+              <code>{finding.extra.fixCode}</code>
+            </pre>
+          )}
         </div>
 
         <div className="detail-section">
@@ -1076,7 +1105,20 @@ export function FindingDetail({
             </div>
             <div className="meta-item">
               <div className="meta-key">{t("Достоверность")}</div>
-              <div className="meta-val">{t(CONFIDENCE_LABEL[finding.confidence])}</div>
+              <div className="meta-val">
+                {t(CONFIDENCE_LABEL[finding.confidence])}
+                {finding.extra?.corroborated && (
+                  <span
+                    className="corroborated-badge"
+                    title={t(
+                      "В этом же файле найден вызов-приёмник, подтверждающий использование данных — достоверность повышена.",
+                    )}
+                  >
+                    <Icon name="verified" />
+                    {t("подтверждено sink")}
+                  </span>
+                )}
+              </div>
             </div>
             {finding.cwe.length > 0 && (
               <div className="meta-item">

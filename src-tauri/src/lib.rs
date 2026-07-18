@@ -35,6 +35,7 @@ fn get_rules() -> Vec<serde_json::Value> {
     rules::RULES
         .iter()
         .map(|r| {
+            let extra = rules::extra_for(r.id);
             serde_json::json!({
                 "id": r.id,
                 "title": r.title,
@@ -47,6 +48,9 @@ fn get_rules() -> Vec<serde_json::Value> {
                 "cwe": r.cwe,
                 "owasp": r.owasp,
                 "references": r.references,
+                "exploit": extra.map(|e| e.exploit),
+                "impact": extra.map(|e| e.impact).unwrap_or(&[]),
+                "fixCode": extra.map(|e| e.fix_code),
             })
         })
         .chain(secrets::SECRET_RULES.iter().map(|r| {

@@ -58,10 +58,21 @@ export function findingToMarkdown(f: Finding, t: TFn, includeSnippet = false): s
   ];
   out.push(tags.join(" · "), "");
   out.push(t(f.description), "");
+  if (f.extra?.exploit) {
+    out.push(`**${t("Пример эксплуатации")}:** ${t(f.extra.exploit)}`, "");
+  }
+  if (f.extra && f.extra.impact.length > 0) {
+    out.push(`**${t("Возможные последствия")}:**`);
+    for (const c of f.extra.impact) out.push(`- ${t(c)}`);
+    out.push("");
+  }
   if (includeSnippet && f.snippet) {
     out.push("```" + fenceLang(f.file), f.snippet.replace(/\s+$/, ""), "```", "");
   }
   if (f.recommendation) out.push(`**${t("Как исправить")}:** ${t(f.recommendation)}`, "");
+  if (f.extra?.fixCode) {
+    out.push("```" + fenceLang(f.file), f.extra.fixCode, "```", "");
+  }
   return out.join("\n");
 }
 

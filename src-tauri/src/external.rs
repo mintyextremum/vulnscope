@@ -495,6 +495,7 @@ pub fn parse_semgrep(json: &str, root: &Path) -> Vec<Finding> {
                 owasp,
                 cve: Vec::new(),
                 references,
+                extra: None,
                 package: None,
             }
         })
@@ -611,6 +612,7 @@ pub fn parse_bandit(json: &str, root: &Path) -> Vec<Finding> {
                 owasp: None,
                 cve: Vec::new(),
                 references: r.more_info.into_iter().collect(),
+                extra: None,
                 package: None,
             }
         })
@@ -737,6 +739,7 @@ pub fn parse_cargo_audit(json: &str, manifest: &str) -> Vec<Finding> {
                 owasp: Some("A06:2021 – Vulnerable and Outdated Components".to_string()),
                 cve,
                 references: v.advisory.url.into_iter().collect(),
+                extra: None,
                 package: Some(PackageInfo {
                     name: v.package.name,
                     version: v.package.version,
@@ -803,6 +806,7 @@ pub fn parse_gitleaks(json: &str, root: &Path) -> Vec<Finding> {
                 owasp: Some("A07:2021 – Identification and Authentication Failures".to_string()),
                 cve: Vec::new(),
                 references: Vec::new(),
+                extra: None,
                 package: None,
             }
         })
@@ -866,6 +870,7 @@ pub fn parse_hadolint(json: &str, root: &Path) -> Vec<Finding> {
                 owasp: Some("A05:2021 – Security Misconfiguration".to_string()),
                 cve: Vec::new(),
                 references: vec![format!("https://github.com/hadolint/hadolint/wiki/{}", h.code)],
+                extra: None,
                 package: None,
             }
         })
@@ -941,6 +946,7 @@ pub fn parse_ruff(json: &str, root: &Path) -> Vec<Finding> {
                 owasp: None,
                 cve: Vec::new(),
                 references: r.url.into_iter().collect(),
+                extra: None,
                 package: None,
             }
         })
@@ -1066,6 +1072,7 @@ pub fn parse_osv_scanner(json: &str, root: &Path) -> Vec<Finding> {
                     owasp: Some("A06:2021 – Vulnerable and Outdated Components".to_string()),
                     cve,
                     references: vec![format!("https://osv.dev/vulnerability/{}", vuln.id)],
+                    extra: None,
                     package: Some(PackageInfo {
                         name: pkg.package.name.clone(),
                         version: pkg.package.version.clone(),
@@ -1164,6 +1171,7 @@ pub fn parse_trufflehog(output: &str, root: &Path) -> Vec<Finding> {
                 owasp: Some("A07:2021 – Identification and Authentication Failures".to_string()),
                 cve: Vec::new(),
                 references: Vec::new(),
+                extra: None,
                 package: None,
             })
         })
@@ -1261,6 +1269,7 @@ pub fn parse_npm_audit(json: &str, manifest: &str) -> Vec<Finding> {
                 owasp: Some("A06:2021 – Vulnerable and Outdated Components".to_string()),
                 cve: Vec::new(),
                 references: if url.is_empty() { vec![] } else { vec![url] },
+                extra: None,
                 package: Some(PackageInfo {
                     name: v.name.clone(),
                     version: v.range.clone(),
@@ -1389,6 +1398,7 @@ pub fn parse_trivy(json: &str, root: &Path) -> Vec<Finding> {
                 owasp: Some("A06:2021 – Vulnerable and Outdated Components".to_string()),
                 cve,
                 references: if v.url.is_empty() { vec![] } else { vec![v.url] },
+                extra: None,
                 package: Some(PackageInfo {
                     name: v.pkg,
                     version: v.installed,
@@ -1430,6 +1440,7 @@ pub fn parse_trivy(json: &str, root: &Path) -> Vec<Finding> {
                 owasp: Some("A05:2021 – Security Misconfiguration".to_string()),
                 cve: Vec::new(),
                 references: if m.url.is_empty() { vec![] } else { vec![m.url] },
+                extra: None,
                 package: None,
             });
         }
