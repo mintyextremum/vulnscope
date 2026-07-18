@@ -199,6 +199,92 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Terraform cloud misconfig (AWS/Azure/GCP) — 18.07.2026
+  "S3: снята блокировка публичного доступа": "S3: public access block removed",
+  "block_public_acls/ignore_public_acls/restrict_public_buckets = false отключают защиту от случайной публикации бакета. Одна публичная ACL или политика — и содержимое доступно всему интернету.":
+    "block_public_acls/ignore_public_acls/restrict_public_buckets = false disable the guard against accidentally publishing the bucket. One public ACL or policy and the contents are open to the whole internet.",
+  "Держите все четыре флага aws_s3_bucket_public_access_block в true, если бакет не обязан быть публичным.":
+    "Keep all four aws_s3_bucket_public_access_block flags at true unless the bucket must be public.",
+  "RDS: резервные копии отключены": "RDS: backups disabled",
+  "backup_retention_period = 0 выключает автоматические бэкапы БД. При сбое, атаке шифровальщика или ошибочном DROP восстанавливать будет нечего.":
+    "backup_retention_period = 0 turns off automated database backups. After a failure, ransomware, or an accidental DROP there is nothing to restore from.",
+  "Задайте разумный срок хранения (например, backup_retention_period = 7) и проверяйте восстановление.":
+    "Set a sensible retention (e.g. backup_retention_period = 7) and test restores.",
+  "Инстансу назначается публичный IP": "Instance is assigned a public IP",
+  "associate_public_ip_address = true выставляет инстанс напрямую в интернет. Любая открытая служба на нём становится доступна снаружи, минуя внутреннюю сеть.":
+    "associate_public_ip_address = true exposes the instance directly to the internet. Any open service on it becomes reachable from outside, bypassing the internal network.",
+  "Держите рабочие нагрузки в приватных подсетях за NAT/балансировщиком; публичный IP давайте только явным точкам входа.":
+    "Keep workloads in private subnets behind NAT/a load balancer; give a public IP only to explicit entry points.",
+  "KMS: ротация ключа отключена": "KMS: key rotation disabled",
+  "enable_key_rotation = false оставляет ключ шифрования неизменным навсегда. Чем дольше живёт ключ, тем больше данных он защищает и тем тяжелее последствия его компрометации.":
+    "enable_key_rotation = false leaves the encryption key unchanged forever. The longer a key lives, the more data it protects and the worse a compromise becomes.",
+  "Включите enable_key_rotation = true для CMK — AWS будет менять криптоматериал ежегодно автоматически.":
+    "Enable enable_key_rotation = true for the CMK — AWS then rotates the key material yearly automatically.",
+  "CloudTrail: журналирование урезано": "CloudTrail: logging cut down",
+  "is_multi_region_trail = false или enable_logging = false оставляют аудит-события без записи. Действия атакующего в других регионах или после отключения трейла не попадут в лог.":
+    "is_multi_region_trail = false or enable_logging = false leave audit events unrecorded. An attacker's actions in other regions, or after the trail is turned off, never reach the log.",
+  "Включите enable_logging = true и is_multi_region_trail = true, а логи защитите от изменения.":
+    "Enable enable_logging = true and is_multi_region_trail = true, and protect the logs from tampering.",
+  "Политика доступна анонимно (Principal \"*\")": "Policy is anonymous (Principal \"*\")",
+  "\"Principal\": \"*\" (или {\"AWS\": \"*\"}) в ресурсной политике разрешает действие всем, включая анонимных пользователей. Это типовая причина утечки S3-бакетов и открытых очередей.":
+    "\"Principal\": \"*\" (or {\"AWS\": \"*\"}) in a resource policy allows the action to everyone, including anonymous users. It is a common cause of leaked S3 buckets and open queues.",
+  "Укажите конкретные ARN доверенных аккаунтов или ролей вместо \"*\".":
+    "Specify the concrete ARNs of trusted accounts or roles instead of \"*\".",
+  "CloudFront допускает незашифрованный HTTP": "CloudFront allows unencrypted HTTP",
+  "viewer_protocol_policy = \"allow-all\" позволяет клиентам ходить по HTTP. Трафик и куки идут открытым текстом и доступны для перехвата и подмены.":
+    "viewer_protocol_policy = \"allow-all\" lets clients use HTTP. Traffic and cookies travel in cleartext, open to interception and tampering.",
+  "Задайте viewer_protocol_policy = \"redirect-to-https\" или \"https-only\".":
+    "Set viewer_protocol_policy = \"redirect-to-https\" or \"https-only\".",
+  "Разрешён устаревший TLS (1.0/1.1)": "Obsolete TLS (1.0/1.1) allowed",
+  "min_tls_version = TLS1_0/TLS1_1 позволяет клиентам согласовать давно скомпрометированные версии протокола. Их следует отключать на стороне сервиса.":
+    "min_tls_version = TLS1_0/TLS1_1 lets clients negotiate long-broken protocol versions. They should be disabled on the service side.",
+  "Поднимите минимум до TLS 1.2 (min_tls_version = \"TLS1_2\").":
+    "Raise the minimum to TLS 1.2 (min_tls_version = \"TLS1_2\").",
+  "Azure: публичный доступ к блобам включён": "Azure: public blob access enabled",
+  "allow_blob_public_access/allow_nested_items_to_be_public = true разрешает анонимное чтение контейнеров и блобов. Это частая причина утечек данных из Azure Storage.":
+    "allow_blob_public_access/allow_nested_items_to_be_public = true permits anonymous reads of containers and blobs. It is a frequent cause of data leaks from Azure Storage.",
+  "Держите allow_nested_items_to_be_public = false и выдавайте доступ через SAS-токены или приватные эндпойнты.":
+    "Keep allow_nested_items_to_be_public = false and grant access via SAS tokens or private endpoints.",
+  "Azure: разрешён незашифрованный HTTP к хранилищу": "Azure: unencrypted HTTP to storage allowed",
+  "enable_https_traffic_only = false позволяет обращаться к Storage по HTTP. Данные и ключи доступа идут открытым текстом.":
+    "enable_https_traffic_only = false allows reaching Storage over HTTP. Data and access keys travel in cleartext.",
+  "Установите enable_https_traffic_only = true (в новых версиях провайдера — https_traffic_only_enabled).":
+    "Set enable_https_traffic_only = true (https_traffic_only_enabled in newer provider versions).",
+  "Azure: публичный сетевой доступ к сервису": "Azure: public network access to the service",
+  "public_network_access_enabled = true открывает управляемый сервис (БД, Key Vault, аккаунт) в публичную сеть. Поверхность атаки расширяется на весь интернет.":
+    "public_network_access_enabled = true opens the managed service (DB, Key Vault, account) to the public network. The attack surface widens to the whole internet.",
+  "Отключите публичный доступ и подключайтесь через Private Endpoint/Service Endpoint.":
+    "Disable public access and connect via a Private Endpoint/Service Endpoint.",
+  "Azure Key Vault: защита от удаления выключена": "Azure Key Vault: purge protection off",
+  "purge_protection_enabled = false позволяет безвозвратно удалить хранилище и ключи. Атакующий с доступом уничтожит криптоматериал, оставив данные нерасшифровываемыми.":
+    "purge_protection_enabled = false allows permanently deleting the vault and its keys. An attacker with access destroys the key material, leaving data undecryptable.",
+  "Включите purge_protection_enabled = true и soft delete для Key Vault.":
+    "Enable purge_protection_enabled = true and soft delete for the Key Vault.",
+  "Azure NSG: правило разрешает любой источник": "Azure NSG: rule allows any source",
+  "source_address_prefix = \"*\" во входящем разрешающем правиле NSG открывает порт всему интернету — аналог 0.0.0.0/0. Часто так случайно выставляют RDP/SSH наружу.":
+    "source_address_prefix = \"*\" in an inbound allow NSG rule opens the port to the whole internet — the equivalent of 0.0.0.0/0. RDP/SSH often gets exposed this way by accident.",
+  "Ограничьте source_address_prefix конкретными диапазонами; для управления используйте бастион/VPN.":
+    "Restrict source_address_prefix to specific ranges; use a bastion/VPN for management.",
+  "GCP: ресурс открыт для allUsers/allAuthenticatedUsers": "GCP: resource open to allUsers/allAuthenticatedUsers",
+  "Привязка IAM к allUsers или allAuthenticatedUsers делает ресурс (бакет, топик, функцию) публичным. allUsers — это буквально «кто угодно из интернета».":
+    "An IAM binding to allUsers or allAuthenticatedUsers makes the resource (bucket, topic, function) public. allUsers is literally \"anyone on the internet\".",
+  "Удалите привязку к allUsers/allAuthenticatedUsers; выдавайте роли конкретным сервис-аккаунтам и группам.":
+    "Remove the allUsers/allAuthenticatedUsers binding; grant roles to specific service accounts and groups.",
+  "GCP firewall: источник 0.0.0.0/0": "GCP firewall: source 0.0.0.0/0",
+  "source_ranges = [\"0.0.0.0/0\"] открывает правило файрвола всему интернету. В связке с разрешёнными портами администрирования это выставляет узлы наружу.":
+    "source_ranges = [\"0.0.0.0/0\"] opens the firewall rule to the whole internet. Combined with allowed admin ports, it exposes the nodes externally.",
+  "Сузьте source_ranges до нужных диапазонов; доступ к SSH/RDP давайте через IAP или бастион.":
+    "Narrow source_ranges to the ranges you need; grant SSH/RDP access via IAP or a bastion.",
+  "GKE: клиентский сертификат как метод входа": "GKE: client certificate as a login method",
+  "issue_client_certificate = true включает статический клиентский сертификат для доступа к кластеру. Его нельзя отозвать по отдельности, и это слабый метод аутентификации.":
+    "issue_client_certificate = true enables a static client certificate for cluster access. It cannot be revoked individually and is a weak authentication method.",
+  "Отключите client certificate (issue_client_certificate = false) и используйте IAM/OIDC.":
+    "Disable the client certificate (issue_client_certificate = false) and use IAM/OIDC.",
+  "GKE: экранированные узлы отключены": "GKE: shielded nodes disabled",
+  "enable_shielded_nodes = false отключает Shielded GKE Nodes — проверку загрузки и целостности узлов. Это ослабляет защиту от руткитов и подмены образа узла.":
+    "enable_shielded_nodes = false turns off Shielded GKE Nodes — boot and node integrity verification. This weakens protection against rootkits and node image tampering.",
+  "Включите enable_shielded_nodes = true и Secure Boot для узлов.":
+    "Enable enable_shielded_nodes = true and Secure Boot for the nodes.",
   // Dynamic code, unsafe reflection, path traversal — 18.07.2026
   "create_function() — динамический код": "create_function() — dynamic code",
   "create_function() компилирует переданную строку тела как код PHP — это eval с другого входа. Если в тело попадает ввод, атакующий исполняет произвольный код.":
