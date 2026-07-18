@@ -210,11 +210,24 @@ fn history_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
+/// A stable key for a scanned root, so the same project always maps to the same
+/// baseline. `D:\proj`, `D:/proj`, a trailing slash and a differently-cased drive
+/// letter all name the same directory on Windows yet hash differently — keying on
+/// the raw string silently reset the delta to "first scan" whenever the spelling
+/// changed. Canonicalising collapses those forms; a path that no longer exists
+/// falls back to normalising the string it was given.
+fn normalize_root(root: &Path) -> String {
+    if let Ok(c) = std::fs::canonicalize(root) {
+        return c.to_string_lossy().to_lowercase();
+    }
+    root.to_string_lossy().replace('\\', "/").trim_end_matches('/').to_lowercase()
+}
+
 /// One file per scanned root, so scanning project A never disturbs project B's
 /// baseline.
 fn snapshot_path(root: &Path) -> Result<PathBuf> {
     let mut h = Sha256::new();
-    h.update(root.to_string_lossy().as_bytes());
+    h.update(normalize_root(root).as_bytes());
     let key = hex16(&h.finalize());
     Ok(history_dir()?.join(format!("{key}.json")))
 }
@@ -326,6 +339,24 @@ fn severity_key(s: Severity) -> String {
 mod tests {
     use super::*;
     use crate::model::{Confidence, FindingSource, PackageInfo};
+
+    #[test]
+    fn snapshot_key_ignores_path_spelling() {
+        // A non-existent path exercises the string-normalisation branch, which is
+        // deterministic on any machine (canonicalize would need the dir to exist).
+        // All four spell the same directory and must produce the same key, or the
+        // baseline resets to "first scan" when the path is typed differently.
+        let key = |p: &str| {
+            let mut h = Sha256::new();
+            h.update(normalize_root(Path::new(p)).as_bytes());
+            hex16(&h.finalize())
+        };
+        let forms = ["Z:/nope/proj", "Z:\\nope\\proj", "Z:\\Nope\\Proj\\", "z:/nope/proj/"];
+        let keys: Vec<_> = forms.iter().map(|p| key(p)).collect();
+        assert!(keys.windows(2).all(|w| w[0] == w[1]), "same dir, different spelling: {keys:?}");
+        // A genuinely different directory must still key differently.
+        assert_ne!(key("Z:/nope/proj"), key("Z:/nope/other"));
+    }
 
     fn f(rule: &str, file: &str, line: u32, snippet: &str) -> Finding {
         Finding {
