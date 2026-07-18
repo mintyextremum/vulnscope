@@ -14,8 +14,9 @@
 
 ## Что оно находит
 
-**Код — 204 встроенных правила** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
-XPath, JNDI и шаблонов (SSTI, SpEL), XSS, загрязнение прототипа, открытые редиректы,
+**Код — 210 встроенных правил** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
+XPath, JNDI и шаблонов (SSTI, SpEL), XSS, загрязнение прототипа, небезопасная
+рефлексия (`Class.forName`, `constantize`), path traversal, открытые редиректы,
 небезопасная десериализация (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`, XStream,
 Jackson default typing, Json.NET `TypeNameHandling`, `binary_to_term`), XXE,
 выполнение кода через ScriptEngine/Groovy, отключённая проверка TLS и ключей SSH,
@@ -39,12 +40,12 @@ Kubernetes (привилегии, хостовые пространства им
 |---|---|
 | JavaScript / TypeScript / React | 33 |
 | Python | 33 |
-| Java / Kotlin | 24 |
-| PHP | 13 |
+| Java / Kotlin | 25 |
+| PHP | 15 |
+| Go | 12 |
 | C# | 11 |
 | Rust | 10 |
-| Go | 10 |
-| Ruby | 9 |
+| Ruby | 10 |
 | Terraform | 7 |
 | Kubernetes | 6 |
 | Dockerfile | 6 |
