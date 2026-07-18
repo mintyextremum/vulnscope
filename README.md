@@ -14,13 +14,13 @@
 
 ## Что оно находит
 
-**Код — 181 встроенное правило** для 38 языков. Инъекции команд, SQL и NoSQL, XSS и
-SSTI, открытые редиректы, небезопасная десериализация (`pickle`, `yaml.load`,
-SnakeYAML, `binary_to_term`), отключённая проверка TLS и ключей SSH, слабая
-криптография, path traversal и Zip Slip, обход проверки JWT, `xp_cmdshell` и
-файловые операции в SQL, проблемы `unsafe` в Rust, ошибки конфигурации в Dockerfile,
-GitHub Actions, Terraform и nginx. Каждая находка размечена CWE и категорией OWASP
-Top 10 и сопровождается рекомендацией.
+**Код — 190 встроенных правил** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP и
+XPath, XSS и SSTI, открытые редиректы, небезопасная десериализация (`pickle`,
+`yaml.load`, SnakeYAML, `binary_to_term`), отключённая проверка TLS и ключей SSH,
+слабая криптография (ECB, зашитый ключ, нулевой IV), mass assignment, path traversal
+и Zip Slip, обход проверки JWT, `xp_cmdshell` и файловые операции в SQL, проблемы
+`unsafe` в Rust, ошибки конфигурации в Dockerfile, GitHub Actions, Terraform и nginx.
+Каждая находка размечена CWE и категорией OWASP Top 10 и сопровождается рекомендацией.
 
 **Индикаторы компрометации.** Отдельная категория ловит не «рискованные приёмы», а
 то, что оставляет атакующий: PHP-веб-шеллы (`eval($_POST[...])`, вызов функции по
@@ -34,14 +34,14 @@ Top 10 и сопровождается рекомендацией.
 | Язык | Правил |
 |---|---|
 | JavaScript / TypeScript / React | 31 |
-| Python | 29 |
+| Python | 31 |
+| Java / Kotlin | 17 |
 | PHP | 13 |
-| Java / Kotlin | 13 |
 | Rust | 10 |
 | Go | 10 |
-| C# | 9 |
+| C# | 10 |
+| Ruby | 9 |
 | Terraform | 7 |
-| Ruby | 7 |
 | Dockerfile | 6 |
 | C / C++ | 6 |
 | Swift | 4 |

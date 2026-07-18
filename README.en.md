@@ -14,13 +14,14 @@ code) — and only when the CVE check is enabled.
 
 ## What it finds
 
-**Code — 181 built-in rules** across 38 languages: command, SQL and NoSQL
-injection, XSS and SSTI, open redirects, unsafe deserialization (`pickle`,
+**Code — 190 built-in rules** across 38 languages: command, SQL, NoSQL, LDAP and
+XPath injection, XSS and SSTI, open redirects, unsafe deserialization (`pickle`,
 `yaml.load`, SnakeYAML, `binary_to_term`), disabled TLS and SSH host-key
-verification, weak cryptography, path traversal and Zip Slip, JWT verification
-bypass, `xp_cmdshell` and file operations in SQL, `unsafe` pitfalls in Rust, and
-misconfigurations in Dockerfiles, GitHub Actions, Terraform and nginx. Every
-finding is tagged with a CWE and an OWASP Top 10 category and comes with a fix.
+verification, weak cryptography (ECB, hardcoded key, zero IV), mass assignment,
+path traversal and Zip Slip, JWT verification bypass, `xp_cmdshell` and file
+operations in SQL, `unsafe` pitfalls in Rust, and misconfigurations in Dockerfiles,
+GitHub Actions, Terraform and nginx. Every finding is tagged with a CWE and an
+OWASP Top 10 category and comes with a fix.
 
 **Compromise indicators.** A dedicated category catches not "risky patterns" but
 what an attacker leaves behind: PHP web shells (`eval($_POST[...])`, a function
@@ -34,14 +35,14 @@ already owned.
 | Language | Rules |
 |---|---|
 | JavaScript / TypeScript / React | 31 |
-| Python | 29 |
+| Python | 31 |
+| Java / Kotlin | 17 |
 | PHP | 13 |
-| Java / Kotlin | 13 |
 | Rust | 10 |
 | Go | 10 |
-| C# | 9 |
+| C# | 10 |
+| Ruby | 9 |
 | Terraform | 7 |
-| Ruby | 7 |
 | Dockerfile | 6 |
 | C / C++ | 6 |
 | Swift | 4 |

@@ -199,6 +199,49 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Crypto / LDAP / XPath / mass-assignment rules added 18.07.2026
+  "Фиксированный (нулевой) IV для шифрования": "Fixed (zero) IV for encryption",
+  "new IvParameterSpec(new byte[...]) даёт вектор инициализации из нулей — один и тот же для каждого сообщения. В CBC/CTR это раскрывает совпадения открытого текста и ломает семантическую стойкость.":
+    "new IvParameterSpec(new byte[...]) yields an all-zero initialization vector — the same for every message. In CBC/CTR this reveals matching plaintext and breaks semantic security.",
+  "Генерируйте случайный IV на каждое сообщение через SecureRandom и передавайте его рядом с шифротекстом.":
+    "Generate a random IV per message with SecureRandom and ship it alongside the ciphertext.",
+  "Ключ шифрования зашит в код": "Encryption key hardcoded",
+  "new SecretKeySpec(\"...\".getBytes()) берёт ключ из строкового литерала. Ключ в исходнике доступен всем, у кого есть код, и остаётся в истории git.":
+    "new SecretKeySpec(\"...\".getBytes()) takes the key from a string literal. A key in the source is visible to anyone with the code and stays in git history.",
+  "Держите ключ вне кода: в переменной окружения, хранилище секретов или KMS. Скомпрометированный ключ смените.":
+    "Keep the key out of the code: in an environment variable, a secret store, or a KMS. Rotate a key that has been exposed.",
+  "LDAP-инъекция: фильтр собирается конкатенацией": "LDAP injection: filter built by concatenation",
+  "Склейка пользовательского ввода в LDAP-фильтр («(uid=» + name) позволяет атакующему дописать свои условия — обойти аутентификацию или вытащить лишние записи.":
+    "Concatenating user input into an LDAP filter (\"(uid=\" + name) lets an attacker append their own conditions — bypass authentication or pull extra records.",
+  "Экранируйте ввод по RFC 4515 (спецсимволы \\ * ( ) NUL) или используйте параметризованные фильтры библиотеки.":
+    "Escape input per RFC 4515 (the special characters \\ * ( ) NUL) or use the library's parameterized filters.",
+  "Подстановка ввода в LDAP-фильтр («(uid=» + name или f-строкой) позволяет дописать свои условия и обойти аутентификацию или прочитать лишние записи.":
+    "Interpolating input into an LDAP filter (\"(uid=\" + name or an f-string) lets an attacker append conditions and bypass authentication or read extra records.",
+  "Экранируйте ввод через ldap.filter.escape_filter_chars() перед вставкой в фильтр.":
+    "Escape input with ldap.filter.escape_filter_chars() before placing it in the filter.",
+  "XPath-инъекция: выражение собирается конкатенацией": "XPath injection: expression built by concatenation",
+  "Склейка ввода в XPath (\"/users/user[name='\" + name) позволяет изменить структуру запроса и обойти проверку — например, вернуть чужого пользователя.":
+    "Concatenating input into XPath (\"/users/user[name='\" + name) lets an attacker change the query structure and bypass a check — for example, return someone else's user.",
+  "Используйте XPath с переменными (XPathVariableResolver) вместо конкатенации, либо экранируйте ввод.":
+    "Use XPath with variables (XPathVariableResolver) instead of concatenation, or escape the input.",
+  "CipherMode.ECB шифрует одинаковые блоки одинаково, поэтому структура открытого текста просвечивает в шифротексте.":
+    "CipherMode.ECB encrypts identical blocks identically, so the plaintext structure shows through in the ciphertext.",
+  "MODE_ECB шифрует одинаковые блоки одинаково, поэтому структура открытого текста видна в шифротексте.":
+    "MODE_ECB encrypts identical blocks identically, so the plaintext structure is visible in the ciphertext.",
+  "Используйте AES-GCM (AesGcm) или CBC со случайным IV на каждое сообщение.":
+    "Use AES-GCM (AesGcm) or CBC with a random IV per message.",
+  "Используйте AES-GCM или CBC со случайным IV на каждое сообщение (Crypto.Cipher.AES с MODE_GCM).":
+    "Use AES-GCM or CBC with a random IV per message (Crypto.Cipher.AES with MODE_GCM).",
+  "Mass assignment: массовое присваивание из params": "Mass assignment: bulk assignment from params",
+  "permit! или update_attributes(params) присваивает модели все поля из запроса. Атакующий может выставить те, что не предназначались для правки — например, admin=true.":
+    "permit! or update_attributes(params) assigns every request field to the model. An attacker can set fields that were never meant to be editable — for example, admin=true.",
+  "Разрешайте только нужные поля явным списком: params.require(:user).permit(:name, :email).":
+    "Allow only the fields you need with an explicit list: params.require(:user).permit(:name, :email).",
+  "SSTI: ERB-шаблон из пользовательских данных": "SSTI: ERB template from user data",
+  "ERB.new с данными из params/request компилирует и исполняет их как шаблон — а значит, как код Ruby. Это инъекция шаблона с выполнением кода на сервере.":
+    "ERB.new with data from params/request compiles and runs it as a template — and therefore as Ruby code. This is a template injection with server-side code execution.",
+  "Не собирайте шаблон из ввода. Рендерите статические шаблоны и передавайте данные через локальные переменные.":
+    "Do not build the template from input. Render static templates and pass data through local variables.",
   // Compromise indicators + swallowed-error rules added 17.07.2026
   "Индикатор компрометации": "Compromise indicator",
   "Веб-шелл: выполнение данных запроса": "Web shell: executing request data",
@@ -1045,6 +1088,8 @@ export const EN: Record<string, string> = {
   "Выполнение кода": "Code execution",
   "Инъекция команд": "Command injection",
   "SQL-инъекция": "SQL injection",
+  "LDAP-инъекция": "LDAP injection",
+  "XPath-инъекция": "XPath injection",
   "Криптография": "Cryptography",
   "Транспортная безопасность": "Transport security",
   "Конфигурация": "Configuration",
