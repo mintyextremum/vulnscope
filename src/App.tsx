@@ -1534,16 +1534,31 @@ function scanSummary(report: ScanReport, lang: Lang): string {
 function Overview({ report }: { report: ScanReport }) {
   const t = useT();
   const lang = useContext(LangContext);
+
+  // Experimental (BETA) findings are *suspected*, not confirmed, and live on
+  // their own tab — so they must not inflate the dashboard's headline numbers,
+  // severity bars, or the risk shield. Count them separately.
+  const confirmed = useMemo(
+    () => report.findings.filter((f) => !f.extra?.experimental),
+    [report.findings]
+  );
+  const counts = useMemo(() => {
+    const c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 } as Record<Severity, number>;
+    for (const f of confirmed) c[f.severity]++;
+    return c;
+  }, [confirmed]);
+  const betaCount = report.findings.length - confirmed.length;
+
   // A cancelled scan checked nothing, so it must never be styled like a clean
   // result — a green shield over "0 находок" reads as "you are safe".
   const risk = report.cancelled
     ? ""
-    : report.counts.critical > 0
+    : counts.critical > 0
     ? "risk-critical"
-    : report.counts.high > 0
+    : counts.high > 0
     ? "risk-high"
     : "risk-ok";
-  const maxSev = Math.max(...SEVERITY_ORDER.map((s) => report.counts[s]), 1);
+  const maxSev = Math.max(...SEVERITY_ORDER.map((s) => counts[s]), 1);
   const maxLang = Math.max(...report.languages.map((l) => l.files), 1);
 
   // The spoken end of the scan, so a screen-reader user hears the outcome the
@@ -1612,17 +1627,23 @@ function Overview({ report }: { report: ScanReport }) {
             name={
               report.cancelled
                 ? "cancel"
-                : report.counts.critical > 0
+                : counts.critical > 0
                 ? "gpp_maybe"
                 : "verified_user"
             }
           />
           <div className="stat-val">
-            {report.cancelled ? "—" : formatNumber(report.findings.length)}
+            {report.cancelled ? "—" : formatNumber(confirmed.length)}
           </div>
           <div className="stat-key">
             {report.cancelled ? t("Проверка не завершена") : t("Всего находок")}
           </div>
+          {!report.cancelled && betaCount > 0 && (
+            <div className="stat-beta" title={t("Экспериментальные (BETA) находки не входят в счётчики — см. отдельную вкладку")}>
+              <Icon name="science" />
+              {t("+{n} BETA", { n: String(betaCount) })}
+            </div>
+          )}
         </div>
         <div className="stat-card">
           <Icon name="description" />
@@ -1658,7 +1679,7 @@ function Overview({ report }: { report: ScanReport }) {
             {t("По уровню опасности")}
           </div>
           {(() => {
-            const total = SEVERITY_ORDER.reduce((n, s) => n + report.counts[s], 0);
+            const total = SEVERITY_ORDER.reduce((n, s) => n + counts[s], 0);
             if (total === 0) return null;
             // A single proportional bar answers "how much of this is critical?"
             // before the eye reaches the per-level rows below.
@@ -1666,16 +1687,16 @@ function Overview({ report }: { report: ScanReport }) {
               <div
                 className="sev-split"
                 role="img"
-                aria-label={SEVERITY_ORDER.filter((s) => report.counts[s] > 0)
-                  .map((s) => `${t(SEVERITY_LABEL[s])}: ${report.counts[s]}`)
+                aria-label={SEVERITY_ORDER.filter((s) => counts[s] > 0)
+                  .map((s) => `${t(SEVERITY_LABEL[s])}: ${counts[s]}`)
                   .join(", ")}
               >
-                {SEVERITY_ORDER.filter((s) => report.counts[s] > 0).map((s) => (
+                {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => (
                   <span
                     key={s}
                     className={`sev-split-seg ${s}`}
-                    style={{ flexGrow: report.counts[s] }}
-                    title={`${t(SEVERITY_LABEL[s])}: ${report.counts[s]}`}
+                    style={{ flexGrow: counts[s] }}
+                    title={`${t(SEVERITY_LABEL[s])}: ${counts[s]}`}
                   />
                 ))}
               </div>
@@ -1685,7 +1706,7 @@ function Overview({ report }: { report: ScanReport }) {
             <SeverityBar
               key={s}
               label={t(SEVERITY_LABEL[s])}
-              value={report.counts[s]}
+              value={counts[s]}
               max={maxSev}
               kind={s}
             />

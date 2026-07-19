@@ -2302,6 +2302,23 @@ kbd,
   animation: itemIn var(--t-slow) var(--ease-out) backwards;
 }
 
+/* Suspected (BETA) count under the headline total, visibly set apart so it is
+   never read as part of the confirmed number. */
+.stat-beta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: var(--sp-2);
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--s-4);
+  color: var(--t-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-med);
+}
+
+.stat-beta .material-symbols-outlined { font-size: 13px; }
+
 .stat-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--e-3), inset 0 1px 0 var(--edge-light);

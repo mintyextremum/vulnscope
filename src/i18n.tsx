@@ -203,6 +203,9 @@ export const EN: Record<string, string> = {
   "{n} из {total}": "{n} of {total}",
   // BETA tab + dangerous-combination findings
   "Экспериментальные": "Experimental",
+  "+{n} BETA": "+{n} BETA",
+  "Экспериментальные (BETA) находки не входят в счётчики — см. отдельную вкладку":
+    "Experimental (BETA) findings are excluded from the counts — see the separate tab",
   "Экспериментальные (BETA) находки — требуют ручной проверки":
     "Experimental (BETA) findings — need manual review",
   "Вкладка «Экспериментальные»": "\"Experimental\" tab",
