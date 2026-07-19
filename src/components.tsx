@@ -36,6 +36,10 @@ export interface FindingFilters {
   setOnlyNew: (v: boolean) => void;
   showSuppressed: boolean;
   setShowSuppressed: (v: boolean) => void;
+  /** Severity filter set at the top toolbar; shown here so the list explains
+   *  what is narrowing it, with a one-click remove. */
+  sevFilter: Set<Severity>;
+  toggleSev: (s: Severity) => void;
   /** Path the list is narrowed to via the tree, or null for the whole report. */
   file: string | null;
   clearFile: () => void;
@@ -499,6 +503,65 @@ export function FindingList({
           )}
         </div>
       </div>
+
+      {(() => {
+        const activeSevs = SEVERITY_ORDER.filter((s) => filters.sevFilter.has(s));
+        const anyActive =
+          activeSevs.length > 0 ||
+          !!filters.file ||
+          filters.query.trim() !== "" ||
+          filters.onlyNew ||
+          filters.showSuppressed;
+        if (!anyActive) return null;
+        return (
+          <div className="active-filters">
+            <span className="af-label">{t("Фильтры:")}</span>
+            {activeSevs.map((s) => (
+              <button
+                key={s}
+                className={`af-chip sev-${s}`}
+                onClick={() => filters.toggleSev(s)}
+                title={t("Убрать фильтр по важности")}
+              >
+                <Icon name={SEVERITY_SYMBOL[s]} />
+                {t(SEVERITY_LABEL[s])}
+                <Icon name="close" />
+              </button>
+            ))}
+            {filters.file && (
+              <button className="af-chip" onClick={filters.clearFile} title={t("Показать находки во всех файлах")}>
+                <Icon name="description" />
+                {filters.file.split(/[\\/]/).pop()}
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.query.trim() !== "" && (
+              <button className="af-chip" onClick={() => filters.setQuery("")} title={t("Очистить поиск")}>
+                <Icon name="search" />
+                «{filters.query.trim()}»
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.onlyNew && (
+              <button className="af-chip" onClick={() => filters.setOnlyNew(false)}>
+                <Icon name="fiber_new" />
+                {t("Только новые")}
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.showSuppressed && (
+              <button className="af-chip" onClick={() => filters.setShowSuppressed(false)}>
+                <Icon name="visibility" />
+                {t("Показаны подавленные")}
+                <Icon name="close" />
+              </button>
+            )}
+            <button className="af-reset" onClick={filters.reset}>
+              {t("Сбросить всё")}
+            </button>
+          </div>
+        );
+      })()}
 
       <div className="finding-list" ref={listRef}>
         {findings.length === 0 ? (

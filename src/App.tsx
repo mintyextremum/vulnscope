@@ -469,6 +469,15 @@ export default function App() {
     await invoke("save_report", { path, json: cfg.body() }).catch((e) => setError(String(e)));
   };
 
+  const toggleSev = useCallback((s: Severity) => {
+    setSevFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  }, []);
+
   const findingFilters: FindingFilters = useMemo(
     () => ({
       // Against the whole report, not the file selection: the tree is a
@@ -487,21 +496,14 @@ export default function App() {
       setOnlyNew,
       showSuppressed,
       setShowSuppressed,
-      file: tab === "findings" ? selectedFile : null,
+      sevFilter,
+      toggleSev,
+      file: tab === "findings" || tab === "beta" ? selectedFile : null,
       clearFile: () => setSelectedFile(null),
       reset: resetFilters,
     }),
-    [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, resetFilters]
+    [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, sevFilter, toggleSev, resetFilters]
   );
-
-  const toggleSev = (s: Severity) => {
-    setSevFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
-  };
 
   const openFileAt = useCallback((path: string, line: number) => {
     setSelectedFile(path);

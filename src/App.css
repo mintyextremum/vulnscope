@@ -1817,6 +1817,86 @@ kbd,
   color: var(--t-2);
 }
 
+/* Active-filters strip: a plain-language readout of every filter currently
+   narrowing the list. Each chip both names the filter and removes it on click,
+   so nothing is hidden and nothing needs a trip back to the toolbar. */
+.active-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  flex-shrink: 0;
+}
+
+.af-label {
+  font-size: var(--fs-xs);
+  color: var(--t-4);
+  margin-right: var(--sp-1);
+}
+
+.af-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 220px;
+  height: 24px;
+  padding: 0 var(--sp-1) 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--s-3);
+  color: var(--t-2);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.af-chip > span:not(.material-symbols-outlined) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.af-chip:hover {
+  color: var(--t-1);
+  border-color: var(--t-4);
+}
+
+.af-chip .material-symbols-outlined {
+  font-size: 14px;
+}
+
+/* The leading glyph carries the severity colour; the trailing × dims until hover
+   so the chip reads as a label first, a remove control second. */
+.af-chip .material-symbols-outlined:last-child {
+  opacity: 0.6;
+}
+
+.af-chip:hover .material-symbols-outlined:last-child {
+  opacity: 1;
+}
+
+.af-chip.sev-critical > .material-symbols-outlined:first-child { color: var(--crit); }
+.af-chip.sev-high > .material-symbols-outlined:first-child { color: var(--high); }
+.af-chip.sev-medium > .material-symbols-outlined:first-child { color: var(--med); }
+.af-chip.sev-low > .material-symbols-outlined:first-child { color: var(--low); }
+.af-chip.sev-info > .material-symbols-outlined:first-child { color: var(--info); }
+
+.af-reset {
+  margin-left: auto;
+  padding: 0 var(--sp-1);
+  border: none;
+  background: none;
+  color: var(--a);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.af-reset:hover {
+  text-decoration: underline;
+}
+
 .head-link {
   display: inline-flex;
   align-items: center;
