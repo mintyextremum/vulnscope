@@ -179,8 +179,16 @@ export interface FindingExtra {
   /** A synthesized "dangerous combination": several suspected issues that
    * amplify each other into a likely exploit chain. */
   combination?: boolean;
-  /** Human-readable labels of the issues this combination links. */
-  combines?: string[];
+  /** The individual issues this combination links, each with its own line and
+   * source code. */
+  combineSpots?: CombineSpot[];
+}
+
+/** One link of a dangerous combination. */
+export interface CombineSpot {
+  category: string;
+  line: number;
+  code: string;
 }
 
 export interface SeverityCounts {

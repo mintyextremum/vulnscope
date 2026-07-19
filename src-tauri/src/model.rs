@@ -418,9 +418,20 @@ pub struct FindingExtra {
     /// in one file that amplify each other into a likely exploit chain.
     #[serde(default)]
     pub combination: bool,
-    /// Human-readable labels of the issues this combination links together.
+    /// The individual issues this combination links, each with its own line and
+    /// source code, so the reviewer sees every link of the chain.
     #[serde(default)]
-    pub combines: Vec<String>,
+    pub combine_spots: Vec<CombineSpot>,
+}
+
+/// One link of a dangerous combination: a category, the line it sits on, and
+/// the source of that line.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CombineSpot {
+    pub category: String,
+    pub line: u32,
+    pub code: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

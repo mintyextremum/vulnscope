@@ -1064,19 +1064,35 @@ export function FindingDetail({
           <p>{t(finding.description)}</p>
         </div>
 
-        {finding.extra?.combination && finding.extra.combines && finding.extra.combines.length > 0 && (
-          <div className="detail-section">
-            <h3>
-              <Icon name="account_tree" />
-              {t("Связанные места")}
-            </h3>
-            <ul className="combines-list">
-              {finding.extra.combines.map((c, i) => (
-                <li key={i}>{c}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {finding.extra?.combination &&
+          finding.extra.combineSpots &&
+          finding.extra.combineSpots.length > 0 && (
+            <div className="detail-section">
+              <h3>
+                <Icon name="account_tree" />
+                {t("Связанные места")}
+              </h3>
+              <ol className="combine-spots">
+                {finding.extra.combineSpots.map((s, i) => (
+                  <li key={i}>
+                    <button
+                      className="combine-spot"
+                      onClick={() => onOpenFile(finding.file, s.line)}
+                      title={t("Открыть строку {n} в коде", { n: String(s.line) })}
+                    >
+                      <span className="cs-head">
+                        <span className="cs-cat">{t(s.category)}</span>
+                        <span className="cs-line">
+                          {finding.file}:{s.line}
+                        </span>
+                      </span>
+                      <code className="cs-code">{s.code}</code>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
         {finding.extra?.exploit && (
           <div className="detail-section">
