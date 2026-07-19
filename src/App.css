@@ -3597,16 +3597,25 @@ kbd,
 }
 
 /* Inline BETA chip next to the setup toggle label. */
-.beta-badge {
+/* `.opt-text .beta-badge` (not bare `.beta-badge`) so it outweighs the
+   `.opt-text span { display: block }` rule for the description line, which would
+   otherwise stretch this chip to the full card width. */
+.opt-text .beta-badge {
+  display: inline-flex;
+  align-items: center;
   margin-left: var(--sp-2);
-  padding: 0 var(--sp-1);
-  border-radius: var(--r-1);
+  padding: 0 6px;
+  height: 15px;
+  border-radius: var(--r-full);
   background: var(--high, var(--a));
   color: var(--on-a);
-  font-size: var(--fs-2xs, 10px);
+  font-size: 9px;
   font-weight: var(--fw-bold);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  line-height: 1;
   vertical-align: middle;
+  position: relative;
+  top: -1px;
 }
 
 .detail-badges {

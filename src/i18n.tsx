@@ -214,6 +214,16 @@ export const EN: Record<string, string> = {
   "Открыть строку {n} в коде": "Open line {n} in code",
   "Опасная связка": "Dangerous combination",
   "Возможная опасная связка уязвимостей": "Possible dangerous vulnerability chain",
+  // Named exploit chains
+  "Возможная цепочка: SSRF → выполнение кода": "Possible chain: SSRF → code execution",
+  "Возможная цепочка: SSRF → выполнение команд ОС": "Possible chain: SSRF → OS command execution",
+  "Возможная цепочка: path traversal → выполнение кода": "Possible chain: path traversal → code execution",
+  "Возможная цепочка: запись/чтение файла → десериализация": "Possible chain: file read/write → deserialization",
+  "Возможная цепочка: загрязнение прототипа → выполнение кода": "Possible chain: prototype pollution → code execution",
+  "Возможная связка: инъекция команд и выполнение кода": "Possible combo: command injection and code execution",
+  "Возможная связка: SQL-инъекция и инъекция команд": "Possible combo: SQL injection and command injection",
+  "Возможная цепочка: XXE → SSRF": "Possible chain: XXE → SSRF",
+  "Возможная связка: открытый редирект и SSRF": "Possible combo: open redirect and SSRF",
   "В этом файле пересекаются несколько потенциально опасных векторов (перечислены в «Связанных местах»). По отдельности каждый требует ручной проверки, но вместе они образуют вероятную цепочку эксплуатации: управляемые данные достигают одного вектора, а через другой усиливаются до выполнения кода или утечки. Это эвристическая связка (BETA): проверьте, связаны ли эти места одним потоком данных.":
     "This file mixes several potentially dangerous vectors (listed under \"Linked spots\"). On its own each needs manual review, but together they form a likely exploit chain: controlled data reaches one vector and is amplified through another into code execution or a leak. This is a heuristic combination (BETA): check whether these spots share one data flow.",
   "Разберите поток данных между перечисленными местами. Устраните хотя бы одно звено цепочки (параметризация, экранирование, белые списки), а лучше — каждое.":
