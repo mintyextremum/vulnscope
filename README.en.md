@@ -27,6 +27,16 @@ pitfalls in Rust, and misconfigurations in Dockerfiles, GitHub Actions, Terrafor
 nginx and Kubernetes (privileges, host namespaces, dangerous capabilities). Every
 finding is tagged with a CWE and an OWASP Top 10 category and comes with a fix.
 
+**Data-flow analysis (flagship).** A deterministic engine of our own that does not
+just look for a dangerous call on a line, but answers the real question: *does user
+data actually reach it?* It traces input (request, argv, stdin) through variable
+assignments to a dangerous sink — OS commands, SQL, file operations, outbound
+requests, eval — and shows the **whole source → variable → sink path**, each step
+openable in the code. If escaping, parameterization, or an allowlist sits along the
+way, the flow is considered broken and nothing is reported. This catches multi-line
+vulnerabilities the line-by-line rules miss, and every finding is self-verifiable —
+the exact route is visible, with no AI and no black boxes.
+
 **Compromise indicators.** A dedicated category catches not "risky patterns" but
 what an attacker leaves behind: PHP web shells (`eval($_POST[...])`, a function
 called by name from the request, packed `eval(base64_decode(...))`), reverse

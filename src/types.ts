@@ -185,6 +185,9 @@ export interface FindingExtra {
   /** The individual issues this combination links, each with its own line and
    * source code. */
   combineSpots?: CombineSpot[];
+  /** A traced data-flow path (source → propagation → sink). Each spot's
+   * `category` holds the step's role label. */
+  flow?: CombineSpot[];
 }
 
 /** One link of a dangerous combination. */
@@ -343,6 +346,7 @@ export interface ScanOptions {
   checkSecrets: boolean;
   checkDependencies: boolean;
   experimental: boolean;
+  dataflow: boolean;
   externalTools: ToolId[];
 }
 

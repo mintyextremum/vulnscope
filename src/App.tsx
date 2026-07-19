@@ -81,6 +81,9 @@ export default function App() {
   const [experimental, setExperimental] = useState(
     () => localStorage.getItem("vs.experimental") !== "0",
   );
+  const [dataflow, setDataflow] = useState(
+    () => localStorage.getItem("vs.dataflow") !== "0",
+  );
   const [enabledTools, setEnabledTools] = useState<Set<ToolId>>(new Set());
 
   const [progress, setProgress] = useState<ScanProgress | null>(null);
@@ -217,6 +220,7 @@ export default function App() {
       checkSecrets,
       checkDependencies,
       experimental,
+      dataflow,
       externalTools: [...enabledTools],
     };
 
@@ -934,6 +938,8 @@ export default function App() {
           setCheckDependencies={setCheckDependencies}
           experimental={experimental}
           setExperimental={setExperimental}
+          dataflow={dataflow}
+          setDataflow={setDataflow}
           enabledTools={enabledTools}
           setEnabledTools={setEnabledTools}
           canScan={canScan}
@@ -1141,6 +1147,8 @@ interface SetupProps {
   setCheckDependencies: (v: boolean) => void;
   experimental: boolean;
   setExperimental: (v: boolean) => void;
+  dataflow: boolean;
+  setDataflow: (v: boolean) => void;
   enabledTools: Set<ToolId>;
   setEnabledTools: (v: Set<ToolId>) => void;
   canScan: boolean;
@@ -1264,6 +1272,17 @@ function SetupScreen(p: SetupProps) {
               onChange={p.setIncludeVendor}
               title={t("Включая зависимости")}
               desc={t("Сканировать node_modules, venv и т.п. Заметно дольше")}
+            />
+            <Check
+              checked={p.dataflow}
+              onChange={(v) => {
+                p.setDataflow(v);
+                localStorage.setItem("vs.dataflow", v ? "1" : "0");
+              }}
+              title={t("Анализ потока данных")}
+              desc={t(
+                "Прослеживает пользовательский ввод через переменные до опасного вызова и показывает весь путь",
+              )}
             />
             <Check
               checked={p.experimental}

@@ -3606,6 +3606,36 @@ kbd,
   overflow-x: auto;
 }
 
+/* Data-flow chip and path: the flagship engine's signature. */
+.tag.flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--a);
+  color: var(--on-a);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.03em;
+}
+
+.tag.flow .material-symbols-outlined { font-size: 12px; }
+
+.flow-path {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  color: var(--t-2);
+}
+
+.flow-path li { line-height: 1.4; }
+
+/* Source, hops, and sink get distinct left accents so the path reads at a
+   glance as "user input → … → dangerous call". */
+.flow-source .combine-spot { border-left-color: var(--a); }
+.flow-mid .combine-spot { border-left-color: var(--t-4); }
+.flow-sink .combine-spot { border-left-color: var(--danger); }
+
 /* The BETA subtab reads as experimental: a science glyph and its own chip. */
 .subtab-beta .tag.beta {
   padding: 0 var(--sp-1);
