@@ -9,6 +9,7 @@ mod rules;
 mod scanner;
 mod secrets;
 mod settings;
+mod taint;
 mod userrules;
 mod walk;
 

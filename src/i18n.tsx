@@ -199,6 +199,22 @@ export const EN: Record<string, string> = {
   "показать находки во всех файлах": "show findings from every file",
   "Пересканировать": "Re-scan",
   "Показать файл в проводнике": "Reveal the file in the file manager",
+  // Data-flow (taint) engine — flagship
+  "Анализ потока данных": "Data-flow analysis",
+  "Прослеживает пользовательский ввод через переменные до опасного вызова и показывает весь путь":
+    "Traces user input through variables to a dangerous call and shows the whole path",
+  "Прослежен путь пользовательских данных от источника до опасного вызова.":
+    "The path of user data from its source to a dangerous call has been traced.",
+  "ПОТОК": "FLOW",
+  "Поток данных": "Data flow",
+  "Источник (пользовательский ввод)": "Source (user input)",
+  "Передача через переменную": "Carried through a variable",
+  "Приёмник (опасный вызов)": "Sink (dangerous call)",
+  "Пользовательские данные достигают опасного вызова": "User data reaches a dangerous call",
+  "Анализ потока данных проследил значение от места, где в программу попадает пользовательский ввод, через присваивания переменных до опасного вызова — без экранирования или проверки по пути. Полный путь показан в разделе «Поток данных»; каждый шаг можно открыть в коде и проверить.":
+    "Data-flow analysis traced a value from where user input enters the program, through variable assignments, to a dangerous call — with no escaping or validation along the way. The full path is shown under \"Data flow\"; open each step in the code to verify it.",
+  "Разорвите поток: примените параметризацию, экранирование или белый список на одном из шагов между источником и приёмником — лучше как можно ближе к приёмнику.":
+    "Break the flow: apply parameterization, escaping, or an allowlist at one of the steps between source and sink — ideally as close to the sink as possible.",
   // Rule catalogue: confidence filter + filtered count — 18.07.2026
   "{n} из {total}": "{n} of {total}",
   // BETA tab + dangerous-combination findings

@@ -7,6 +7,7 @@ use crate::osv::OsvClient;
 use crate::rules;
 use crate::secrets;
 use crate::settings;
+use crate::taint;
 use crate::userrules;
 use crate::walk::{self, WalkOptions};
 use anyhow::{Context, Result};
@@ -40,6 +41,10 @@ pub struct ScanOptions {
     /// rules missed. On by default, but every such finding is clearly labelled.
     #[serde(default = "default_true")]
     pub experimental: bool,
+    /// Data-flow (taint) analysis: traces user input through variables to a
+    /// dangerous sink. The flagship own engine; on by default.
+    #[serde(default = "default_true")]
+    pub dataflow: bool,
     #[serde(default)]
     pub external_tools: Vec<Tool>,
 }
@@ -219,6 +224,7 @@ fn scan_one_file(
     lang: Language,
     check_secrets: bool,
     experimental: bool,
+    dataflow: bool,
     user_rules: &[userrules::CompiledUserRule],
     max_findings: usize,
 ) -> Option<(Vec<Finding>, u32, u64)> {
@@ -387,6 +393,72 @@ fn scan_one_file(
                 package: None,
             });
             heur_count += 1;
+        }
+    }
+
+    // Data-flow (taint) pass — the flagship engine. Traces user input through
+    // variables to a dangerous sink and reports the whole path. These are
+    // confirmed findings (not BETA): every one carries a self-verifiable chain.
+    if dataflow {
+        for flow in taint::analyze(&content, lang) {
+            let sink = flow.steps.last().cloned().unwrap_or(taint::FlowStep {
+                line: 0,
+                code: String::new(),
+                role: taint::FlowRole::Sink,
+            });
+            let (snippet, snippet_start_line) = index.snippet(sink.line);
+            let steps: Vec<CombineSpot> = flow
+                .steps
+                .iter()
+                .map(|s| CombineSpot {
+                    category: match s.role {
+                        taint::FlowRole::Source => "Источник (пользовательский ввод)".to_string(),
+                        taint::FlowRole::Propagation => "Передача через переменную".to_string(),
+                        taint::FlowRole::Sink => "Приёмник (опасный вызов)".to_string(),
+                    },
+                    line: s.line,
+                    code: s.code.clone(),
+                })
+                .collect();
+            findings.push(Finding {
+                id: format!("VS-FLOW:{}:{}:{}", rel, sink.line, flow.category),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: "VS-FLOW".to_string(),
+                title: "Пользовательские данные достигают опасного вызова".to_string(),
+                description: "Анализ потока данных проследил значение от места, где в программу \
+                     попадает пользовательский ввод, через присваивания переменных до опасного \
+                     вызова — без экранирования или проверки по пути. Полный путь показан в разделе \
+                     «Поток данных»; каждый шаг можно открыть в коде и проверить."
+                    .to_string(),
+                recommendation: "Разорвите поток: примените параметризацию, экранирование или белый \
+                     список на одном из шагов между источником и приёмником — лучше как можно ближе \
+                     к приёмнику."
+                    .to_string(),
+                severity: flow.severity,
+                confidence: Confidence::Medium,
+                source: FindingSource::Builtin,
+                source_label: "Анализ потока данных".to_string(),
+                category: flow.category.to_string(),
+                file: rel.to_string(),
+                line: sink.line,
+                end_line: sink.line,
+                column: 1,
+                end_column: 1,
+                snippet,
+                snippet_start_line,
+                cwe: flow.cwe.iter().map(|s| s.to_string()).collect(),
+                owasp: Some(OWASP_INJECTION_STR.to_string()),
+                cve: Vec::new(),
+                references: Vec::new(),
+                extra: Some(FindingExtra {
+                    flow: steps,
+                    ..Default::default()
+                }),
+                package: None,
+            });
         }
     }
 
@@ -668,6 +740,7 @@ pub async fn run_scan(
     // --------------------------------------------------------- scan the files
     let check_secrets = opts.check_secrets;
     let experimental = opts.experimental;
+    let dataflow = opts.dataflow;
     let lines_total = AtomicU64::new(0);
     let bytes_total = AtomicU64::new(0);
 
@@ -690,6 +763,7 @@ pub async fn run_scan(
                         c.language,
                         check_secrets,
                         experimental,
+                        dataflow,
                         &compiled_user,
                         max_findings,
                     );
@@ -1067,10 +1141,11 @@ fn merge_duplicate_code_findings(findings: Vec<Finding>) -> Vec<Finding> {
     let mut out: Vec<Finding> = Vec::with_capacity(findings.len());
     for f in findings {
         let experimental = f.extra.as_ref().map(|e| e.experimental).unwrap_or(false);
+        let has_flow = f.extra.as_ref().map(|e| !e.flow.is_empty()).unwrap_or(false);
         // Only line-anchored code findings with a CWE participate. Dependency
-        // findings (dedup'd by advisory), secrets, and BETA heuristics are left
-        // exactly as they are.
-        if f.package.is_some() || f.line == 0 || f.cwe.is_empty() || experimental {
+        // findings (dedup'd by advisory), secrets, BETA heuristics, and data-flow
+        // findings (whose value is the traced chain) are left exactly as they are.
+        if f.package.is_some() || f.line == 0 || f.cwe.is_empty() || experimental || has_flow {
             out.push(f);
             continue;
         }
@@ -1384,7 +1459,7 @@ mod tests {
         )
         .unwrap();
 
-        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, false, &[], 200).unwrap();
+        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, false, false, &[], 200).unwrap();
         let secret_findings: Vec<_> = findings
             .iter()
             .filter(|f| f.source == FindingSource::Secrets)
@@ -1556,7 +1631,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/app.py")
             .unwrap();
-        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, false, &[], 200).unwrap();
+        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, false, false, &[], 200).unwrap();
 
         assert!(lines >= 5);
         assert!(size > 0);
@@ -1576,7 +1651,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/safe.py")
             .unwrap();
-        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, false, &[], 200).unwrap();
+        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, false, false, &[], 200).unwrap();
         assert!(clean.is_empty(), "clean file produced findings: {clean:?}");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -1816,7 +1891,7 @@ mod tests {
         assert!(warns.is_empty());
 
         let (findings, _, _) =
-            scan_one_file(&path, "app.py", Language::Python, false, false, &compiled, 200).unwrap();
+            scan_one_file(&path, "app.py", Language::Python, false, false, false, &compiled, 200).unwrap();
 
         let mine: Vec<_> = findings
             .iter()
@@ -1842,13 +1917,13 @@ mod tests {
         let py = dir.join("a.py");
         std::fs::write(&py, "# banned_call(1)\n").unwrap();
         let (compiled, _) = userrules::compile(&[user_rule("MY-001", r"banned_call\s*\(", &["python"])]);
-        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, false, &compiled, 200).unwrap();
+        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, false, false, &compiled, 200).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         // A python-scoped rule must not fire on Rust.
         let rs = dir.join("b.rs");
         std::fs::write(&rs, "fn f() { banned_call(1); }\n").unwrap();
-        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, &compiled, 200).unwrap();
+        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, false, &compiled, 200).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -1870,7 +1945,7 @@ mod tests {
         .unwrap();
 
         let (findings, _, _) =
-            scan_one_file(&path, "chain.py", Language::Python, false, true, &[], 200).unwrap();
+            scan_one_file(&path, "chain.py", Language::Python, false, true, false, &[], 200).unwrap();
         let combo = findings
             .iter()
             .find(|f| f.rule_id == "VS-EXP-COMBO")
@@ -1892,7 +1967,7 @@ mod tests {
 
         // With the experimental pass off, no combination is emitted.
         let (plain, _, _) =
-            scan_one_file(&path, "chain.py", Language::Python, false, false, &[], 200).unwrap();
+            scan_one_file(&path, "chain.py", Language::Python, false, false, false, &[], 200).unwrap();
         assert!(!plain.iter().any(|f| f.rule_id == "VS-EXP-COMBO"));
 
         let _ = std::fs::remove_dir_all(&dir);

@@ -58,6 +58,13 @@ export function findingToMarkdown(f: Finding, t: TFn, includeSnippet = false): s
   ];
   out.push(tags.join(" · "), "");
   out.push(t(f.description), "");
+  if (f.extra?.flow && f.extra.flow.length > 0) {
+    out.push(`**${t("Поток данных")}:**`);
+    for (const s of f.extra.flow) {
+      out.push(`- ${t(s.category)} — \`${f.file}:${s.line}\`: \`${s.code}\``);
+    }
+    out.push("");
+  }
   if (f.extra?.exploit) {
     out.push(`**${t("Пример эксплуатации")}:** ${t(f.extra.exploit)}`, "");
   }

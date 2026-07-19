@@ -428,6 +428,10 @@ pub struct FindingExtra {
     /// source code, so the reviewer sees every link of the chain.
     #[serde(default)]
     pub combine_spots: Vec<CombineSpot>,
+    /// A traced data-flow path (source → propagation → sink) for findings from
+    /// the taint engine. Each spot's `category` holds the step's role label.
+    #[serde(default)]
+    pub flow: Vec<CombineSpot>,
 }
 
 /// One link of a dangerous combination: a category, the line it sits on, and

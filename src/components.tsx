@@ -548,6 +548,12 @@ export function FindingList({
                     {t("СВЯЗКА")}
                   </span>
                 )}
+                {f.extra?.flow && f.extra.flow.length > 0 && (
+                  <span className="tag flow" title={t("Прослежен путь пользовательских данных от источника до опасного вызова.")}>
+                    <Icon name="route" />
+                    {t("ПОТОК")}
+                  </span>
+                )}
                 {f.extra?.experimental && <span className="tag beta">BETA</span>}
                 {f.isNew && <span className="tag is-new">{t("новое")}</span>}
                 {f.suppressed && <span className="tag muted">{t("подавлено")}</span>}
@@ -922,6 +928,15 @@ export function FindingDetail({
               {t("СВЯЗКА")}
             </span>
           )}
+          {finding.extra?.flow && finding.extra.flow.length > 0 && (
+            <span
+              className="tag flow"
+              title={t("Прослежен путь пользовательских данных от источника до опасного вызова.")}
+            >
+              <Icon name="route" />
+              {t("ПОТОК")}
+            </span>
+          )}
           {finding.isNew && (
             <span className="tag is-new" title={t("Не было в предыдущем сканировании")}>
               {t("новое")}
@@ -1063,6 +1078,34 @@ export function FindingDetail({
             <Icon name="info" />{t("В чём проблема")}</h3>
           <p>{t(finding.description)}</p>
         </div>
+
+        {finding.extra?.flow && finding.extra.flow.length > 0 && (
+          <div className="detail-section">
+            <h3>
+              <Icon name="route" />
+              {t("Поток данных")}
+            </h3>
+            <ol className="flow-path">
+              {finding.extra.flow.map((s, i) => (
+                <li key={i} className={i === 0 ? "flow-source" : i === finding.extra!.flow!.length - 1 ? "flow-sink" : "flow-mid"}>
+                  <button
+                    className="combine-spot"
+                    onClick={() => onOpenFile(finding.file, s.line)}
+                    title={t("Открыть строку {n} в коде", { n: String(s.line) })}
+                  >
+                    <span className="cs-head">
+                      <span className="cs-cat">{t(s.category)}</span>
+                      <span className="cs-line">
+                        {finding.file}:{s.line}
+                      </span>
+                    </span>
+                    <code className="cs-code">{s.code}</code>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
 
         {finding.extra?.combination &&
           finding.extra.combineSpots &&
