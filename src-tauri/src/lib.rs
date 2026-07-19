@@ -126,6 +126,51 @@ fn read_source(root: String, relative: String) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| "файл не является текстом UTF-8".to_string())
 }
 
+/// Re-checks a single file after the user edits it in the findings catalogue.
+///
+/// Writes the new content (path-guarded to the scan root, exactly like
+/// `read_source`), re-runs the built-in rules, secret and data-flow analysis on
+/// it, and returns the findings that remain — so the UI can mark the ones that
+/// disappeared as fixed and turn them green. The file must already exist inside
+/// the scan root: this edits what was scanned, it never creates new paths.
+#[tauri::command]
+fn recheck_file(
+    root: String,
+    relative: String,
+    content: String,
+    check_secrets: bool,
+    experimental: bool,
+    dataflow: bool,
+) -> Result<Vec<model::Finding>, String> {
+    let root = std::path::Path::new(&root)
+        .canonicalize()
+        .map_err(|e| format!("некорректный корень сканирования: {e}"))?;
+    let target = root
+        .join(&relative)
+        .canonicalize()
+        .map_err(|e| format!("файл не найден: {e}"))?;
+
+    if !target.starts_with(&root) {
+        return Err("путь вне каталога сканирования".to_string());
+    }
+    if content.len() > 5 * 1024 * 1024 {
+        return Err("файл слишком большой для проверки".to_string());
+    }
+
+    std::fs::write(&target, content.as_bytes())
+        .map_err(|e| format!("не удалось сохранить файл: {e}"))?;
+
+    let cfg = settings::load();
+    Ok(scanner::recheck_file(
+        &target,
+        &relative,
+        check_secrets,
+        experimental,
+        dataflow,
+        cfg.max_findings_per_file as usize,
+    ))
+}
+
 /// Writes the report to a path the user picked in the save dialog.
 #[tauri::command]
 fn save_report(path: String, json: String) -> Result<(), String> {
@@ -436,6 +481,7 @@ pub fn run() {
             start_scan,
             cancel_scan,
             read_source,
+            recheck_file,
             save_report,
             get_user_rules,
             save_user_rule,

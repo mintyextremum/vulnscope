@@ -469,6 +469,15 @@ export default function App() {
     await invoke("save_report", { path, json: cfg.body() }).catch((e) => setError(String(e)));
   };
 
+  const toggleSev = useCallback((s: Severity) => {
+    setSevFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  }, []);
+
   const findingFilters: FindingFilters = useMemo(
     () => ({
       // Against the whole report, not the file selection: the tree is a
@@ -487,27 +496,74 @@ export default function App() {
       setOnlyNew,
       showSuppressed,
       setShowSuppressed,
-      file: tab === "findings" ? selectedFile : null,
+      sevFilter,
+      toggleSev,
+      file: tab === "findings" || tab === "beta" ? selectedFile : null,
       clearFile: () => setSelectedFile(null),
       reset: resetFilters,
     }),
-    [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, resetFilters]
+    [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, sevFilter, toggleSev, resetFilters]
   );
-
-  const toggleSev = (s: Severity) => {
-    setSevFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) next.delete(s);
-      else next.add(s);
-      return next;
-    });
-  };
 
   const openFileAt = useCallback((path: string, line: number) => {
     setSelectedFile(path);
     setFocusLine(line > 0 ? line : null);
     setTab("code");
   }, []);
+
+  /** Folds a single-file re-check back into the report: the fresh findings for
+   * that file replace the previous ones from the engines a re-check re-runs
+   * (built-in, secrets, custom); external-tool and dependency findings are left
+   * as they were. Fixed findings simply drop out — the green banner and toast
+   * confirm the win — and counts are recomputed so the dashboard and tree stay
+   * honest with what is really left. */
+  const onRechecked = useCallback(
+    (path: string, fresh: Finding[], fixed: string[]) => {
+      setReport((prev) => {
+        if (!prev) return prev;
+        const RECHECKABLE = new Set(["builtin", "custom", "secrets"]);
+        const kept = prev.findings.filter(
+          (f) => f.file !== path || !RECHECKABLE.has(f.source)
+        );
+        const findings = [...kept, ...fresh];
+
+        // Recompute severity counts (globally and per file) over what still
+        // needs attention — suppressed findings stay out, matching the scan.
+        const zero = (): Record<Severity, number> => ({
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          info: 0,
+        });
+        const counts = zero();
+        const perFile = new Map<string, Record<Severity, number>>();
+        for (const f of findings) {
+          if (f.suppressed) continue;
+          counts[f.severity]++;
+          let c = perFile.get(f.file);
+          if (!c) perFile.set(f.file, (c = zero()));
+          c[f.severity]++;
+        }
+        const files = prev.files.map((file) => {
+          const use = perFile.get(file.path) ?? zero();
+          const maxSeverity = SEVERITY_ORDER.find((s) => use[s] > 0) ?? null;
+          return { ...file, counts: use, maxSeverity };
+        });
+        return { ...prev, findings, counts, files };
+      });
+
+      // Keep the current selection from pointing at a finding that no longer
+      // exists, so the detail panel doesn't show a stale entry.
+      if (fixed.length > 0) {
+        setSelectedFinding((cur) =>
+          cur && fixed.includes(cur.fingerprint) ? null : cur
+        );
+        showFlash(t("Исправлено находок: {n}", { n: fixed.length }));
+      }
+    },
+    [showFlash, t]
+  );
 
   /** Moves the selection within the currently filtered finding list. */
   const step = useCallback(
@@ -1098,6 +1154,10 @@ export default function App() {
                     path={selectedFile}
                     findings={fileFindings}
                     focusLine={focusLine}
+                    checkSecrets={checkSecrets}
+                    experimental={experimental}
+                    dataflow={dataflow}
+                    onRechecked={onRechecked}
                   />
                 ) : (
                   <div className="detail-empty">

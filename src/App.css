@@ -1817,6 +1817,86 @@ kbd,
   color: var(--t-2);
 }
 
+/* Active-filters strip: a plain-language readout of every filter currently
+   narrowing the list. Each chip both names the filter and removes it on click,
+   so nothing is hidden and nothing needs a trip back to the toolbar. */
+.active-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  flex-shrink: 0;
+}
+
+.af-label {
+  font-size: var(--fs-xs);
+  color: var(--t-4);
+  margin-right: var(--sp-1);
+}
+
+.af-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 220px;
+  height: 24px;
+  padding: 0 var(--sp-1) 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--s-3);
+  color: var(--t-2);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.af-chip > span:not(.material-symbols-outlined) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.af-chip:hover {
+  color: var(--t-1);
+  border-color: var(--t-4);
+}
+
+.af-chip .material-symbols-outlined {
+  font-size: 14px;
+}
+
+/* The leading glyph carries the severity colour; the trailing × dims until hover
+   so the chip reads as a label first, a remove control second. */
+.af-chip .material-symbols-outlined:last-child {
+  opacity: 0.6;
+}
+
+.af-chip:hover .material-symbols-outlined:last-child {
+  opacity: 1;
+}
+
+.af-chip.sev-critical > .material-symbols-outlined:first-child { color: var(--crit); }
+.af-chip.sev-high > .material-symbols-outlined:first-child { color: var(--high); }
+.af-chip.sev-medium > .material-symbols-outlined:first-child { color: var(--med); }
+.af-chip.sev-low > .material-symbols-outlined:first-child { color: var(--low); }
+.af-chip.sev-info > .material-symbols-outlined:first-child { color: var(--info); }
+
+.af-reset {
+  margin-left: auto;
+  padding: 0 var(--sp-1);
+  border: none;
+  background: none;
+  color: var(--a);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.af-reset:hover {
+  text-decoration: underline;
+}
+
 .head-link {
   display: inline-flex;
   align-items: center;
@@ -2266,6 +2346,134 @@ kbd,
 .viewer-error .material-symbols-outlined {
   font-size: 32px;
   color: var(--high);
+}
+
+/* A clean file after an edit: the red "N marked" chip becomes a green "clean". */
+.meta-chip-ok {
+  color: var(--ok);
+}
+
+/* Edit affordance in the viewer head, and the actions shown while editing. */
+.viewer-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 24px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--t-3);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.viewer-edit-btn:hover {
+  color: var(--t-1);
+  border-color: var(--t-4);
+}
+
+.viewer-edit-btn .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.viewer-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.viewer-edit-hint {
+  font-size: var(--fs-xs);
+  color: var(--t-4);
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-edit-hint.err {
+  color: var(--high);
+}
+
+.viewer-editor {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.viewer-textarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: var(--sp-2) var(--sp-5);
+  background: var(--s-1);
+  color: var(--t-1);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  line-height: 1.65;
+  tab-size: 4;
+  white-space: pre;
+  overflow: auto;
+}
+
+.viewer-textarea:focus {
+  box-shadow: inset 2px 0 0 var(--a);
+}
+
+/* Result of a re-check. Green when something was fixed; a plain note otherwise. */
+.recheck-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.recheck-banner .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.recheck-banner.all-clear,
+.recheck-banner.progress {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.recheck-banner.neutral {
+  background: var(--s-2);
+  color: var(--t-2);
+}
+
+.recheck-banner span {
+  flex: 1;
+}
+
+.recheck-dismiss {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.recheck-dismiss:hover {
+  opacity: 1;
+}
+
+.recheck-dismiss .material-symbols-outlined {
+  font-size: 15px;
 }
 
 /* ============================================================ overview */

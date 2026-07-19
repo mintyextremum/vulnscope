@@ -36,6 +36,10 @@ export interface FindingFilters {
   setOnlyNew: (v: boolean) => void;
   showSuppressed: boolean;
   setShowSuppressed: (v: boolean) => void;
+  /** Severity filter set at the top toolbar; shown here so the list explains
+   *  what is narrowing it, with a one-click remove. */
+  sevFilter: Set<Severity>;
+  toggleSev: (s: Severity) => void;
   /** Path the list is narrowed to via the tree, or null for the whole report. */
   file: string | null;
   clearFile: () => void;
@@ -500,6 +504,65 @@ export function FindingList({
         </div>
       </div>
 
+      {(() => {
+        const activeSevs = SEVERITY_ORDER.filter((s) => filters.sevFilter.has(s));
+        const anyActive =
+          activeSevs.length > 0 ||
+          !!filters.file ||
+          filters.query.trim() !== "" ||
+          filters.onlyNew ||
+          filters.showSuppressed;
+        if (!anyActive) return null;
+        return (
+          <div className="active-filters">
+            <span className="af-label">{t("Фильтры:")}</span>
+            {activeSevs.map((s) => (
+              <button
+                key={s}
+                className={`af-chip sev-${s}`}
+                onClick={() => filters.toggleSev(s)}
+                title={t("Убрать фильтр по важности")}
+              >
+                <Icon name={SEVERITY_SYMBOL[s]} />
+                {t(SEVERITY_LABEL[s])}
+                <Icon name="close" />
+              </button>
+            ))}
+            {filters.file && (
+              <button className="af-chip" onClick={filters.clearFile} title={t("Показать находки во всех файлах")}>
+                <Icon name="description" />
+                {filters.file.split(/[\\/]/).pop()}
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.query.trim() !== "" && (
+              <button className="af-chip" onClick={() => filters.setQuery("")} title={t("Очистить поиск")}>
+                <Icon name="search" />
+                «{filters.query.trim()}»
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.onlyNew && (
+              <button className="af-chip" onClick={() => filters.setOnlyNew(false)}>
+                <Icon name="fiber_new" />
+                {t("Только новые")}
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.showSuppressed && (
+              <button className="af-chip" onClick={() => filters.setShowSuppressed(false)}>
+                <Icon name="visibility" />
+                {t("Показаны подавленные")}
+                <Icon name="close" />
+              </button>
+            )}
+            <button className="af-reset" onClick={filters.reset}>
+              {t("Сбросить всё")}
+            </button>
+          </div>
+        );
+      })()}
+
       <div className="finding-list" ref={listRef}>
         {findings.length === 0 ? (
           // A filtered-to-empty list looks exactly like a clean project. Say
@@ -693,26 +756,54 @@ export function CodeSnippet({ finding }: { finding: Finding }) {
   );
 }
 
+/** Engines that a single-file re-check actually re-runs. External-tool and
+ * dependency findings need a full scan, so they are left untouched on re-check;
+ * only these are replaced by the fresh result. Mirrors `scanner::recheck_file`. */
+const RECHECKABLE: ReadonlySet<string> = new Set(["builtin", "custom", "secrets"]);
+
+/** Outcome of a re-check, for the green confirmation banner. */
+interface RecheckResult {
+  fixed: number;
+  remaining: number;
+  introduced: number;
+}
+
 export function CodeViewer({
   root,
   path,
   findings,
   focusLine,
+  checkSecrets,
+  experimental,
+  dataflow,
+  onRechecked,
 }: {
   root: string;
   path: string;
   findings: Finding[];
   focusLine: number | null;
+  checkSecrets: boolean;
+  experimental: boolean;
+  dataflow: boolean;
+  /** Bubbles the fresh result up so the catalogue and counts update, and lists
+   * which fingerprints were resolved so the list can show them green. */
+  onRechecked: (path: string, fresh: Finding[], fixed: string[]) => void;
 }) {
   const t = useT();
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<RecheckResult | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     setContent(null);
     setError(null);
+    setEditing(false);
+    setResult(null);
     invoke<string>("read_source", { root, relative: path })
       .then((c) => !cancelled && setContent(c))
       .catch((e) => !cancelled && setError(String(e)));
@@ -743,14 +834,55 @@ export function CodeViewer({
   // With virtualisation the target row may not exist in the DOM yet, so scroll
   // by arithmetic instead of querying for it.
   useEffect(() => {
-    if (focusLine === null || content === null) return;
+    if (focusLine === null || content === null || editing) return;
     const el = bodyRef.current;
     if (!el) return;
     const target = (focusLine - 1) * VIEWER_ROW_H - el.clientHeight / 2;
     el.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
-  }, [focusLine, content]);
+  }, [focusLine, content, editing]);
 
-  if (error) {
+  function startEdit() {
+    setDraft(content ?? "");
+    setResult(null);
+    setEditing(true);
+  }
+
+  async function saveAndRecheck() {
+    setSaving(true);
+    setError(null);
+    try {
+      const fresh = await invoke<Finding[]>("recheck_file", {
+        root,
+        relative: path,
+        content: draft,
+        checkSecrets,
+        experimental,
+        dataflow,
+      });
+      // Diff against what we were showing, but only over the engines a re-check
+      // re-runs — an unchanged Semgrep finding must not read as "fixed".
+      const before = findings.filter((f) => RECHECKABLE.has(f.source) && !f.suppressed);
+      const freshFps = new Set(fresh.map((f) => f.fingerprint));
+      const beforeFps = new Set(before.map((f) => f.fingerprint));
+      const fixed = before.filter((f) => !freshFps.has(f.fingerprint));
+      const introduced = fresh.filter((f) => !beforeFps.has(f.fingerprint)).length;
+
+      setContent(draft);
+      setEditing(false);
+      setResult({ fixed: fixed.length, remaining: fresh.length, introduced });
+      onRechecked(
+        path,
+        fresh,
+        fixed.map((f) => f.fingerprint)
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (error && content === null) {
     return (
       <div className="viewer-error">
         <Icon name="error" />
@@ -775,38 +907,100 @@ export function CodeViewer({
         <span className="viewer-path" title={path}>
           {path}
         </span>
-        <span className="meta-chip">
-          <Icon name="numbers" />
-          {t("{n} строк", { n: formatNumber(lines.length) })}
-        </span>
-        {hits.size > 0 && (
-          <span className="meta-chip" style={{ color: "var(--crit)" }}>
-            <Icon name="report" />
-            {t("{n} отмечено", { n: hits.size })}
-          </span>
+        {!editing && (
+          <>
+            <span className="meta-chip">
+              <Icon name="numbers" />
+              {t("{n} строк", { n: formatNumber(lines.length) })}
+            </span>
+            {hits.size > 0 ? (
+              <span className="meta-chip" style={{ color: "var(--crit)" }}>
+                <Icon name="report" />
+                {t("{n} отмечено", { n: hits.size })}
+              </span>
+            ) : (
+              <span className="meta-chip meta-chip-ok">
+                <Icon name="check_circle" />
+                {t("Чисто")}
+              </span>
+            )}
+            <button className="viewer-edit-btn" onClick={startEdit} title={t("Изменить код и перепроверить")}>
+              <Icon name="edit" />
+              {t("Редактировать")}
+            </button>
+          </>
+        )}
+        {editing && (
+          <div className="viewer-edit-actions">
+            <span className={`viewer-edit-hint ${error ? "err" : ""}`}>
+              {error ?? t("Перепроверка встроенными правилами")}
+            </span>
+            <button className="btn-ghost" onClick={() => setEditing(false)} disabled={saving}>
+              {t("Отмена")}
+            </button>
+            <button className="btn-primary" onClick={saveAndRecheck} disabled={saving}>
+              {saving ? <Icon name="progress_activity" className="spin" /> : <Icon name="task_alt" />}
+              {t("Сохранить и перепроверить")}
+            </button>
+          </div>
         )}
       </div>
-      <div className="viewer-body" ref={bodyRef}>
-        <div style={{ height: win.totalHeight, position: "relative" }}>
-          <div style={{ transform: `translateY(${win.offsetY}px)` }}>
-            {lines.slice(win.start, win.end).map((html, i) => {
-              const lineNo = win.start + i + 1;
-              const hit = hits.get(lineNo);
-              return (
-                <div
-                  key={lineNo}
-                  data-line={lineNo}
-                  className={`vline ${hit ? "hit" : ""} ${focusLine === lineNo ? "focus" : ""}`}
-                  style={{ height: VIEWER_ROW_H }}
-                >
-                  <span className="ln">{lineNo}</span>
-                  <span className="lc" dangerouslySetInnerHTML={{ __html: html }} />
-                </div>
-              );
-            })}
+
+      {result && !editing && (
+        <div className={`recheck-banner ${result.fixed > 0 && result.remaining === 0 ? "all-clear" : result.fixed > 0 ? "progress" : "neutral"}`}>
+          <Icon name={result.remaining === 0 ? "verified" : result.fixed > 0 ? "trending_down" : "info"} />
+          <span>
+            {result.remaining === 0
+              ? t("Все находки в файле исправлены.")
+              : result.fixed > 0
+                ? t("Исправлено: {fixed}. Осталось: {rest}.", { fixed: result.fixed, rest: result.remaining })
+                : t("Осталось: {rest}.", { rest: result.remaining })}
+            {result.introduced > 0 && " " + t("Новых: {n}.", { n: result.introduced })}
+          </span>
+          <button className="recheck-dismiss" onClick={() => setResult(null)} title={t("Скрыть")}>
+            <Icon name="close" />
+          </button>
+        </div>
+      )}
+
+      {editing ? (
+        <div className="viewer-editor">
+          <textarea
+            className="viewer-textarea"
+            value={draft}
+            spellCheck={false}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                if (!saving) saveAndRecheck();
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <div className="viewer-body" ref={bodyRef}>
+          <div style={{ height: win.totalHeight, position: "relative" }}>
+            <div style={{ transform: `translateY(${win.offsetY}px)` }}>
+              {lines.slice(win.start, win.end).map((html, i) => {
+                const lineNo = win.start + i + 1;
+                const hit = hits.get(lineNo);
+                return (
+                  <div
+                    key={lineNo}
+                    data-line={lineNo}
+                    className={`vline ${hit ? "hit" : ""} ${focusLine === lineNo ? "focus" : ""}`}
+                    style={{ height: VIEWER_ROW_H }}
+                  >
+                    <span className="ln">{lineNo}</span>
+                    <span className="lc" dangerouslySetInnerHTML={{ __html: html }} />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
