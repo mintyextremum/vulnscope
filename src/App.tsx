@@ -54,9 +54,9 @@ import {
 } from "./ui";
 
 type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings";
-type ResultTab = "overview" | "findings" | "code" | "skipped";
+type ResultTab = "overview" | "findings" | "beta" | "code" | "skipped";
 
-const TABS: ResultTab[] = ["overview", "findings", "code", "skipped"];
+const TABS: ResultTab[] = ["overview", "findings", "beta", "code", "skipped"];
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("setup");
@@ -350,7 +350,11 @@ export default function App() {
 
   const filteredFindings = useMemo(() => {
     if (!report) return [];
-    let out = report.findings;
+    // Experimental (BETA) findings live on their own tab; the confirmed list
+    // never mixes them in, and vice versa.
+    let out = report.findings.filter((f) =>
+      tab === "beta" ? f.extra?.experimental : !f.extra?.experimental
+    );
     if (sevFilter.size > 0) out = out.filter((f) => sevFilter.has(f.severity));
     if (onlyNew) out = out.filter((f) => f.isNew);
     // Suppressed findings stay reachable but out of the way: the default list
@@ -377,7 +381,8 @@ export default function App() {
         ].some((s) => s.toLowerCase().includes(q))
       );
     }
-    if (selectedFile && tab === "findings") out = out.filter((f) => f.file === selectedFile);
+    if (selectedFile && (tab === "findings" || tab === "beta"))
+      out = out.filter((f) => f.file === selectedFile);
     return out;
     // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,11 +393,20 @@ export default function App() {
     [report, selectedFile]
   );
 
+  const confirmedCount = useMemo(
+    () => (report ? report.findings.filter((f) => !f.extra?.experimental).length : 0),
+    [report]
+  );
+  const betaCount = useMemo(
+    () => (report ? report.findings.filter((f) => f.extra?.experimental).length : 0),
+    [report]
+  );
+
   // A filter can hide the selected finding, leaving the detail panel showing
   // something the list no longer contains — including a suppressed one the user
   // just hid. Follow the list instead.
   useEffect(() => {
-    if (tab !== "findings") return;
+    if (tab !== "findings" && tab !== "beta") return;
     if (selectedFinding && filteredFindings.some((f) => f.id === selectedFinding.id)) return;
     setSelectedFinding(filteredFindings[0] ?? null);
   }, [filteredFindings, selectedFinding, tab]);
@@ -674,8 +688,8 @@ export default function App() {
       },
       ...TABS.map((tb, i) => ({
         id: `tab-${tb}`,
-        label: t("Вкладка: {name}", { name: t({ overview: t("Обзор"), findings: t("Находки"), code: t("Код"), skipped: t("Пропущено") }[tb]) }),
-        icon: { overview: "dashboard", findings: "bug_report", code: "code", skipped: "block" }[tb],
+        label: t("Вкладка: {name}", { name: t({ overview: t("Обзор"), findings: t("Находки"), beta: t("Экспериментальные"), code: t("Код"), skipped: t("Пропущено") }[tb]) }),
+        icon: { overview: "dashboard", findings: "bug_report", beta: "science", code: "code", skipped: "block" }[tb],
         keys: String(i + 1),
         when: screen === "results",
         run: () => setTab(tb),
@@ -777,10 +791,11 @@ export default function App() {
     });
     on("tabOverview", "1", () => screen === "results" && setTab("overview"));
     on("tabFindings", "2", () => screen === "results" && setTab("findings"));
-    on("tabCode", "3", () => screen === "results" && setTab("code"));
-    on("tabSkipped", "4", () => screen === "results" && setTab("skipped"));
-    on("nextFinding", "j", () => screen === "results" && tab === "findings" && step(1));
-    on("prevFinding", "k", () => screen === "results" && tab === "findings" && step(-1));
+    on("tabBeta", "3", () => screen === "results" && setTab("beta"));
+    on("tabCode", "4", () => screen === "results" && setTab("code"));
+    on("tabSkipped", "5", () => screen === "results" && setTab("skipped"));
+    on("nextFinding", "j", () => screen === "results" && (tab === "findings" || tab === "beta") && step(1));
+    on("prevFinding", "k", () => screen === "results" && (tab === "findings" || tab === "beta") && step(-1));
     on("openInCode", "enter", () => {
       if (screen === "results" && tab === "findings" && selectedFinding) {
         openFileAt(selectedFinding.file, selectedFinding.line);
@@ -990,8 +1005,20 @@ export default function App() {
             >
               <Icon name="bug_report" />
               {t("Находки")}
-              <span className="count">{report.findings.length}</span>
+              <span className="count">{confirmedCount}</span>
             </button>
+            {betaCount > 0 && (
+              <button
+                className={`subtab subtab-beta ${tab === "beta" ? "active" : ""}`}
+                onClick={() => setTab("beta")}
+                title={t("Экспериментальные (BETA) находки — требуют ручной проверки")}
+              >
+                <Icon name="science" />
+                {t("Экспериментальные")}
+                <span className="tag beta">BETA</span>
+                <span className="count">{betaCount}</span>
+              </button>
+            )}
             <button
               className={`subtab ${tab === "code" ? "active" : ""}`}
               onClick={() => setTab("code")}
@@ -1011,7 +1038,7 @@ export default function App() {
 
           {tab === "overview" && <Overview report={report} />}
 
-          {tab === "findings" && (
+          {(tab === "findings" || tab === "beta") && (
             <div className="results">
               <FileTree
                 width={treeW}

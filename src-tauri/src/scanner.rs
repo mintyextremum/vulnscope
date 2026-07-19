@@ -251,6 +251,7 @@ fn scan_one_file(
                 fix_code: Some(ex.fix_code.to_string()),
                 corroborated,
                 experimental: false,
+                ..Default::default()
             }
         });
 
@@ -389,8 +390,98 @@ fn scan_one_file(
         }
     }
 
+    // Combination pass (BETA): when several amplifying vectors co-occur in one
+    // file, they form a likely exploit chain that is worse than any part alone.
+    if experimental {
+        if let Some(combo) = detect_combination(&findings, rel, &index) {
+            findings.push(combo);
+        }
+    }
+
     findings.truncate(max_findings);
     Some((findings, lines, size))
+}
+
+/// Synthesizes a single "dangerous combination" finding when a file holds two or
+/// more distinct amplifying vectors (command injection, SSRF, path traversal,
+/// deserialization, …). Groups the involved findings by category and lists the
+/// lines, so the reviewer sees the chain at a glance.
+fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Option<Finding> {
+    use std::collections::BTreeMap;
+    // category -> sorted, deduped line numbers
+    let mut by_cat: BTreeMap<&str, Vec<u32>> = BTreeMap::new();
+    for f in findings {
+        if f.extra.as_ref().map(|e| e.combination).unwrap_or(false) {
+            continue; // never chain a combination into another combination
+        }
+        if rules::is_amplifying_category(&f.category) {
+            let lines = by_cat.entry(f.category.as_str()).or_default();
+            if !lines.contains(&f.line) {
+                lines.push(f.line);
+            }
+        }
+    }
+    if by_cat.len() < 2 {
+        return None;
+    }
+
+    for lines in by_cat.values_mut() {
+        lines.sort_unstable();
+    }
+    // Anchor on the earliest involved line.
+    let anchor = by_cat.values().flatten().copied().min().unwrap_or(1);
+    let (snippet, snippet_start_line) = index.snippet(anchor);
+
+    let combines: Vec<String> = by_cat
+        .iter()
+        .map(|(cat, lines)| {
+            let ls = lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join(", ");
+            format!("{cat} (стр. {ls})")
+        })
+        .collect();
+
+    Some(Finding {
+        id: format!("VS-EXP-COMBO:{rel}:{anchor}"),
+        fingerprint: String::new(),
+        suppressed: false,
+        suppression_reason: None,
+        is_new: false,
+        rule_id: "VS-EXP-COMBO".to_string(),
+        title: "Возможная опасная связка уязвимостей".to_string(),
+        // Static (translatable) text; the specific vectors are in `combines`.
+        description: "В этом файле пересекаются несколько потенциально опасных векторов (перечислены \
+             в «Связанных местах»). По отдельности каждый требует ручной проверки, но вместе они \
+             образуют вероятную цепочку эксплуатации: управляемые данные достигают одного вектора, а \
+             через другой усиливаются до выполнения кода или утечки. Это эвристическая связка (BETA): \
+             проверьте, связаны ли эти места одним потоком данных."
+            .to_string(),
+        recommendation: "Разберите поток данных между перечисленными местами. Устраните хотя бы одно \
+             звено цепочки (параметризация, экранирование, белые списки), а лучше — каждое."
+            .to_string(),
+        severity: Severity::Critical,
+        confidence: Confidence::Low,
+        source: FindingSource::Builtin,
+        source_label: FindingSource::Builtin.label().to_string(),
+        category: "Опасная связка".to_string(),
+        file: rel.to_string(),
+        line: anchor,
+        end_line: anchor,
+        column: 1,
+        end_column: 1,
+        snippet,
+        snippet_start_line,
+        cwe: vec!["CWE-77".to_string()],
+        owasp: Some(OWASP_INJECTION_STR.to_string()),
+        cve: Vec::new(),
+        references: Vec::new(),
+        extra: Some(FindingExtra {
+            experimental: true,
+            combination: true,
+            combines,
+            ..Default::default()
+        }),
+        package: None,
+    })
 }
 
 /// OWASP tag shared by the experimental injection heuristics.
@@ -1646,6 +1737,40 @@ mod tests {
         std::fs::write(&rs, "fn f() { banned_call(1); }\n").unwrap();
         let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, &compiled, 200).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn experimental_combination_is_synthesized() {
+        let dir = std::env::temp_dir().join(format!("vs-combo-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("chain.py");
+        // Two distinct amplifying vectors driven by request input: command
+        // injection and SSRF. Together they should trip the combination pass.
+        std::fs::write(
+            &path,
+            "import os, requests\n\
+             os.system(request.args.get('cmd'))\n\
+             requests.get(request.args.get('url'))\n",
+        )
+        .unwrap();
+
+        let (findings, _, _) =
+            scan_one_file(&path, "chain.py", Language::Python, false, true, &[], 200).unwrap();
+        let combo = findings
+            .iter()
+            .find(|f| f.rule_id == "VS-EXP-COMBO")
+            .expect("combination should be synthesized");
+        assert_eq!(combo.severity, Severity::Critical);
+        let ex = combo.extra.as_ref().unwrap();
+        assert!(ex.experimental && ex.combination);
+        assert!(ex.combines.len() >= 2, "should link >= 2 vectors: {:?}", ex.combines);
+
+        // With the experimental pass off, no combination is emitted.
+        let (plain, _, _) =
+            scan_one_file(&path, "chain.py", Language::Python, false, false, &[], 200).unwrap();
+        assert!(!plain.iter().any(|f| f.rule_id == "VS-EXP-COMBO"));
 
         let _ = std::fs::remove_dir_all(&dir);
     }

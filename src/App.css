@@ -3528,6 +3528,39 @@ kbd,
   letter-spacing: 0.04em;
 }
 
+/* "Combination" chip: a dangerous chain of suspected issues. */
+.tag.combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--danger);
+  color: var(--on-a);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.03em;
+}
+
+.tag.combo .material-symbols-outlined {
+  font-size: 12px;
+}
+
+.combines-list {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  color: var(--t-2);
+}
+
+.combines-list li { line-height: 1.5; }
+
+/* The BETA subtab reads as experimental: a science glyph and its own chip. */
+.subtab-beta .tag.beta {
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-2xs, 10px);
+  line-height: 1.5;
+}
+
 /* Inline BETA chip next to the setup toggle label. */
 .beta-badge {
   margin-left: var(--sp-2);

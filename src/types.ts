@@ -176,6 +176,11 @@ export interface FindingExtra {
   corroborated: boolean;
   /** Experimental (BETA) heuristic finding: a suspected issue for review. */
   experimental?: boolean;
+  /** A synthesized "dangerous combination": several suspected issues that
+   * amplify each other into a likely exploit chain. */
+  combination?: boolean;
+  /** Human-readable labels of the issues this combination links. */
+  combines?: string[];
 }
 
 export interface SeverityCounts {
