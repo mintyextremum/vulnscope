@@ -465,6 +465,12 @@ fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Opt
         Some(owasps.into_iter().collect::<Vec<_>>().join(" · "))
     };
 
+    // A recognised chain (SSRF → RCE, path traversal → deserialization, …) gets
+    // a concrete title; otherwise the generic one.
+    let present: Vec<&str> = by_cat.keys().copied().collect();
+    let title = rules::named_chain_title(&present)
+        .unwrap_or("Возможная опасная связка уязвимостей");
+
     Some(Finding {
         id: format!("VS-EXP-COMBO:{rel}:{anchor}"),
         fingerprint: String::new(),
@@ -472,7 +478,7 @@ fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Opt
         suppression_reason: None,
         is_new: false,
         rule_id: "VS-EXP-COMBO".to_string(),
-        title: "Возможная опасная связка уязвимостей".to_string(),
+        title: title.to_string(),
         // Static (translatable) text; the specific vectors are in `combines`.
         description: "В этом файле пересекаются несколько потенциально опасных векторов (перечислены \
              в «Связанных местах»). По отдельности каждый требует ручной проверки, но вместе они \
@@ -1810,6 +1816,8 @@ mod tests {
         assert!(ex.combine_spots.iter().all(|s| !s.code.is_empty()));
         // Aggregated CWE list goes beyond the generic chain tag.
         assert!(combo.cwe.len() >= 2, "should aggregate component CWEs: {:?}", combo.cwe);
+        // Command injection + SSRF is a recognised named chain.
+        assert!(combo.title.contains("SSRF"), "named chain title: {}", combo.title);
 
         // With the experimental pass off, no combination is emitted.
         let (plain, _, _) =

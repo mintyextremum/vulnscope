@@ -4766,6 +4766,36 @@ pub fn is_amplifying_category(category: &str) -> bool {
     AMPLIFYING_CATEGORIES.contains(&category)
 }
 
+/// A recognised, named exploit chain: when both categories are present in a
+/// file, the combination is very likely this specific scenario, so it gets a
+/// concrete title instead of the generic "dangerous combination".
+pub struct NamedChain {
+    pub a: &'static str,
+    pub b: &'static str,
+    pub title: &'static str,
+}
+
+/// Ordered most-severe first, so the strongest matching narrative wins.
+pub static NAMED_CHAINS: &[NamedChain] = &[
+    NamedChain { a: "SSRF", b: "Выполнение кода", title: "Возможная цепочка: SSRF → выполнение кода" },
+    NamedChain { a: "SSRF", b: "Инъекция команд", title: "Возможная цепочка: SSRF → выполнение команд ОС" },
+    NamedChain { a: "Path traversal", b: "Выполнение кода", title: "Возможная цепочка: path traversal → выполнение кода" },
+    NamedChain { a: "Path traversal", b: "Небезопасная десериализация", title: "Возможная цепочка: запись/чтение файла → десериализация" },
+    NamedChain { a: "Загрязнение прототипа", b: "Выполнение кода", title: "Возможная цепочка: загрязнение прототипа → выполнение кода" },
+    NamedChain { a: "Инъекция команд", b: "Выполнение кода", title: "Возможная связка: инъекция команд и выполнение кода" },
+    NamedChain { a: "SQL-инъекция", b: "Инъекция команд", title: "Возможная связка: SQL-инъекция и инъекция команд" },
+    NamedChain { a: "XXE", b: "SSRF", title: "Возможная цепочка: XXE → SSRF" },
+    NamedChain { a: "Открытый редирект", b: "SSRF", title: "Возможная связка: открытый редирект и SSRF" },
+];
+
+/// The title of the strongest named chain whose both categories are present.
+pub fn named_chain_title(categories: &[&str]) -> Option<&'static str> {
+    NAMED_CHAINS
+        .iter()
+        .find(|c| categories.contains(&c.a) && categories.contains(&c.b))
+        .map(|c| c.title)
+}
+
 /// Cheap gate: if a file has no user-input indicator at all, no heuristic can
 /// fire, so the per-line pass is skipped entirely.
 pub fn content_has_taint(content: &str) -> bool {
