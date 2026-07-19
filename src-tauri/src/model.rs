@@ -414,6 +414,13 @@ pub struct FindingExtra {
     /// a confirmed defect.
     #[serde(default)]
     pub experimental: bool,
+    /// True for a synthesized "dangerous combination": several suspected issues
+    /// in one file that amplify each other into a likely exploit chain.
+    #[serde(default)]
+    pub combination: bool,
+    /// Human-readable labels of the issues this combination links together.
+    #[serde(default)]
+    pub combines: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

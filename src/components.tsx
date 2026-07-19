@@ -542,6 +542,12 @@ export function FindingList({
                 {f.line > 0 ? `:${f.line}` : ""}
               </div>
               <div className="fi-tags">
+                {f.extra?.combination && (
+                  <span className="tag combo" title={t("Опасная связка возможных уязвимостей")}>
+                    <Icon name="account_tree" />
+                    {t("СВЯЗКА")}
+                  </span>
+                )}
                 {f.extra?.experimental && <span className="tag beta">BETA</span>}
                 {f.isNew && <span className="tag is-new">{t("новое")}</span>}
                 {f.suppressed && <span className="tag muted">{t("подавлено")}</span>}
@@ -907,6 +913,15 @@ export function FindingDetail({
               BETA
             </span>
           )}
+          {finding.extra?.combination && (
+            <span
+              className="tag combo"
+              title={t("Несколько возможных уязвимостей в одном файле, усиливающих друг друга.")}
+            >
+              <Icon name="account_tree" />
+              {t("СВЯЗКА")}
+            </span>
+          )}
           {finding.isNew && (
             <span className="tag is-new" title={t("Не было в предыдущем сканировании")}>
               {t("новое")}
@@ -1048,6 +1063,20 @@ export function FindingDetail({
             <Icon name="info" />{t("В чём проблема")}</h3>
           <p>{t(finding.description)}</p>
         </div>
+
+        {finding.extra?.combination && finding.extra.combines && finding.extra.combines.length > 0 && (
+          <div className="detail-section">
+            <h3>
+              <Icon name="account_tree" />
+              {t("Связанные места")}
+            </h3>
+            <ul className="combines-list">
+              {finding.extra.combines.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {finding.extra?.exploit && (
           <div className="detail-section">

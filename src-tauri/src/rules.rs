@@ -4742,6 +4742,30 @@ pub static HEURISTICS: &[Heuristic] = &[
 
 static TAINT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(TAINT).expect("bad TAINT"));
 
+/// Categories that *chain* into a worse outcome when several co-occur in one
+/// file (data reaches a sink, a file is read/written, then executed, and so on).
+/// Crypto/config/transport issues are excluded — they are serious but do not
+/// amplify each other the same way.
+const AMPLIFYING_CATEGORIES: &[&str] = &[
+    "Инъекция команд",
+    "SQL-инъекция",
+    "NoSQL-инъекция",
+    "LDAP-инъекция",
+    "XPath-инъекция",
+    "SSRF",
+    "Path traversal",
+    "Выполнение кода",
+    "Небезопасная десериализация",
+    "Загрязнение прототипа",
+    "XXE",
+    "Открытый редирект",
+];
+
+/// True when a category can form part of a dangerous exploit chain.
+pub fn is_amplifying_category(category: &str) -> bool {
+    AMPLIFYING_CATEGORIES.contains(&category)
+}
+
 /// Cheap gate: if a file has no user-input indicator at all, no heuristic can
 /// fire, so the per-line pass is skipped entirely.
 pub fn content_has_taint(content: &str) -> bool {

@@ -201,6 +201,22 @@ export const EN: Record<string, string> = {
   "Показать файл в проводнике": "Reveal the file in the file manager",
   // Rule catalogue: confidence filter + filtered count — 18.07.2026
   "{n} из {total}": "{n} of {total}",
+  // BETA tab + dangerous-combination findings
+  "Экспериментальные": "Experimental",
+  "Экспериментальные (BETA) находки — требуют ручной проверки":
+    "Experimental (BETA) findings — need manual review",
+  "Вкладка «Экспериментальные»": "\"Experimental\" tab",
+  "СВЯЗКА": "COMBO",
+  "Несколько возможных уязвимостей в одном файле, усиливающих друг друга.":
+    "Several suspected vulnerabilities in one file that amplify each other.",
+  "Опасная связка возможных уязвимостей": "Dangerous combination of suspected issues",
+  "Связанные места": "Linked spots",
+  "Опасная связка": "Dangerous combination",
+  "Возможная опасная связка уязвимостей": "Possible dangerous vulnerability chain",
+  "В этом файле пересекаются несколько потенциально опасных векторов (перечислены в «Связанных местах»). По отдельности каждый требует ручной проверки, но вместе они образуют вероятную цепочку эксплуатации: управляемые данные достигают одного вектора, а через другой усиливаются до выполнения кода или утечки. Это эвристическая связка (BETA): проверьте, связаны ли эти места одним потоком данных.":
+    "This file mixes several potentially dangerous vectors (listed under \"Linked spots\"). On its own each needs manual review, but together they form a likely exploit chain: controlled data reaches one vector and is amplified through another into code execution or a leak. This is a heuristic combination (BETA): check whether these spots share one data flow.",
+  "Разберите поток данных между перечисленными местами. Устраните хотя бы одно звено цепочки (параметризация, экранирование, белые списки), а лучше — каждое.":
+    "Trace the data flow between the listed spots. Break at least one link of the chain (parameterization, escaping, allowlists) — ideally every one.",
   // Experimental (BETA) heuristics — setup toggle, badge tooltips, heuristic text
   "Экспериментальные проверки": "Experimental checks",
   "Эвристики: помечают возможные уязвимости, которые не поймали точные правила":
