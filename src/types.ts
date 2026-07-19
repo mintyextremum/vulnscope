@@ -100,7 +100,10 @@ export type FindingSource =
   | "bandit"
   | "cargoaudit"
   | "gitleaks"
-  | "npmaudit";
+  | "npmaudit"
+  | "checkov"
+  | "gosec"
+  | "grype";
 
 export interface PackageInfo {
   name: string;
@@ -283,6 +286,8 @@ export type ToolId =
   | "osv-scanner"
   | "trivy"
   | "checkov"
+  | "gosec"
+  | "grype"
   | "hadolint"
   | "ruff"
   | "govulncheck"

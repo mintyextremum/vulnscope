@@ -23,6 +23,8 @@ pub enum Tool {
     Govulncheck,
     Trufflehog,
     NpmAudit,
+    Gosec,
+    Grype,
 }
 
 impl Tool {
@@ -34,6 +36,8 @@ impl Tool {
         Tool::OsvScanner,
         Tool::Trivy,
         Tool::Checkov,
+        Tool::Gosec,
+        Tool::Grype,
         Tool::Hadolint,
         Tool::Ruff,
         Tool::Govulncheck,
@@ -55,6 +59,8 @@ impl Tool {
             Tool::Govulncheck => "govulncheck",
             Tool::Trufflehog => "trufflehog",
             Tool::NpmAudit => "npm",
+            Tool::Gosec => "gosec",
+            Tool::Grype => "grype",
         }
     }
 
@@ -72,6 +78,8 @@ impl Tool {
             Tool::Govulncheck => "govulncheck",
             Tool::Trufflehog => "TruffleHog",
             Tool::NpmAudit => "npm audit",
+            Tool::Gosec => "gosec",
+            Tool::Grype => "Grype",
         }
     }
 
@@ -109,6 +117,16 @@ impl Tool {
             ],
             // Ships with Node; there is nothing separate to install.
             Tool::NpmAudit => &[],
+            Tool::Gosec => &[
+                ("go", "github.com/securego/gosec/v2/cmd/gosec@latest"),
+                ("brew", "gosec"),
+                ("scoop", "gosec"),
+            ],
+            Tool::Grype => &[
+                ("scoop", "grype"),
+                ("brew", "grype"),
+                ("go", "github.com/anchore/grype@latest"),
+            ],
         }
     }
 
@@ -127,6 +145,8 @@ impl Tool {
             Tool::Govulncheck => "go install golang.org/x/vuln/cmd/govulncheck@latest",
             Tool::Trufflehog => "scoop install trufflehog",
             Tool::NpmAudit => "поставляется вместе с Node.js",
+            Tool::Gosec => "go install github.com/securego/gosec/v2/cmd/gosec@latest",
+            Tool::Grype => "scoop install grype",
         }
     }
 
@@ -146,6 +166,8 @@ impl Tool {
             Tool::Govulncheck => "https://go.dev/doc/tutorial/govulncheck",
             Tool::Trufflehog => "https://github.com/trufflesecurity/trufflehog#floppy_disk-installation",
             Tool::NpmAudit => "https://docs.npmjs.com/cli/commands/npm-audit",
+            Tool::Gosec => "https://github.com/securego/gosec#install",
+            Tool::Grype => "https://github.com/anchore/grype#installation",
         }
     }
 
@@ -164,6 +186,8 @@ impl Tool {
             Tool::Govulncheck => "Официальная база уязвимостей Go с проверкой достижимости кода",
             Tool::Trufflehog => "800+ детекторов секретов с проверкой, живой ли ключ",
             Tool::NpmAudit => "Аудит npm-зависимостей встроенными средствами Node",
+            Tool::Gosec => "Углублённый анализ безопасности Go по AST (инъекции, крипто, ошибки)",
+            Tool::Grype => "Уязвимости зависимостей из lock-файлов и SBOM (база Anchore)",
         }
     }
 
@@ -173,10 +197,10 @@ impl Tool {
             Tool::Semgrep => "Много языков",
             Tool::Bandit | Tool::Ruff => "Python",
             Tool::CargoAudit => "Rust",
-            Tool::Govulncheck => "Go",
+            Tool::Govulncheck | Tool::Gosec => "Go",
             Tool::NpmAudit => "JavaScript",
             Tool::Gitleaks | Tool::Trufflehog => "Секреты",
-            Tool::OsvScanner | Tool::Trivy => "Зависимости",
+            Tool::OsvScanner | Tool::Trivy | Tool::Grype => "Зависимости",
             Tool::Checkov | Tool::Hadolint => "Инфраструктура",
         }
     }
@@ -185,6 +209,7 @@ impl Tool {
         match self {
             Tool::CargoAudit => &["audit", "--version"],
             Tool::Govulncheck => &["-version"],
+            Tool::Grype => &["version"],
             Tool::Trivy | Tool::Trufflehog | Tool::OsvScanner => &["--version"],
             _ => &["--version"],
         }
@@ -206,6 +231,9 @@ impl Tool {
                 | Tool::Trivy
                 | Tool::Trufflehog
                 | Tool::NpmAudit
+                | Tool::Checkov
+                | Tool::Gosec
+                | Tool::Grype
         )
     }
 }
@@ -1449,6 +1477,304 @@ pub fn parse_trivy(json: &str, root: &Path) -> Vec<Finding> {
     findings
 }
 
+// -------------------------------------------------------------------- gosec
+
+#[derive(Deserialize)]
+struct GosecOutput {
+    #[serde(rename = "Issues", default)]
+    issues: Vec<GosecIssue>,
+}
+
+#[derive(Deserialize)]
+struct GosecIssue {
+    #[serde(default)]
+    severity: String,
+    #[serde(default)]
+    confidence: String,
+    #[serde(default)]
+    cwe: Option<GosecCwe>,
+    #[serde(default)]
+    rule_id: String,
+    #[serde(default)]
+    details: String,
+    #[serde(default)]
+    file: String,
+    #[serde(default)]
+    code: String,
+    /// A string, sometimes a range like "12-14".
+    #[serde(default)]
+    line: String,
+}
+
+#[derive(Deserialize)]
+struct GosecCwe {
+    #[serde(default)]
+    id: String,
+}
+
+/// First integer in a gosec line field ("12" or "12-14").
+fn first_line_num(s: &str) -> u32 {
+    s.split(|c: char| !c.is_ascii_digit())
+        .find(|p| !p.is_empty())
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(0)
+}
+
+pub fn parse_gosec(json: &str, root: &Path) -> Vec<Finding> {
+    let Ok(out) = serde_json::from_str::<GosecOutput>(json) else {
+        return Vec::new();
+    };
+
+    out.issues
+        .into_iter()
+        .map(|i| {
+            let file = rel(root, &i.file);
+            let line = first_line_num(&i.line);
+            let cwe = i
+                .cwe
+                .as_ref()
+                .filter(|c| !c.id.is_empty())
+                .map(|c| vec![format!("CWE-{}", c.id)])
+                .unwrap_or_default();
+            Finding {
+                id: mk_id("gosec", &file, line, &i.rule_id),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: i.rule_id.clone(),
+                title: i.details.clone(),
+                description: i.details.clone(),
+                recommendation: "См. описание правила gosec ({rule}) и устраните первопричину."
+                    .replace("{rule}", &i.rule_id),
+                severity: Severity::from_label(&i.severity),
+                confidence: match i.confidence.to_ascii_uppercase().as_str() {
+                    "HIGH" => Confidence::High,
+                    "LOW" => Confidence::Low,
+                    _ => Confidence::Medium,
+                },
+                source: FindingSource::Gosec,
+                source_label: FindingSource::Gosec.label().to_string(),
+                category: "gosec".to_string(),
+                file,
+                line,
+                end_line: line,
+                column: 0,
+                end_column: 0,
+                snippet: i.code.trim().chars().take(200).collect(),
+                snippet_start_line: line,
+                cwe,
+                owasp: None,
+                cve: Vec::new(),
+                references: Vec::new(),
+                extra: None,
+                package: None,
+            }
+        })
+        .collect()
+}
+
+// ------------------------------------------------------------------ Checkov
+
+#[derive(Deserialize)]
+struct CheckovDoc {
+    #[serde(default)]
+    results: CheckovResults,
+}
+
+#[derive(Deserialize, Default)]
+struct CheckovResults {
+    #[serde(default)]
+    failed_checks: Vec<CheckovCheck>,
+}
+
+#[derive(Deserialize)]
+struct CheckovCheck {
+    #[serde(default)]
+    check_id: String,
+    #[serde(default)]
+    check_name: String,
+    #[serde(default)]
+    file_path: String,
+    #[serde(default)]
+    file_line_range: Vec<u32>,
+    #[serde(default)]
+    guideline: Option<String>,
+    #[serde(default)]
+    severity: Option<String>,
+}
+
+pub fn parse_checkov(json: &str, root: &Path) -> Vec<Finding> {
+    // `checkov -o json` emits a single object for one framework, or an array of
+    // them when several are present. Accept both.
+    let docs: Vec<CheckovDoc> = serde_json::from_str::<Vec<CheckovDoc>>(json)
+        .or_else(|_| serde_json::from_str::<CheckovDoc>(json).map(|d| vec![d]))
+        .unwrap_or_default();
+
+    docs.into_iter()
+        .flat_map(|d| d.results.failed_checks)
+        .map(|c| {
+            let file = rel(root, &c.file_path);
+            let line = c.file_line_range.first().copied().unwrap_or(0);
+            let end_line = c.file_line_range.last().copied().unwrap_or(line).max(line);
+            Finding {
+                id: mk_id("checkov", &file, line, &c.check_id),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: c.check_id.clone(),
+                title: c.check_name.clone(),
+                description: c.check_name.clone(),
+                recommendation: c
+                    .guideline
+                    .clone()
+                    .map(|u| format!("Руководство Checkov: {u}"))
+                    .unwrap_or_else(|| "См. документацию Checkov по этой проверке.".to_string()),
+                // Checkov reports severity only with a platform key; default to
+                // Medium for a plain misconfiguration otherwise.
+                severity: c
+                    .severity
+                    .as_deref()
+                    .map(Severity::from_label)
+                    .unwrap_or(Severity::Medium),
+                confidence: Confidence::High,
+                source: FindingSource::Checkov,
+                source_label: FindingSource::Checkov.label().to_string(),
+                category: "Инфраструктура".to_string(),
+                file,
+                line,
+                end_line,
+                column: 0,
+                end_column: 0,
+                snippet: String::new(),
+                snippet_start_line: line,
+                cwe: Vec::new(),
+                owasp: Some("A05:2021 – Security Misconfiguration".to_string()),
+                cve: Vec::new(),
+                references: c.guideline.into_iter().collect(),
+                extra: None,
+                package: None,
+            }
+        })
+        .collect()
+}
+
+// -------------------------------------------------------------------- Grype
+
+#[derive(Deserialize)]
+struct GrypeOutput {
+    #[serde(default)]
+    matches: Vec<GrypeMatch>,
+}
+
+#[derive(Deserialize)]
+struct GrypeMatch {
+    vulnerability: GrypeVuln,
+    artifact: GrypeArtifact,
+}
+
+#[derive(Deserialize)]
+struct GrypeVuln {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    severity: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(rename = "dataSource", default)]
+    data_source: Option<String>,
+    #[serde(default)]
+    fix: Option<GrypeFix>,
+}
+
+#[derive(Deserialize)]
+struct GrypeFix {
+    #[serde(default)]
+    versions: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct GrypeArtifact {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    version: String,
+    #[serde(default)]
+    locations: Vec<GrypeLocation>,
+}
+
+#[derive(Deserialize)]
+struct GrypeLocation {
+    #[serde(default)]
+    path: String,
+}
+
+pub fn parse_grype(json: &str, root: &Path) -> Vec<Finding> {
+    let Ok(out) = serde_json::from_str::<GrypeOutput>(json) else {
+        return Vec::new();
+    };
+
+    out.matches
+        .into_iter()
+        .map(|m| {
+            let v = m.vulnerability;
+            let a = m.artifact;
+            let file = a
+                .locations
+                .first()
+                .map(|l| rel(root, &l.path))
+                .unwrap_or_default();
+            let cve = if v.id.starts_with("CVE-") { vec![v.id.clone()] } else { Vec::new() };
+            let fixed = v
+                .fix
+                .as_ref()
+                .and_then(|f| (!f.versions.is_empty()).then(|| f.versions.join(", ")));
+            Finding {
+                id: format!("grype:{}:{}:{}", a.name, a.version, v.id),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: v.id.clone(),
+                title: format!("{} {} — {}", a.name, a.version, v.id),
+                description: v
+                    .description
+                    .clone()
+                    .map(|d| d.chars().take(800).collect())
+                    .unwrap_or_else(|| format!("{} в {} {}", v.id, a.name, a.version)),
+                recommendation: match &fixed {
+                    Some(fx) => format!("Обновите {} до одной из версий: {}", a.name, fx),
+                    None => "Исправленной версии пока нет — следите за обновлениями.".to_string(),
+                },
+                severity: Severity::from_label(&v.severity),
+                confidence: Confidence::High,
+                source: FindingSource::Grype,
+                source_label: FindingSource::Grype.label().to_string(),
+                category: "Уязвимая зависимость".to_string(),
+                file,
+                line: 0,
+                end_line: 0,
+                column: 0,
+                end_column: 0,
+                snippet: format!("{} {}", a.name, a.version),
+                snippet_start_line: 0,
+                cwe: Vec::new(),
+                owasp: Some("A06:2021 – Vulnerable and Outdated Components".to_string()),
+                cve,
+                references: v.data_source.into_iter().collect(),
+                extra: None,
+                package: Some(PackageInfo {
+                    name: a.name,
+                    version: a.version,
+                    ecosystem: String::new(),
+                    fixed_version: fixed,
+                }),
+            }
+        })
+        .collect()
+}
+
 // -------------------------------------------------------------------- runner
 
 /// Runs a tool and returns its stdout. External tools signal "findings exist"
@@ -1655,11 +1981,41 @@ pub async fn run_available(
                     .map(|o| parse_npm_audit(&o, lock))
             }
 
+            Tool::Checkov => run_tool(
+                "checkov",
+                &["-d", ".", "-o", "json", "--compact", "--quiet"],
+                root,
+                timeout,
+                cancel,
+            )
+            .await
+            .map(|o| parse_checkov(&o, root)),
+
+            Tool::Gosec => run_tool(
+                "gosec",
+                &["-fmt=json", "-quiet", "-no-fail", "./..."],
+                root,
+                timeout,
+                cancel,
+            )
+            .await
+            .map(|o| parse_gosec(&o, root)),
+
+            Tool::Grype => run_tool(
+                "grype",
+                &["dir:.", "-o", "json", "-q"],
+                root,
+                timeout,
+                cancel,
+            )
+            .await
+            .map(|o| parse_grype(&o, root)),
+
             // Detected and installable, but their output is not parsed yet.
             // `integrated()` keeps them out of the runnable set, so reaching
             // here means the UI let something through — skip rather than
             // pretend the scan used them.
-            Tool::Checkov | Tool::Govulncheck => continue,
+            Tool::Govulncheck => continue,
         };
 
         match outcome {
@@ -2205,5 +2561,63 @@ mod tests {
         assert_eq!(f[0].line, 6);
         // The raw token must never survive into the report.
         assert!(!f[0].snippet.contains("kJ8m2NpQ4rT7sV1wXy3zAb6cDe9fGh0iJk2L"));
+    }
+
+    #[test]
+    fn parses_gosec_json() {
+        let json = r#"{"Issues":[
+            {"severity":"HIGH","confidence":"HIGH","cwe":{"id":"78","url":"https://cwe.mitre.org/data/definitions/78.html"},
+             "rule_id":"G204","details":"Subprocess launched with a potential tainted input",
+             "file":"D:/Project/testbed/backend/handler.go","code":"exec.Command(cmd)","line":"12","column":"5"}
+        ],"Stats":{"files":1,"lines":40}}"#;
+        let f = parse_gosec(json, Path::new("D:/Project/testbed"));
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].file, "backend/handler.go");
+        assert_eq!(f[0].line, 12);
+        assert_eq!(f[0].rule_id, "G204");
+        assert!(f[0].cwe.contains(&"CWE-78".to_string()));
+        assert_eq!(f[0].severity, Severity::High);
+        assert_eq!(f[0].source, FindingSource::Gosec);
+    }
+
+    #[test]
+    fn first_line_num_handles_ranges() {
+        assert_eq!(first_line_num("12"), 12);
+        assert_eq!(first_line_num("12-14"), 12);
+        assert_eq!(first_line_num(""), 0);
+    }
+
+    #[test]
+    fn parses_checkov_object_and_array() {
+        let obj = r#"{"check_type":"terraform","results":{"failed_checks":[
+            {"check_id":"CKV_AWS_20","check_name":"S3 Bucket has an ACL defined which allows public access",
+             "file_path":"/cloud.tf","file_line_range":[3,5],"resource":"aws_s3_bucket.b",
+             "guideline":"https://docs.paloaltonetworks.com/x"}
+        ]}}"#;
+        let f = parse_checkov(obj, Path::new("D:/Project/testbed"));
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].file, "cloud.tf");
+        assert_eq!(f[0].line, 3);
+        assert_eq!(f[0].rule_id, "CKV_AWS_20");
+        assert_eq!(f[0].source, FindingSource::Checkov);
+
+        // The multi-framework array form must parse too.
+        let arr = format!("[{obj}]");
+        assert_eq!(parse_checkov(&arr, Path::new("D:/Project/testbed")).len(), 1);
+    }
+
+    #[test]
+    fn parses_grype_json() {
+        let json = r#"{"matches":[
+            {"vulnerability":{"id":"CVE-2021-23337","severity":"High","description":"Command injection in lodash",
+              "dataSource":"https://nvd.nist.gov/vuln/detail/CVE-2021-23337","fix":{"versions":["4.17.21"]}},
+             "artifact":{"name":"lodash","version":"4.17.0","type":"npm","locations":[{"path":"frontend/package-lock.json"}]}}
+        ]}"#;
+        let f = parse_grype(json, Path::new("D:/Project/testbed"));
+        assert_eq!(f.len(), 1);
+        assert!(f[0].cve.contains(&"CVE-2021-23337".to_string()));
+        assert_eq!(f[0].package.as_ref().unwrap().name, "lodash");
+        assert_eq!(f[0].package.as_ref().unwrap().fixed_version.as_deref(), Some("4.17.21"));
+        assert_eq!(f[0].source, FindingSource::Grype);
     }
 }
