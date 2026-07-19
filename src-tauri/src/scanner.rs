@@ -847,6 +847,7 @@ pub async fn run_scan(
     });
     findings.dedup_by(|a, b| a.id == b.id);
     findings = merge_duplicate_advisories(findings);
+    findings = merge_duplicate_code_findings(findings);
 
     // Fingerprint first: suppression and comparison both key off it.
     for f in &mut findings {
@@ -1053,6 +1054,76 @@ fn merge_duplicate_advisories(findings: Vec<Finding>) -> Vec<Finding> {
         }
     }
 
+    out
+}
+
+/// Collapses code findings that several engines reported for the *same issue* —
+/// same file, same line, and a shared CWE. Different tools (and the built-in
+/// rules) routinely flag one line each, so without this the report shows the
+/// same command injection three times. The survivor keeps the richest detail
+/// and lists every engine that agreed, which is a stronger signal than three
+/// separate rows.
+fn merge_duplicate_code_findings(findings: Vec<Finding>) -> Vec<Finding> {
+    let mut out: Vec<Finding> = Vec::with_capacity(findings.len());
+    for f in findings {
+        let experimental = f.extra.as_ref().map(|e| e.experimental).unwrap_or(false);
+        // Only line-anchored code findings with a CWE participate. Dependency
+        // findings (dedup'd by advisory), secrets, and BETA heuristics are left
+        // exactly as they are.
+        if f.package.is_some() || f.line == 0 || f.cwe.is_empty() || experimental {
+            out.push(f);
+            continue;
+        }
+
+        let dup = out.iter_mut().find(|o| {
+            o.package.is_none()
+                && o.line == f.line
+                && o.file == f.file
+                && !o.extra.as_ref().map(|e| e.experimental).unwrap_or(false)
+                && o.cwe.iter().any(|c| f.cwe.contains(c))
+        });
+
+        match dup {
+            Some(keep) => {
+                // Name every engine that agreed. Built-in detail (exploit,
+                // impact, fix code) already lives on `keep` when it came first;
+                // if the built-in one arrives second, adopt its richer body.
+                if f.source == FindingSource::Builtin && keep.source != FindingSource::Builtin {
+                    keep.description = f.description.clone();
+                    keep.recommendation = f.recommendation.clone();
+                    if f.extra.is_some() {
+                        keep.extra = f.extra.clone();
+                    }
+                }
+                let label = f.source_label.clone();
+                if !keep.source_label.split(" + ").any(|p| p == label) {
+                    keep.source_label = format!("{} + {}", keep.source_label, label);
+                }
+                for c in f.cwe {
+                    if !keep.cwe.contains(&c) {
+                        keep.cwe.push(c);
+                    }
+                }
+                for r in f.references {
+                    if !keep.references.contains(&r) {
+                        keep.references.push(r);
+                    }
+                }
+                if f.severity > keep.severity {
+                    keep.severity = f.severity;
+                }
+                let rank = |c: Confidence| match c {
+                    Confidence::High => 2u8,
+                    Confidence::Medium => 1,
+                    Confidence::Low => 0,
+                };
+                if rank(f.confidence) > rank(keep.confidence) {
+                    keep.confidence = f.confidence;
+                }
+            }
+            None => out.push(f),
+        }
+    }
     out
 }
 
@@ -1825,6 +1896,54 @@ mod tests {
         assert!(!plain.iter().any(|f| f.rule_id == "VS-EXP-COMBO"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn merges_same_issue_from_several_engines() {
+        let mk = |src: FindingSource, label: &str, cwe: &str, sev: Severity| Finding {
+            id: format!("{label}:app.py:10"),
+            fingerprint: String::new(),
+            suppressed: false,
+            suppression_reason: None,
+            is_new: false,
+            rule_id: "R".into(),
+            title: "Command injection".into(),
+            description: "d".into(),
+            recommendation: "r".into(),
+            severity: sev,
+            confidence: Confidence::Medium,
+            source: src,
+            source_label: label.into(),
+            category: "Инъекция команд".into(),
+            file: "app.py".into(),
+            line: 10,
+            end_line: 10,
+            column: 0,
+            end_column: 0,
+            snippet: String::new(),
+            snippet_start_line: 10,
+            cwe: vec![cwe.into()],
+            owasp: None,
+            cve: Vec::new(),
+            references: Vec::new(),
+            extra: None,
+            package: None,
+        };
+        // Three engines flag the same line + CWE; a fourth flags a different CWE.
+        let input = vec![
+            mk(FindingSource::Semgrep, "Semgrep", "CWE-78", Severity::Medium),
+            mk(FindingSource::Bandit, "Bandit", "CWE-78", Severity::High),
+            mk(FindingSource::Builtin, "Встроенные правила", "CWE-78", Severity::Medium),
+            mk(FindingSource::Gosec, "gosec", "CWE-89", Severity::Low),
+        ];
+        let out = merge_duplicate_code_findings(input);
+        // The three CWE-78 rows collapse into one; the CWE-89 row stays.
+        assert_eq!(out.len(), 2);
+        let merged = out.iter().find(|f| f.cwe.contains(&"CWE-78".to_string())).unwrap();
+        assert_eq!(merged.severity, Severity::High, "worst severity wins");
+        assert!(merged.source_label.contains("Semgrep"));
+        assert!(merged.source_label.contains("Bandit"));
+        assert!(merged.source_label.contains("Встроенные правила"));
     }
 
     #[test]

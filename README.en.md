@@ -110,12 +110,19 @@ wider with them — 197 findings instead of 155 on the test project.
 | TruffleHog | 800+ detectors, verifies whether a key is live | `scoop install trufflehog` |
 | osv-scanner | The official OSV scanner: more ecosystems | `scoop install osv-scanner` |
 | Trivy | Dependency and IaC vulnerabilities, plus misconfig | `scoop install trivy` |
+| Checkov | Thousands of Terraform, CloudFormation, Kubernetes and Helm checks | `pipx install checkov` |
+| gosec | Deeper AST-based Go security analysis | `go install github.com/securego/gosec/v2/cmd/gosec@latest` |
+| Grype | Dependency vulnerabilities from lockfiles and SBOMs (Anchore DB) | `scoop install grype` |
 | Hadolint | Dockerfile linter by syntax, not by pattern | `scoop install hadolint` |
 | npm audit | npm dependency audit | ships with Node.js |
 
-Two more — **Checkov** and **govulncheck** — can be installed from the app, but
-their output is not parsed yet. They are honestly marked "not wired up", excluded
-from the counter, and never run.
+One more — **govulncheck** — can be installed from the app, but its output is not
+parsed yet. It is honestly marked "not wired up", excluded from the counter, and
+never run.
+
+When several tools (and the built-in rules) flag **the same line with the same
+CWE**, the findings collapse into one that lists every engine that agreed — so a
+single command injection is not shown three times.
 
 The **External scanners** card shows the exact command and lets you copy it, but
 **downloads and runs nothing itself**: a security scanner that fetches and

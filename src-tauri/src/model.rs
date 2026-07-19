@@ -318,6 +318,9 @@ pub enum FindingSource {
     Ruff,
     Trivy,
     Trufflehog,
+    Checkov,
+    Gosec,
+    Grype,
 }
 
 impl FindingSource {
@@ -337,6 +340,9 @@ impl FindingSource {
             FindingSource::Ruff => "Ruff",
             FindingSource::Trivy => "Trivy",
             FindingSource::Trufflehog => "TruffleHog",
+            FindingSource::Checkov => "Checkov",
+            FindingSource::Gosec => "gosec",
+            FindingSource::Grype => "Grype",
         }
     }
 }
