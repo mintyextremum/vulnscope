@@ -3543,16 +3543,51 @@ kbd,
   font-size: 12px;
 }
 
-.combines-list {
+/* Each link of a combination: numbered, clickable, showing its own source. */
+.combine-spots {
   margin: 0;
   padding-left: var(--sp-5);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: var(--sp-2);
   color: var(--t-2);
 }
 
-.combines-list li { line-height: 1.5; }
+.combine-spots li { line-height: 1.4; }
+
+.combine-spot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-2);
+  background: var(--s-2);
+  border-left: 3px solid var(--danger);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.combine-spot:hover { background: var(--s-3); }
+
+.cs-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  justify-content: space-between;
+}
+
+.cs-cat { color: var(--t-1); font-weight: var(--fw-med); font-size: var(--fs-sm); }
+.cs-line { color: var(--t-3); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+
+.cs-code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: var(--fs-xs);
+  color: var(--t-2);
+  white-space: pre;
+  overflow-x: auto;
+}
 
 /* The BETA subtab reads as experimental: a science glyph and its own chip. */
 .subtab-beta .tag.beta {

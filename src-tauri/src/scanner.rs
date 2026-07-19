@@ -407,9 +407,13 @@ fn scan_one_file(
 /// deserialization, …). Groups the involved findings by category and lists the
 /// lines, so the reviewer sees the chain at a glance.
 fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Option<Finding> {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
     // category -> sorted, deduped line numbers
     let mut by_cat: BTreeMap<&str, Vec<u32>> = BTreeMap::new();
+    // Aggregate the real CWE/OWASP of the linked issues, so the combination is
+    // classified by what it actually chains rather than a generic tag.
+    let mut cwes: BTreeSet<String> = BTreeSet::new();
+    let mut owasps: BTreeSet<String> = BTreeSet::new();
     for f in findings {
         if f.extra.as_ref().map(|e| e.combination).unwrap_or(false) {
             continue; // never chain a combination into another combination
@@ -418,6 +422,12 @@ fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Opt
             let lines = by_cat.entry(f.category.as_str()).or_default();
             if !lines.contains(&f.line) {
                 lines.push(f.line);
+            }
+            for c in &f.cwe {
+                cwes.insert(c.clone());
+            }
+            if let Some(o) = &f.owasp {
+                owasps.insert(o.clone());
             }
         }
     }
@@ -432,13 +442,28 @@ fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Opt
     let anchor = by_cat.values().flatten().copied().min().unwrap_or(1);
     let (snippet, snippet_start_line) = index.snippet(anchor);
 
-    let combines: Vec<String> = by_cat
+    // One spot per (category, line), carrying that line's source. Ordered by
+    // line so the chain reads top-to-bottom.
+    let mut combine_spots: Vec<CombineSpot> = by_cat
         .iter()
-        .map(|(cat, lines)| {
-            let ls = lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join(", ");
-            format!("{cat} (стр. {ls})")
+        .flat_map(|(cat, lines)| {
+            lines.iter().map(move |&line| CombineSpot {
+                category: cat.to_string(),
+                line,
+                code: index.line_text(line).trim().to_string(),
+            })
         })
         .collect();
+    combine_spots.sort_by_key(|s| s.line);
+
+    // CWE-77 (command/chain) leads, then the real CWEs of the parts.
+    let mut cwe_list = vec!["CWE-77".to_string()];
+    cwe_list.extend(cwes);
+    let owasp = if owasps.is_empty() {
+        Some(OWASP_INJECTION_STR.to_string())
+    } else {
+        Some(owasps.into_iter().collect::<Vec<_>>().join(" · "))
+    };
 
     Some(Finding {
         id: format!("VS-EXP-COMBO:{rel}:{anchor}"),
@@ -470,14 +495,14 @@ fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Opt
         end_column: 1,
         snippet,
         snippet_start_line,
-        cwe: vec!["CWE-77".to_string()],
-        owasp: Some(OWASP_INJECTION_STR.to_string()),
+        cwe: cwe_list,
+        owasp,
         cve: Vec::new(),
         references: Vec::new(),
         extra: Some(FindingExtra {
             experimental: true,
             combination: true,
-            combines,
+            combine_spots,
             ..Default::default()
         }),
         package: None,
@@ -820,6 +845,17 @@ pub async fn run_scan(
     // Fingerprint first: suppression and comparison both key off it.
     for f in &mut findings {
         f.fingerprint = baseline::fingerprint(f);
+    }
+
+    // Number the combination findings in display order (VS-EXP-COMBO-1, -2, …)
+    // so several chains in one scan are distinguishable. Done after fingerprints
+    // so the numbering never perturbs suppression identity.
+    let mut combo_n = 0u32;
+    for f in &mut findings {
+        if f.rule_id == "VS-EXP-COMBO" {
+            combo_n += 1;
+            f.rule_id = format!("VS-EXP-COMBO-{combo_n}");
+        }
     }
 
     let (ignores, ignore_warning) = baseline::load_ignores(&root);
@@ -1765,7 +1801,15 @@ mod tests {
         assert_eq!(combo.severity, Severity::Critical);
         let ex = combo.extra.as_ref().unwrap();
         assert!(ex.experimental && ex.combination);
-        assert!(ex.combines.len() >= 2, "should link >= 2 vectors: {:?}", ex.combines);
+        assert!(
+            ex.combine_spots.len() >= 2,
+            "should link >= 2 vectors: {:?}",
+            ex.combine_spots
+        );
+        // Each spot carries the actual source line, not just a label.
+        assert!(ex.combine_spots.iter().all(|s| !s.code.is_empty()));
+        // Aggregated CWE list goes beyond the generic chain tag.
+        assert!(combo.cwe.len() >= 2, "should aggregate component CWEs: {:?}", combo.cwe);
 
         // With the experimental pass off, no combination is emitted.
         let (plain, _, _) =
