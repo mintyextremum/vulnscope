@@ -2348,6 +2348,134 @@ kbd,
   color: var(--high);
 }
 
+/* A clean file after an edit: the red "N marked" chip becomes a green "clean". */
+.meta-chip-ok {
+  color: var(--ok);
+}
+
+/* Edit affordance in the viewer head, and the actions shown while editing. */
+.viewer-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 24px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--t-3);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.viewer-edit-btn:hover {
+  color: var(--t-1);
+  border-color: var(--t-4);
+}
+
+.viewer-edit-btn .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.viewer-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.viewer-edit-hint {
+  font-size: var(--fs-xs);
+  color: var(--t-4);
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-edit-hint.err {
+  color: var(--high);
+}
+
+.viewer-editor {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.viewer-textarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: var(--sp-2) var(--sp-5);
+  background: var(--s-1);
+  color: var(--t-1);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  line-height: 1.65;
+  tab-size: 4;
+  white-space: pre;
+  overflow: auto;
+}
+
+.viewer-textarea:focus {
+  box-shadow: inset 2px 0 0 var(--a);
+}
+
+/* Result of a re-check. Green when something was fixed; a plain note otherwise. */
+.recheck-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.recheck-banner .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.recheck-banner.all-clear,
+.recheck-banner.progress {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.recheck-banner.neutral {
+  background: var(--s-2);
+  color: var(--t-2);
+}
+
+.recheck-banner span {
+  flex: 1;
+}
+
+.recheck-dismiss {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--r-1);
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.recheck-dismiss:hover {
+  opacity: 1;
+}
+
+.recheck-dismiss .material-symbols-outlined {
+  font-size: 15px;
+}
+
 /* ============================================================ overview */
 
 .overview {

@@ -474,6 +474,46 @@ fn scan_one_file(
     Some((findings, lines, size))
 }
 
+/// Re-runs the single-file scan on demand after the user edits a file in the
+/// catalogue, then assigns stable fingerprints so the caller can diff the result
+/// against the previous findings and mark the ones that disappeared as fixed.
+///
+/// Covers only the engines that run per file — built-in rules, secrets, the
+/// data-flow analysis and the user's own rules — not the external tools, which
+/// need their binaries and a full run; the caller keeps those findings as they
+/// were. Deterministic and fast: one file, no I/O beyond reading it back.
+pub fn recheck_file(
+    abs: &Path,
+    rel: &str,
+    check_secrets: bool,
+    experimental: bool,
+    dataflow: bool,
+    max_findings: usize,
+) -> Vec<Finding> {
+    let lang = Language::from_path(abs);
+    let compiled_user = match userrules::load() {
+        Ok(rules) => userrules::compile(&rules).0,
+        Err(_) => Vec::new(),
+    };
+    let mut findings = match scan_one_file(
+        abs,
+        rel,
+        lang,
+        check_secrets,
+        experimental,
+        dataflow,
+        &compiled_user,
+        max_findings,
+    ) {
+        Some((f, _, _)) => f,
+        None => Vec::new(),
+    };
+    for f in &mut findings {
+        f.fingerprint = baseline::fingerprint(f);
+    }
+    findings
+}
+
 /// Synthesizes a single "dangerous combination" finding when a file holds two or
 /// more distinct amplifying vectors (command injection, SSRF, path traversal,
 /// deserialization, …). Groups the involved findings by category and lists the
