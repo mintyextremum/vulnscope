@@ -482,7 +482,13 @@ fn scan_one_file(
 /// data-flow analysis and the user's own rules — not the external tools, which
 /// need their binaries and a full run; the caller keeps those findings as they
 /// were. Deterministic and fast: one file, no I/O beyond reading it back.
+///
+/// Every post-pass a full scan applies to a file's findings is applied here in
+/// the same order, so the two paths are comparable: anything that differs
+/// between them would surface to the user as a phantom fix or a phantom new
+/// problem on a file they did not touch.
 pub fn recheck_file(
+    root: &Path,
     abs: &Path,
     rel: &str,
     check_secrets: bool,
@@ -495,7 +501,7 @@ pub fn recheck_file(
         Ok(rules) => userrules::compile(&rules).0,
         Err(_) => Vec::new(),
     };
-    let mut findings = match scan_one_file(
+    let findings = match scan_one_file(
         abs,
         rel,
         lang,
@@ -508,9 +514,37 @@ pub fn recheck_file(
         Some((f, _, _)) => f,
         None => Vec::new(),
     };
+
+    // The same collapse a full scan does, in the same order (merge, then
+    // fingerprint). Without it two built-in rules firing on one line with a
+    // shared CWE stay separate here but arrive merged from the scan, and the
+    // caller's diff reports the difference as brand-new problems — on a file
+    // that was not even edited.
+    let mut findings = merge_duplicate_code_findings(findings);
     for f in &mut findings {
         f.fingerprint = baseline::fingerprint(f);
     }
+
+    // Combination findings are numbered in display order, as in a scan; one file
+    // can only contribute one chain, but the id has to match the scan's shape.
+    let mut combo_n = 0u32;
+    for f in &mut findings {
+        if f.rule_id == "VS-EXP-COMBO" {
+            combo_n += 1;
+            f.rule_id = format!("VS-EXP-COMBO-{combo_n}");
+        }
+    }
+
+    // Suppressions still apply: without this a re-check would resurrect every
+    // finding the user silenced in .vulnscope-ignore.
+    let (ignores, _) = baseline::load_ignores(root);
+    for f in &mut findings {
+        if let Some(s) = baseline::match_suppression(f, &f.fingerprint.clone(), &ignores) {
+            f.suppressed = true;
+            f.suppression_reason = Some(s.reason.clone());
+        }
+    }
+
     findings
 }
 

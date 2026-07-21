@@ -162,6 +162,7 @@ fn recheck_file(
 
     let cfg = settings::load();
     Ok(scanner::recheck_file(
+        &root,
         &target,
         &relative,
         check_secrets,

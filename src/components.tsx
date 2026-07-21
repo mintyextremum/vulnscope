@@ -784,6 +784,20 @@ function editKey(f: Finding): string {
   return `${f.ruleId} ${own.replace(/\s+/g, " ").trim()}`;
 }
 
+/**
+ * A concrete issue on a line, as opposed to a derived signal.
+ *
+ * BETA heuristics, dangerous combinations and data-flow paths are synthesized
+ * from the concrete findings and rebuilt from scratch on every pass, so their
+ * anchor moves whenever anything around them changes. Counting them here would
+ * report that churn as "3 new problems" right after a real fix.
+ */
+function isConcrete(f: Finding): boolean {
+  const e = f.extra;
+  if (!e) return true;
+  return !e.experimental && !e.combination && !(e.flow && e.flow.length > 0);
+}
+
 /** How many times each key occurs — two identical vulnerable lines are two
  *  findings, and fixing one of them must count as exactly one fix. */
 function tally(findings: Finding[]): Map<string, number> {
@@ -888,9 +902,12 @@ export function CodeViewer({
       });
       // Diff against what we were showing, but only over the engines a re-check
       // re-runs — an unchanged Semgrep finding must not read as "fixed".
-      const before = findings.filter((f) => RECHECKABLE.has(f.source) && !f.suppressed);
+      const before = findings.filter(
+        (f) => RECHECKABLE.has(f.source) && !f.suppressed && isConcrete(f)
+      );
+      const after = fresh.filter((f) => !f.suppressed && isConcrete(f));
       const wasThere = tally(before);
-      const nowThere = tally(fresh);
+      const nowThere = tally(after);
 
       // Take the findings whose key lost occurrences: those are the real fixes.
       const remainingByKey = new Map(nowThere);
@@ -906,7 +923,7 @@ export function CodeViewer({
 
       setContent(draft);
       setEditing(false);
-      setResult({ fixed: fixed.length, remaining: fresh.length, introduced });
+      setResult({ fixed: fixed.length, remaining: after.length, introduced });
       onRechecked(
         path,
         fresh,
