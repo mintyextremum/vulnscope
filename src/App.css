@@ -1883,8 +1883,22 @@ kbd,
 .af-chip.sev-low > .material-symbols-outlined:first-child { color: var(--low); }
 .af-chip.sev-info > .material-symbols-outlined:first-child { color: var(--info); }
 
-.af-reset {
+.af-count {
   margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--t-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A tab badge showing "shown/total" rather than a plain total: the accent marks
+   it as a live number that the filters are moving. */
+.count.narrowed {
+  color: var(--a);
+  font-variant-numeric: tabular-nums;
+}
+
+.af-reset {
   padding: 0 var(--sp-1);
   border: none;
   background: none;

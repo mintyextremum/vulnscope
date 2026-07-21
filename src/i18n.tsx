@@ -1068,6 +1068,8 @@ export const EN: Record<string, string> = {
   Очистить: "Clear",
   "Только новые": "New only",
   "Фильтры:": "Filters:",
+  "показано {n} из {total}": "showing {n} of {total}",
+  "Под фильтры подходит {n} из {total}": "{n} of {total} match the filters",
   "Убрать фильтр по важности": "Remove severity filter",
   "Показать находки во всех файлах": "Show findings in all files",
   "Очистить поиск": "Clear search",

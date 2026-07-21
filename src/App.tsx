@@ -352,26 +352,27 @@ export default function App() {
     );
   };
 
-  const filteredFindings = useMemo(() => {
-    if (!report) return [];
-    // Experimental (BETA) findings live on their own tab; the confirmed list
-    // never mixes them in, and vice versa.
-    let out = report.findings.filter((f) =>
-      tab === "beta" ? f.extra?.experimental : !f.extra?.experimental
-    );
-    if (sevFilter.size > 0) out = out.filter((f) => sevFilter.has(f.severity));
-    if (onlyNew) out = out.filter((f) => f.isNew);
-    // Suppressed findings stay reachable but out of the way: the default list
-    // answers "what needs attention", and the user already decided these do not.
-    if (!showSuppressed) out = out.filter((f) => !f.suppressed);
-    if (findingQuery.trim()) {
+  /**
+   * Every filter except the file narrowing.
+   *
+   * Kept separate because the tree and the tab badges need to know what each
+   * file *would* show: fold the selected file in here and picking one file
+   * would zero out every other row in the tree.
+   */
+  const matchesFilters = useCallback(
+    (f: Finding) => {
+      if (sevFilter.size > 0 && !sevFilter.has(f.severity)) return false;
+      if (onlyNew && !f.isNew) return false;
+      // Suppressed findings stay reachable but out of the way: the default list
+      // answers "what needs attention", and the user already decided these do not.
+      if (!showSuppressed && f.suppressed) return false;
       const q = findingQuery.trim().toLowerCase();
-      // Search what the row shows. CWE and the category are printed on every
-      // finding, so typing one back has to work; and the title is rendered
-      // translated, so matching only the Russian source made search useless in
-      // English. Both forms are matched — in Russian they are the same string.
-      out = out.filter((f) =>
-        [
+      if (q) {
+        // Search what the row shows. CWE and the category are printed on every
+        // finding, so typing one back has to work; and the title is rendered
+        // translated, so matching only the Russian source made search useless in
+        // English. Both forms are matched — in Russian they are the same string.
+        const hay = [
           f.title,
           t(f.title),
           f.category,
@@ -382,15 +383,32 @@ export default function App() {
           f.owasp ?? "",
           ...f.cwe,
           ...f.cve,
-        ].some((s) => s.toLowerCase().includes(q))
-      );
-    }
+        ];
+        if (!hay.some((s) => s.toLowerCase().includes(q))) return false;
+      }
+      return true;
+    },
+    // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sevFilter, onlyNew, showSuppressed, findingQuery, lang]
+  );
+
+  /** True while anything is narrowing the list, so counts can say "N из M". */
+  const anyFilterActive =
+    sevFilter.size > 0 || onlyNew || showSuppressed || findingQuery.trim() !== "";
+
+  const filteredFindings = useMemo(() => {
+    if (!report) return [];
+    // Experimental (BETA) findings live on their own tab; the confirmed list
+    // never mixes them in, and vice versa.
+    let out = report.findings.filter((f) =>
+      tab === "beta" ? f.extra?.experimental : !f.extra?.experimental
+    );
+    out = out.filter(matchesFilters);
     if (selectedFile && (tab === "findings" || tab === "beta"))
       out = out.filter((f) => f.file === selectedFile);
     return out;
-    // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report, sevFilter, selectedFile, tab, onlyNew, showSuppressed, findingQuery, lang]);
+  }, [report, selectedFile, tab, matchesFilters]);
 
   const fileFindings = useMemo(
     () => (report && selectedFile ? report.findings.filter((f) => f.file === selectedFile) : []),
@@ -405,6 +423,54 @@ export default function App() {
     () => (report ? report.findings.filter((f) => f.extra?.experimental).length : 0),
     [report]
   );
+
+  // What each tab holds under the current filters. The badges show this rather
+  // than the scan total, so narrowing the list is visible from the tab strip
+  // instead of only inside it.
+  const shownConfirmed = useMemo(
+    () =>
+      report ? report.findings.filter((f) => !f.extra?.experimental && matchesFilters(f)).length : 0,
+    [report, matchesFilters]
+  );
+  const shownBeta = useMemo(
+    () =>
+      report ? report.findings.filter((f) => f.extra?.experimental && matchesFilters(f)).length : 0,
+    [report, matchesFilters]
+  );
+
+  /**
+   * File rows carrying the counts of what the filters actually leave, so
+   * narrowing the list narrows the tree too instead of leaving the scan's
+   * totals sitting there contradicting it.
+   *
+   * The file narrowing itself is deliberately not applied: the tree is how you
+   * pick a file, and it has to keep showing the others.
+   */
+  const treeFiles = useMemo(() => {
+    if (!report) return [];
+    if (!anyFilterActive) return report.files;
+    const isBeta = tab === "beta";
+    const per = new Map<string, Record<Severity, number>>();
+    for (const f of report.findings) {
+      // The code tab shows one tree for everything; the finding tabs are split.
+      if ((tab === "findings" || tab === "beta") && !!f.extra?.experimental !== isBeta) continue;
+      if (!matchesFilters(f)) continue;
+      let c = per.get(f.file);
+      if (!c) per.set(f.file, (c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 }));
+      c[f.severity]++;
+    }
+    return report.files.map((file) => {
+      const counts = per.get(file.path) ?? {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        info: 0,
+      };
+      const maxSeverity = SEVERITY_ORDER.find((s) => counts[s] > 0) ?? null;
+      return { ...file, counts, maxSeverity };
+    });
+  }, [report, tab, anyFilterActive, matchesFilters]);
 
   // A filter can hide the selected finding, leaving the detail panel showing
   // something the list no longer contains — including a suppressed one the user
@@ -480,13 +546,18 @@ export default function App() {
 
   const findingFilters: FindingFilters = useMemo(
     () => ({
-      // Against the whole report, not the file selection: the tree is a
-      // separate control, and counting it as a filter would tell the user
-      // "скрыто 160" the moment they click a file.
+      // What this tab holds before the filters run. The file selection is folded
+      // in rather than treated as a filter — the tree is a separate control, and
+      // counting it would claim "скрыто 160" the moment the user clicks a file —
+      // but the BETA split is, or the ratio would be measured against findings
+      // this tab never shows.
       total: report
-        ? report.findings.filter(
-            (f) => !(selectedFile && tab === "findings") || f.file === selectedFile
-          ).length
+        ? report.findings.filter((f) => {
+            if ((tab === "beta") !== !!f.extra?.experimental) return false;
+            if (selectedFile && (tab === "findings" || tab === "beta"))
+              return f.file === selectedFile;
+            return true;
+          }).length
         : 0,
       newCount: report?.delta.newCount ?? 0,
       suppressedCount: report?.suppressedCount ?? 0,
@@ -1067,7 +1138,21 @@ export default function App() {
             >
               <Icon name="bug_report" />
               {t("Находки")}
-              <span className="count">{confirmedCount}</span>
+              <span
+                className={`count ${shownConfirmed !== confirmedCount ? "narrowed" : ""}`}
+                title={
+                  shownConfirmed !== confirmedCount
+                    ? t("Под фильтры подходит {n} из {total}", {
+                        n: shownConfirmed,
+                        total: confirmedCount,
+                      })
+                    : undefined
+                }
+              >
+                {shownConfirmed !== confirmedCount
+                  ? `${shownConfirmed}/${confirmedCount}`
+                  : confirmedCount}
+              </span>
             </button>
             {betaCount > 0 && (
               <button
@@ -1078,7 +1163,9 @@ export default function App() {
                 <Icon name="science" />
                 {t("Экспериментальные")}
                 <span className="tag beta">BETA</span>
-                <span className="count">{betaCount}</span>
+                <span className={`count ${shownBeta !== betaCount ? "narrowed" : ""}`}>
+                  {shownBeta !== betaCount ? `${shownBeta}/${betaCount}` : betaCount}
+                </span>
               </button>
             )}
             <button
@@ -1104,7 +1191,7 @@ export default function App() {
             <div className="results">
               <FileTree
                 width={treeW}
-                files={report.files}
+                files={treeFiles}
                 selected={selectedFile}
                 onSelect={(p) => setSelectedFile(selectedFile === p ? null : p)}
               />
@@ -1139,7 +1226,7 @@ export default function App() {
             <div className="results">
               <FileTree
                 width={treeW}
-                files={report.files}
+                files={treeFiles}
                 selected={selectedFile}
                 onSelect={(p) => {
                   setSelectedFile(p);
