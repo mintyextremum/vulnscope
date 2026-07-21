@@ -326,7 +326,7 @@ export function SettingsScreen({
               </div>
             </div>
 
-            <div className="field">
+            <div className="field set-wide">
               <div className="field-label">{t("Схема")}</div>
               <div className="preset-row">
                 {PRESETS.map((p) => (
@@ -339,7 +339,7 @@ export function SettingsScreen({
                       // get unreadable text on a scheme you never chose.
                       apply({ ...s, themePreset: p.id, theme: {} })
                     }
-                    title={p.hint}
+                    title={t(p.hint)}
                   >
                     <span className="preset-dots">
                       {/* The preset's own colours, never var(--x): that would
@@ -353,8 +353,8 @@ export function SettingsScreen({
                         />
                       ))}
                     </span>
-                    <b>{p.label}</b>
-                    <span>{p.hint}</span>
+                    <b>{t(p.label)}</b>
+                    <span>{t(p.hint)}</span>
                   </button>
                 ))}
               </div>
@@ -599,7 +599,7 @@ function ThemeEditor({
   const changed = Object.keys(theme).length;
 
   return (
-    <div className="field">
+    <div className="field set-wide">
       <div className="field-label">
         {t("Токены темы")}
         {changed > 0 && <span className="tag" style={{ marginLeft: 8 }}>{t("изменено: {n}", { n: changed })}</span>}
@@ -765,7 +765,9 @@ function Txt({
     if (text.trim() !== value) onChange(text.trim());
   };
   return (
-    <div className="set-row">
+    // Full width: a command line next to a long hint is unreadable squeezed
+    // into a single column of the settings grid.
+    <div className="set-row set-wide">
       <div className="set-info">
         <div className="set-label">{label}</div>
         {hint && <div className="field-note">{hint}</div>}
@@ -773,7 +775,7 @@ function Txt({
       <div className="set-control">
         <input
           className="input mono"
-          style={{ width: 250 }}
+          style={{ width: 320 }}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onBlur={commit}

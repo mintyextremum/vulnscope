@@ -768,6 +768,33 @@ interface RecheckResult {
   introduced: number;
 }
 
+/**
+ * Identity of a finding for the purpose of diffing one file across an edit.
+ *
+ * The stored fingerprint hashes the snippet, and a snippet carries three lines
+ * of context — so editing one line changes the identity of every finding within
+ * three lines of it, and untouched issues would read as "fixed" and immediately
+ * "new" again. Keying on the rule plus the offending line itself survives edits
+ * to its neighbours and changes only when that line really does.
+ */
+function editKey(f: Finding): string {
+  const rel = f.line - f.snippetStartLine;
+  const lines = f.snippet.split("\n");
+  const own = rel >= 0 && rel < lines.length ? lines[rel] : "";
+  return `${f.ruleId} ${own.replace(/\s+/g, " ").trim()}`;
+}
+
+/** How many times each key occurs — two identical vulnerable lines are two
+ *  findings, and fixing one of them must count as exactly one fix. */
+function tally(findings: Finding[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const f of findings) {
+    const k = editKey(f);
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return m;
+}
+
 export function CodeViewer({
   root,
   path,
@@ -862,10 +889,20 @@ export function CodeViewer({
       // Diff against what we were showing, but only over the engines a re-check
       // re-runs — an unchanged Semgrep finding must not read as "fixed".
       const before = findings.filter((f) => RECHECKABLE.has(f.source) && !f.suppressed);
-      const freshFps = new Set(fresh.map((f) => f.fingerprint));
-      const beforeFps = new Set(before.map((f) => f.fingerprint));
-      const fixed = before.filter((f) => !freshFps.has(f.fingerprint));
-      const introduced = fresh.filter((f) => !beforeFps.has(f.fingerprint)).length;
+      const wasThere = tally(before);
+      const nowThere = tally(fresh);
+
+      // Take the findings whose key lost occurrences: those are the real fixes.
+      const remainingByKey = new Map(nowThere);
+      const fixed: Finding[] = [];
+      for (const f of before) {
+        const k = editKey(f);
+        const left = remainingByKey.get(k) ?? 0;
+        if (left > 0) remainingByKey.set(k, left - 1);
+        else fixed.push(f);
+      }
+      let introduced = 0;
+      for (const [k, n] of nowThere) introduced += Math.max(0, n - (wasThere.get(k) ?? 0));
 
       setContent(draft);
       setEditing(false);
@@ -930,21 +967,26 @@ export function CodeViewer({
             </button>
           </>
         )}
-        {editing && (
-          <div className="viewer-edit-actions">
-            <span className={`viewer-edit-hint ${error ? "err" : ""}`}>
-              {error ?? t("Перепроверка встроенными правилами")}
-            </span>
-            <button className="btn-ghost" onClick={() => setEditing(false)} disabled={saving}>
-              {t("Отмена")}
-            </button>
-            <button className="btn-primary" onClick={saveAndRecheck} disabled={saving}>
-              {saving ? <Icon name="progress_activity" className="spin" /> : <Icon name="task_alt" />}
-              {t("Сохранить и перепроверить")}
-            </button>
-          </div>
-        )}
+        {editing && <span className="viewer-tag">{t("Редактирование")}</span>}
       </div>
+
+      {/* The actions get their own strip rather than being squeezed into the
+          34px header: room to breathe, and nothing to clip on a narrow panel. */}
+      {editing && (
+        <div className="viewer-editbar">
+          <span className={`viewer-edit-hint ${error ? "err" : ""}`}>
+            <Icon name={error ? "error" : "policy"} />
+            {error ?? t("Перепроверка встроенными правилами")}
+          </span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setEditing(false)} disabled={saving}>
+            {t("Отмена")}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={saveAndRecheck} disabled={saving}>
+            {saving ? <Icon name="progress_activity" className="spin" /> : <Icon name="task_alt" />}
+            {t("Сохранить и перепроверить")}
+          </button>
+        </div>
+      )}
 
       {result && !editing && (
         <div className={`recheck-banner ${result.fixed > 0 && result.remaining === 0 ? "all-clear" : result.fixed > 0 ? "progress" : "neutral"}`}>
