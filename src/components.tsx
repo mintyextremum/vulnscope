@@ -556,6 +556,11 @@ export function FindingList({
                 <Icon name="close" />
               </button>
             )}
+            {/* The plain arithmetic of the filtering, so the shrinking list has
+                a number attached to it rather than just looking shorter. */}
+            <span className="af-count">
+              {t("показано {n} из {total}", { n: findings.length, total: filters.total })}
+            </span>
             <button className="af-reset" onClick={filters.reset}>
               {t("Сбросить всё")}
             </button>
@@ -781,7 +786,7 @@ function editKey(f: Finding): string {
   const rel = f.line - f.snippetStartLine;
   const lines = f.snippet.split("\n");
   const own = rel >= 0 && rel < lines.length ? lines[rel] : "";
-  return `${f.ruleId} ${own.replace(/\s+/g, " ").trim()}`;
+  return `${f.ruleId}\u0000${own.replace(/\s+/g, " ").trim()}`;
 }
 
 /**
