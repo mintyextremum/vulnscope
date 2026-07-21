@@ -33,6 +33,10 @@ jobs:
         run: npm run audit:contrast
       - name: Localization completeness
         run: npm run audit:i18n
+      # SARIF goes straight into GitHub code scanning, which either accepts it
+      # or rejects the upload — nothing in review reads it.
+      - name: SARIF export shape
+        run: npm run audit:sarif
       # `tsc --noEmit` says the types hold; it says nothing about whether the
       # bundle builds. Rollup's tree-shaking, env inlining and asset handling
       # only happen here.
