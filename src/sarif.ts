@@ -31,6 +31,69 @@ function uri(file: string): string {
   return file.replace(/\\/g, "/").replace(/^\/+/, "");
 }
 
+/** One physical place in a file, with the offending line as the snippet. */
+function locationFor(file: string, line: number, code: string, message: string) {
+  return {
+    physicalLocation: {
+      artifactLocation: { uri: uri(file) },
+      region: {
+        startLine: line > 0 ? line : 1,
+        ...(code ? { snippet: { text: code } } : {}),
+      },
+    },
+    message: { text: message },
+  };
+}
+
+/**
+ * The traced data-flow path as a SARIF `codeFlows` entry.
+ *
+ * This is the part of the flagship engine a dashboard can actually show: GitHub
+ * code scanning renders `threadFlows` as a clickable source → … → sink chain, so
+ * the evidence that made the finding travels with it instead of staying in this
+ * window. Each step's `category` carries its role label ("Источник…",
+ * "Передача через переменную", "Приёмник…"), which becomes the step's message.
+ *
+ * `executionOrder` is 1-based and must increase along the path; `nestingLevel`
+ * stays 0 because the analysis is intra-procedural — there are no nested calls
+ * to represent.
+ */
+function codeFlowsFor(f: Finding, t: TFn) {
+  const flow = f.extra?.flow;
+  if (!flow || flow.length === 0) return undefined;
+  return [
+    {
+      message: { text: t("Поток данных") },
+      threadFlows: [
+        {
+          locations: flow.map((step, i) => ({
+            location: locationFor(f.file, step.line, step.code, t(step.category)),
+            nestingLevel: 0,
+            executionOrder: i + 1,
+          })),
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * The other places a "dangerous combination" links, as `relatedLocations`.
+ *
+ * Deliberately not a codeFlow: a combination is a set of issues that co-occur
+ * and amplify each other, not an ordered path through the program, and claiming
+ * an execution order it never established would be a lie in a machine-readable
+ * document.
+ */
+function relatedLocationsFor(f: Finding, t: TFn) {
+  const spots = f.extra?.combineSpots;
+  if (!spots || spots.length === 0) return undefined;
+  return spots.map((s, i) => ({
+    id: i + 1,
+    ...locationFor(f.file, s.line, s.code, t(s.category)),
+  }));
+}
+
 export function toSarif(report: ScanReport, t: TFn): unknown {
   // One reportingDescriptor per rule that actually produced a finding, keyed by
   // ruleId so the same rule is described once even when it fires many times.
@@ -75,6 +138,12 @@ export function toSarif(report: ScanReport, t: TFn): unknown {
         },
       ],
     };
+    // The traced path and the linked places, when the finding carries them.
+    const codeFlows = codeFlowsFor(f, t);
+    if (codeFlows) result.codeFlows = codeFlows;
+    const related = relatedLocationsFor(f, t);
+    if (related) result.relatedLocations = related;
+
     // A suppressed finding is exported as suppressed, not dropped: the dashboard
     // should see it exists and was deliberately silenced, with the reason.
     if (f.suppressed) {
