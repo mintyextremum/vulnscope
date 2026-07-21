@@ -1069,6 +1069,7 @@ export const EN: Record<string, string> = {
   "Только новые": "New only",
   "Фильтры:": "Filters:",
   "показано {n} из {total}": "showing {n} of {total}",
+  "{sev}: {n} в текущей выборке, всего {all}": "{sev}: {n} in the current view, {all} in total",
   "Под фильтры подходит {n} из {total}": "{n} of {total} match the filters",
   "Убрать фильтр по важности": "Remove severity filter",
   "Показать находки во всех файлах": "Show findings in all files",

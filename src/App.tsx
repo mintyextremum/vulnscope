@@ -353,15 +353,16 @@ export default function App() {
   };
 
   /**
-   * Every filter except the file narrowing.
+   * Everything except the severity filter and the file narrowing.
    *
-   * Kept separate because the tree and the tab badges need to know what each
-   * file *would* show: fold the selected file in here and picking one file
-   * would zero out every other row in the tree.
+   * Split out on both counts. The tree and the tab badges need to know what each
+   * file *would* show, so folding the selected file in here would zero out every
+   * other row in the tree. And the severity pills carry their own counts: run
+   * the severity filter over those and picking "Критическая" would leave every
+   * other pill at zero — the pills are how you pick.
    */
-  const matchesFilters = useCallback(
+  const matchesNonSeverity = useCallback(
     (f: Finding) => {
-      if (sevFilter.size > 0 && !sevFilter.has(f.severity)) return false;
       if (onlyNew && !f.isNew) return false;
       // Suppressed findings stay reachable but out of the way: the default list
       // answers "what needs attention", and the user already decided these do not.
@@ -390,8 +391,39 @@ export default function App() {
     },
     // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sevFilter, onlyNew, showSuppressed, findingQuery, lang]
+    [onlyNew, showSuppressed, findingQuery, lang]
   );
+
+  /** Every filter except the file narrowing. */
+  const matchesFilters = useCallback(
+    (f: Finding) =>
+      (sevFilter.size === 0 || sevFilter.has(f.severity)) && matchesNonSeverity(f),
+    [sevFilter, matchesNonSeverity]
+  );
+
+  /**
+   * Pill counts for what is actually in view: the tab's own findings, the
+   * selected file, and the non-severity filters — so the bar agrees with the
+   * list under it instead of quoting project totals at it.
+   *
+   * Only on the tabs that have a list or a tree. The overview prints the scan's
+   * own totals in the dashboard, and a different number in the bar directly
+   * above it would simply read as a bug.
+   */
+  const sevPillCounts = useMemo((): Record<Severity, number> => {
+    const empty = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    if (!report) return empty;
+    const scoped = tab === "findings" || tab === "beta" || tab === "code";
+    if (!scoped) return report.counts;
+    const out = { ...empty };
+    for (const f of report.findings) {
+      if ((tab === "beta") !== !!f.extra?.experimental) continue;
+      if (selectedFile && f.file !== selectedFile) continue;
+      if (!matchesNonSeverity(f)) continue;
+      out[f.severity]++;
+    }
+    return out;
+  }, [report, tab, selectedFile, matchesNonSeverity]);
 
   /** True while anything is narrowing the list, so counts can say "N из M". */
   const anyFilterActive =
@@ -424,18 +456,24 @@ export default function App() {
     [report]
   );
 
-  // What each tab holds under the current filters. The badges show this rather
-  // than the scan total, so narrowing the list is visible from the tab strip
-  // instead of only inside it.
+  // What each tab holds in the current view — the filters and the picked file
+  // alike. The badges show this rather than the scan total, so narrowing is
+  // visible from the tab strip instead of only inside it, and the whole results
+  // header (pills, badges, list) describes one and the same view.
+  const inCurrentView = useCallback(
+    (f: Finding, wantBeta: boolean) =>
+      !!f.extra?.experimental === wantBeta &&
+      (!selectedFile || f.file === selectedFile) &&
+      matchesFilters(f),
+    [selectedFile, matchesFilters]
+  );
   const shownConfirmed = useMemo(
-    () =>
-      report ? report.findings.filter((f) => !f.extra?.experimental && matchesFilters(f)).length : 0,
-    [report, matchesFilters]
+    () => (report ? report.findings.filter((f) => inCurrentView(f, false)).length : 0),
+    [report, inCurrentView]
   );
   const shownBeta = useMemo(
-    () =>
-      report ? report.findings.filter((f) => f.extra?.experimental && matchesFilters(f)).length : 0,
-    [report, matchesFilters]
+    () => (report ? report.findings.filter((f) => inCurrentView(f, true)).length : 0),
+    [report, inCurrentView]
   );
 
   /**
@@ -448,12 +486,16 @@ export default function App() {
    */
   const treeFiles = useMemo(() => {
     if (!report) return [];
-    if (!anyFilterActive) return report.files;
     const isBeta = tab === "beta";
+    // The finding tabs always need recomputing, filters or not: the scan's own
+    // per-file counts include the BETA findings, and on the confirmed tab that
+    // makes the tree disagree with both the pills and the list.
+    const splitTab = tab === "findings" || tab === "beta";
+    if (!anyFilterActive && !splitTab) return report.files;
     const per = new Map<string, Record<Severity, number>>();
     for (const f of report.findings) {
       // The code tab shows one tree for everything; the finding tabs are split.
-      if ((tab === "findings" || tab === "beta") && !!f.extra?.experimental !== isBeta) continue;
+      if (splitTab && !!f.extra?.experimental !== isBeta) continue;
       if (!matchesFilters(f)) continue;
       let c = per.get(f.file);
       if (!c) per.set(f.file, (c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 }));
@@ -1093,15 +1135,26 @@ export default function App() {
             </div>
             <div className="sev-pills">
               {SEVERITY_ORDER.map((s) => {
-                const n = report.counts[s];
+                const n = sevPillCounts[s];
+                const all = report.counts[s];
+                // Say so when the pill is counting a narrowed view, or the
+                // number silently stops meaning "in this project".
+                const title =
+                  n !== all
+                    ? t("{sev}: {n} в текущей выборке, всего {all}", {
+                        sev: t(SEVERITY_LABEL[s]),
+                        n,
+                        all,
+                      })
+                    : `${t(SEVERITY_LABEL[s])}: ${n}`;
                 return (
                   <button
                     key={s}
                     className={`sev-pill ${s} ${n === 0 ? "zero" : ""} ${
                       sevFilter.has(s) ? "active" : ""
-                    }`}
+                    } ${n !== all ? "scoped" : ""}`}
                     onClick={() => toggleSev(s)}
-                    title={`${t(SEVERITY_LABEL[s])}: ${n}`}
+                    title={title}
                   >
                     <Icon name={SEVERITY_SYMBOL[s]} />
                     {n}

@@ -1156,6 +1156,14 @@ kbd,
 .sev-pill.info { background: var(--info-bg); color: var(--info); }
 .sev-pill.zero { opacity: 0.3; }
 
+/* The pill is counting a narrowed view (a picked file, a search) rather than the
+   whole project. A dotted underline marks the number as scoped; the tooltip
+   spells out both figures. */
+.sev-pill.scoped {
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 3px;
+}
+
 .meta-chip {
   display: flex;
   align-items: center;
@@ -1883,8 +1891,15 @@ kbd,
 .af-chip.sev-low > .material-symbols-outlined:first-child { color: var(--low); }
 .af-chip.sev-info > .material-symbols-outlined:first-child { color: var(--info); }
 
-.af-count {
+.af-right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
   margin-left: auto;
+  flex-shrink: 0;
+}
+
+.af-count {
   font-size: var(--fs-xs);
   color: var(--t-3);
   font-variant-numeric: tabular-nums;

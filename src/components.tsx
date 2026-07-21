@@ -556,14 +556,19 @@ export function FindingList({
                 <Icon name="close" />
               </button>
             )}
-            {/* The plain arithmetic of the filtering, so the shrinking list has
-                a number attached to it rather than just looking shorter. */}
-            <span className="af-count">
-              {t("показано {n} из {total}", { n: findings.length, total: filters.total })}
+            {/* The count and the reset travel together at the right edge: apart
+                they wrap independently, and the reset drops to its own line as
+                soon as a couple of chips are on. The count itself is the plain
+                arithmetic of the filtering, so the shrinking list has a number
+                attached to it rather than just looking shorter. */}
+            <span className="af-right">
+              <span className="af-count">
+                {t("показано {n} из {total}", { n: findings.length, total: filters.total })}
+              </span>
+              <button className="af-reset" onClick={filters.reset}>
+                {t("Сбросить всё")}
+              </button>
             </span>
-            <button className="af-reset" onClick={filters.reset}>
-              {t("Сбросить всё")}
-            </button>
           </div>
         );
       })()}
