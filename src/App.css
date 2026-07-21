@@ -2270,6 +2270,9 @@ kbd,
   font-size: var(--fs-sm);
   color: var(--t-2);
   flex: 1;
+  /* Without this the path's min-content width wins the flex fight and pushes the
+     header's buttons off the right edge on a narrow panel. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2354,10 +2357,15 @@ kbd,
 }
 
 /* Edit affordance in the viewer head, and the actions shown while editing. */
+.viewer-head .meta-chip {
+  flex-shrink: 0;
+}
+
 .viewer-edit-btn {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
+  flex-shrink: 0;
   height: 24px;
   padding: 0 var(--sp-2);
   border: 1px solid var(--line);
@@ -2378,20 +2386,47 @@ kbd,
   font-size: 14px;
 }
 
-.viewer-edit-actions {
+/* Editing state marker in the header, so the strip below reads as "this file is
+   open for editing" rather than as a stray toolbar. */
+.viewer-tag {
+  flex-shrink: 0;
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  background: var(--a-ghost);
+  color: var(--a);
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.viewer-editbar {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-left: auto;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--s-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
 .viewer-edit-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex: 1;
+  min-width: 0;
   font-size: var(--fs-xs);
   color: var(--t-4);
-  max-width: 380px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.viewer-edit-hint .material-symbols-outlined {
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .viewer-edit-hint.err {
@@ -2977,11 +3012,22 @@ kbd,
   }
 }
 
+/* Settings use the whole window instead of a narrow column with dead space to
+   the right: fields flow into as many columns as fit. Section headers and the
+   wide editors break out to full width so the grouping still reads top-down. */
 .set-grid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  max-width: 760px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  align-content: start;
+  gap: var(--sp-1) var(--sp-5);
+}
+
+.set-grid > .set-section,
+.set-grid > .set-wide,
+.set-grid > .tools-note,
+.set-grid > .error-banner,
+.set-grid > .hint-path {
+  grid-column: 1 / -1;
 }
 
 .set-section {
