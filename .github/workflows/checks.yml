@@ -37,6 +37,9 @@ jobs:
       # or rejects the upload — nothing in review reads it.
       - name: SARIF export shape
         run: npm run audit:sarif
+      # The dashboard's headline number — a broken score lies silently.
+      - name: Security score maths
+        run: npm run audit:score
       # `tsc --noEmit` says the types hold; it says nothing about whether the
       # bundle builds. Rollup's tree-shaking, env inlining and asset handling
       # only happen here.

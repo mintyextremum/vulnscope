@@ -1061,6 +1061,52 @@ kbd,
   margin-top: var(--sp-1);
 }
 
+/* The slim progress line under the phase label. */
+.progress-line {
+  position: relative;
+  width: min(560px, 80vw);
+  height: 6px;
+  border-radius: 999px;
+  background: var(--s-4);
+  overflow: hidden;
+}
+
+.progress-line-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--a2), var(--a), var(--a-hi));
+  background-size: 200% 100%;
+  transition: width 0.3s var(--ease-out);
+  /* A gentle sheen travelling along the fill, so an active scan reads as alive
+     rather than a static bar that happens to be the right length. */
+  animation: progress-sheen 2s linear infinite;
+}
+
+@keyframes progress-sheen {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Cloning / OSV: no percentage to show, so a segment sweeps across instead. */
+.progress-line.indeterminate .progress-line-fill {
+  width: 35%;
+  animation: progress-sweep 1.3s var(--ease) infinite, progress-sheen 2s linear infinite;
+}
+
+@keyframes progress-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(370%); }
+}
+
+:root[data-reduce-motion="1"] .progress-line-fill {
+  animation: none;
+}
+:root[data-reduce-motion="1"] .progress-line.indeterminate .progress-line-fill {
+  animation: none;
+  width: 100%;
+  opacity: 0.5;
+}
+
 .progress-stats {
   display: flex;
   gap: var(--sp-8);
@@ -2556,6 +2602,147 @@ kbd,
   background: var(--s-1);
 }
 
+/* ============================================ security score (dashboard hero) */
+
+.score-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-3);
+  border-radius: var(--r-3);
+  background: var(--s-1);
+  /* A hairline in the grade's colour, so the card carries the verdict at a
+     glance without shouting. */
+  box-shadow: inset 0 0 0 1px var(--line), inset 4px 0 0 var(--tone);
+}
+
+/* Each grade paints itself from one severity token family. */
+.score-hero.tone-ok { --tone: var(--ok); --tone-bg: var(--ok-bg); }
+.score-hero.tone-med { --tone: var(--med); --tone-bg: var(--med-bg); }
+.score-hero.tone-high { --tone: var(--high); --tone-bg: var(--high-bg); }
+.score-hero.tone-crit { --tone: var(--crit); --tone-bg: var(--crit-bg); }
+
+.score-ring-wrap {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  flex-shrink: 0;
+}
+
+.score-ring {
+  width: 104px;
+  height: 104px;
+  transform: rotate(-90deg);
+}
+
+.score-track {
+  fill: none;
+  stroke: var(--s-4);
+  stroke-width: 9;
+}
+
+.score-arc {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.9s var(--ease-out);
+}
+
+.score-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.score-grade {
+  font-size: 30px;
+  font-weight: var(--fw-bold);
+  color: var(--tone);
+}
+
+.score-num {
+  font-size: var(--fs-sm);
+  color: var(--t-3);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.score-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.score-title {
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--t-4);
+}
+
+.score-label {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-med);
+  color: var(--t-1);
+}
+
+.score-reach {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  align-self: flex-start;
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  background: var(--tone-bg);
+  color: var(--tone);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-med);
+}
+
+.score-reach .material-symbols-outlined { font-size: 14px; }
+
+.score-factors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin-top: var(--sp-1);
+}
+
+.score-factor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--t-3);
+}
+
+.score-factor b {
+  color: var(--t-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.score-clean {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ok);
+  font-size: var(--fs-sm);
+}
+
+.score-clean .material-symbols-outlined { font-size: 16px; }
+
+@media (max-width: 620px) {
+  .score-hero { flex-direction: column; align-items: flex-start; }
+}
+
 .ov-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -3920,6 +4107,19 @@ kbd,
 }
 
 .tag.flow .material-symbols-outlined { font-size: 12px; }
+
+/* A finding proven reachable by the taint engine — the highest-signal class. */
+.tag.reach {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--crit-bg);
+  color: var(--crit);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.03em;
+}
+
+.tag.reach .material-symbols-outlined { font-size: 12px; }
 
 .flow-path {
   margin: 0;

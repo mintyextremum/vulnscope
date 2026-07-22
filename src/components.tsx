@@ -627,6 +627,12 @@ export function FindingList({
                     {t("ПОТОК")}
                   </span>
                 )}
+                {f.extra?.onDataPath && !(f.extra?.flow && f.extra.flow.length > 0) && (
+                  <span className="tag reach" title={t("Находка лежит на прослеженном пути от пользовательского ввода — по-настоящему достижима для атакующего, а не просто присутствует.")}>
+                    <Icon name="my_location" />
+                    {t("Достижимо")}
+                  </span>
+                )}
                 {f.extra?.experimental && <span className="tag beta">BETA</span>}
                 {f.isNew && <span className="tag is-new">{t("новое")}</span>}
                 {f.suppressed && <span className="tag muted">{t("подавлено")}</span>}
@@ -1198,6 +1204,15 @@ export function FindingDetail({
             >
               <Icon name="route" />
               {t("ПОТОК")}
+            </span>
+          )}
+          {finding.extra?.onDataPath && !(finding.extra?.flow && finding.extra.flow.length > 0) && (
+            <span
+              className="tag reach"
+              title={t("Находка лежит на прослеженном пути от пользовательского ввода — по-настоящему достижима для атакующего, а не просто присутствует.")}
+            >
+              <Icon name="my_location" />
+              {t("Достижимо")}
             </span>
           )}
           {finding.isNew && (

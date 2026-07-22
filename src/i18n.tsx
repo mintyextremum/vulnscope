@@ -169,6 +169,22 @@ export const EN: Record<string, string> = {
   Код: "Code",
   Пропущено: "Skipped",
   "Всего находок": "Total findings",
+  // Security score (dashboard flagship)
+  "Оценка защищённости": "Security score",
+  "Отличная защита": "Excellent posture",
+  "Хорошая защита": "Good posture",
+  "Средняя защита": "Fair posture",
+  "Слабая защита": "Weak posture",
+  "Критические риски": "Critical risks",
+  "достижимо по данным": "reachable by data flow",
+  "Достижимо": "Reachable",
+  "На пути данных": "On a data path",
+  "Находка лежит на прослеженном пути от пользовательского ввода — по-настоящему достижима для атакующего, а не просто присутствует.":
+    "The finding sits on a traced path from user input — genuinely reachable by an attacker, not merely present.",
+  "Учитываются подтверждённые находки; BETA и подавленные не входят. Достижимые по потоку данных весят больше.":
+    "Based on confirmed findings; BETA and suppressed are excluded. Findings reachable by data flow weigh more.",
+  "{n} на пути данных": "{n} on a data path",
+  "Подтверждённых находок нет": "No confirmed findings",
   "Файлов проверено": "Files scanned",
   "Строк кода": "Lines of code",
   "Зависимостей проверено": "Dependencies checked",
