@@ -39,6 +39,7 @@ import { computeScore, type SecurityScore, type Grade } from "./score";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
 import { toHtml } from "./html";
+import { toXml1C } from "./xml1c";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
 import { HelpScreen } from "./Help";
@@ -340,6 +341,19 @@ export default function App() {
       // Clipboard can refuse (focus/permission); fall back to the Save dialog.
       showFlash(t("Не удалось скопировать — используйте экспорт в Markdown"));
     }
+  };
+
+  /** Exports a 1C:Enterprise-loadable XML, for corporate reporting in 1C. */
+  const exportXml1C = async () => {
+    if (!report) return;
+    const path = await saveDialog({
+      defaultPath: `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}-1c.xml`,
+      filters: [{ name: "XML (1С)", extensions: ["xml"] }],
+    });
+    if (!path) return;
+    await invoke("save_report", { path, json: toXml1C(report, t, computeScore(report)) }).catch(
+      (e) => setError(String(e))
+    );
   };
 
   /** Exports a self-contained HTML report — open in a browser or print to PDF. */
@@ -1077,6 +1091,7 @@ export default function App() {
                         ["description", t("Markdown — для тикета или чата"), exportMarkdown],
                         ["table_chart", t("CSV — открыть в Excel"), exportCsv],
                         ["print", t("HTML — открыть и печатать в PDF"), exportHtml],
+                        ["account_balance", t("XML для 1С — загрузка в отчётность"), exportXml1C],
                         ["content_copy", t("Скопировать Markdown"), copyMarkdown],
                       ] as const
                     ).map(([icon, label, fn]) => (
