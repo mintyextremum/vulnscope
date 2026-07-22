@@ -100,6 +100,7 @@ export default function App() {
   const [focusLine, setFocusLine] = useState<number | null>(null);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<number | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -1053,10 +1054,49 @@ export default function App() {
         )}
         {screen === "results" && report && (
           <>
-            <button className="btn btn-ghost btn-sm" onClick={exportReport} title="Ctrl+S">
-              <Icon name="download" />
-              {t("Экспорт")}
-            </button>
+            <div className="export-wrap">
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setExportOpen((v) => !v)}
+                title="Ctrl+S"
+                aria-haspopup="menu"
+                aria-expanded={exportOpen}
+              >
+                <Icon name="download" />
+                {t("Экспорт")}
+                <Icon name="expand_more" className="export-caret" />
+              </button>
+              {exportOpen && (
+                <>
+                  <div className="export-scrim" onClick={() => setExportOpen(false)} />
+                  <div className="export-menu" role="menu">
+                    {(
+                      [
+                        ["data_object", t("JSON — полные данные"), exportReport],
+                        ["security", t("SARIF — для CI и code scanning"), exportSarif],
+                        ["description", t("Markdown — для тикета или чата"), exportMarkdown],
+                        ["table_chart", t("CSV — открыть в Excel"), exportCsv],
+                        ["print", t("HTML — открыть и печатать в PDF"), exportHtml],
+                        ["content_copy", t("Скопировать Markdown"), copyMarkdown],
+                      ] as const
+                    ).map(([icon, label, fn]) => (
+                      <button
+                        key={label}
+                        className="export-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setExportOpen(false);
+                          fn();
+                        }}
+                      >
+                        <Icon name={icon} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => setScreen("setup")}
