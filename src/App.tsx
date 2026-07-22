@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -111,6 +112,10 @@ export default function App() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  // Fixed-position coords for the export menu: it lives in the titlebar, which
+  // is inside `.app { overflow: clip }`, so an absolutely-positioned dropdown
+  // gets clipped away. Positioning it `fixed` from the button's rect escapes it.
+  const [exportPos, setExportPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const [projects1c, setProjects1c] = useState<Project1c[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<number | null>(null);
@@ -1139,7 +1144,11 @@ export default function App() {
             <div className="export-wrap">
               <button
                 className="btn btn-ghost btn-sm"
-                onClick={() => setExportOpen((v) => !v)}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setExportPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+                  setExportOpen((v) => !v);
+                }}
                 title="Ctrl+S"
                 aria-haspopup="menu"
                 aria-expanded={exportOpen}
@@ -1148,38 +1157,44 @@ export default function App() {
                 {t("Экспорт")}
                 <Icon name="expand_more" className="export-caret" />
               </button>
-              {exportOpen && (
-                <>
-                  <div className="export-scrim" onClick={() => setExportOpen(false)} />
-                  <div className="export-menu" role="menu">
-                    {(
-                      [
-                        ["summarize", t("Отчёт — печать в PDF"), () => goto("report")],
-                        ["data_object", t("JSON — полные данные"), exportReport],
-                        ["security", t("SARIF — для CI и code scanning"), exportSarif],
-                        ["description", t("Markdown — для тикета или чата"), exportMarkdown],
-                        ["table_chart", t("CSV — открыть в Excel"), exportCsv],
-                        ["print", t("HTML — открыть и печатать в PDF"), exportHtml],
-                        ["account_balance", t("XML для 1С — загрузка в отчётность"), exportXml1C],
-                        ["content_copy", t("Скопировать Markdown"), copyMarkdown],
-                      ] as const
-                    ).map(([icon, label, fn]) => (
-                      <button
-                        key={label}
-                        className="export-item"
-                        role="menuitem"
-                        onClick={() => {
-                          setExportOpen(false);
-                          fn();
-                        }}
-                      >
-                        <Icon name={icon} />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              {exportOpen &&
+                createPortal(
+                  <>
+                    <div className="export-scrim" onClick={() => setExportOpen(false)} />
+                    <div
+                      className="export-menu"
+                      role="menu"
+                      style={{ top: exportPos.top, right: exportPos.right }}
+                    >
+                      {(
+                        [
+                          ["summarize", t("Отчёт — печать в PDF"), () => goto("report")],
+                          ["data_object", t("JSON — полные данные"), exportReport],
+                          ["security", t("SARIF — для CI и code scanning"), exportSarif],
+                          ["description", t("Markdown — для тикета или чата"), exportMarkdown],
+                          ["table_chart", t("CSV — открыть в Excel"), exportCsv],
+                          ["print", t("HTML — открыть и печатать в PDF"), exportHtml],
+                          ["account_balance", t("XML для 1С — загрузка в отчётность"), exportXml1C],
+                          ["content_copy", t("Скопировать Markdown"), copyMarkdown],
+                        ] as const
+                      ).map(([icon, label, fn]) => (
+                        <button
+                          key={label}
+                          className="export-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setExportOpen(false);
+                            fn();
+                          }}
+                        >
+                          <Icon name={icon} />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>,
+                  document.body
+                )}
             </div>
             <button
               className="btn btn-ghost btn-sm"

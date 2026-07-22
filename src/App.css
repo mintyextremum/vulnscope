@@ -364,9 +364,10 @@ kbd,
 .export-scrim { position: fixed; inset: 0; z-index: 40; }
 
 .export-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+  /* Fixed, not absolute: the titlebar sits inside `.app { overflow: clip }`,
+     which would clip an absolutely-positioned dropdown. Coords come from the
+     button's rect (see App.tsx). */
+  position: fixed;
   z-index: 41;
   min-width: 260px;
   padding: var(--sp-1);
