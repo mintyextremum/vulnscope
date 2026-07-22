@@ -442,6 +442,10 @@ pub struct CombineSpot {
     pub category: String,
     pub line: u32,
     pub code: String,
+    /// The file this step is in, when it differs from the finding's own file —
+    /// set on a data-flow step that crossed into a callee in another file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

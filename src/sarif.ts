@@ -66,8 +66,9 @@ function codeFlowsFor(f: Finding, t: TFn) {
       message: { text: t("Поток данных") },
       threadFlows: [
         {
+          // A step may sit in another file when the flow crossed a call boundary.
           locations: flow.map((step, i) => ({
-            location: locationFor(f.file, step.line, step.code, t(step.category)),
+            location: locationFor(step.file ?? f.file, step.line, step.code, t(step.category)),
             nestingLevel: 0,
             executionOrder: i + 1,
           })),
