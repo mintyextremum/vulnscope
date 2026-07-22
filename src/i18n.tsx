@@ -66,6 +66,11 @@ export const EN: Record<string, string> = {
   "HTML — открыть и печатать в PDF": "HTML — open and print to PDF",
   "Скопировать Markdown": "Copy Markdown",
   "XML для 1С — загрузка в отчётность": "1C XML — load into reporting",
+  "Импорт проектов из 1С": "Import projects from 1C",
+  "Файл не является корректным XML": "The file is not valid XML",
+  "В файле нет проектов (ожидаются элементы «Проект» с «Путь» или «Репозиторий»).":
+    "No projects in the file (expected «Проект» elements with «Путь» or «Репозиторий»).",
+  "Не удалось прочитать файл 1С: {e}": "Could not read the 1C file: {e}",
   "Подавлена": "Suppressed",
   "Новая": "New",
   "Присутствует": "Present",
