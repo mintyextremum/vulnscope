@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useMemo, useState } from "react";
 import type { ScanReport, Finding, Severity } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import { Icon, formatNumber, formatDuration } from "./components";
@@ -30,6 +30,9 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
   const t = useT();
   const lang = useContext(LangContext);
   const score = computeScore(report);
+  // The organisation for the report header — accountability wants a "who is this
+  // for". Kept in localStorage; the field shows on screen and prints as text.
+  const [org, setOrg] = useState(() => localStorage.getItem("vs.org") ?? "");
 
   const confirmed = report.findings.filter((f) => !f.extra?.experimental && !f.suppressed);
   const counts = SEVERITY_ORDER.reduce(
@@ -61,6 +64,13 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
           : d.fixedCount > d.newCount
             ? t("Есть прогресс: устранено больше, чем появилось.")
             : t("Без заметных сдвигов с прошлого скана.");
+
+  // Top categories, so the report says *what kind* of problems dominate.
+  const byCategory = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of confirmed) m.set(f.category, (m.get(f.category) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [confirmed]);
 
   const tone = score ? GRADE_TONE[score.grade] : "";
   const worst = [...confirmed]
@@ -96,7 +106,16 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
       <div className="report-page">
         {/* Header */}
         <div className="rep-head">
-          <div>
+          <div className="rep-head-main">
+            <input
+              className="rep-org"
+              placeholder={t("Организация (для шапки отчёта)")}
+              value={org}
+              onChange={(e) => {
+                setOrg(e.target.value);
+                localStorage.setItem("vs.org", e.target.value);
+              }}
+            />
             <div className="rep-kicker">{t("Отчёт о безопасности")}</div>
             <h1 className="rep-title">{report.targetLabel}</h1>
             <div className="rep-sub">
@@ -178,6 +197,27 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
             );
           })}
         </div>
+
+        {/* Categories breakdown */}
+        {byCategory.length > 0 && (
+          <>
+            <h2 className="rep-h2">{t("По категориям")}</h2>
+            <div className="rep-bars">
+              {byCategory.map(([cat, n]) => {
+                const max = byCategory[0][1] || 1;
+                return (
+                  <div key={cat} className="rep-bar-row">
+                    <span className="rep-bar-label rep-cat-label" title={t(cat)}>{t(cat)}</span>
+                    <span className="rep-bar-track">
+                      <span className="rep-bar-fill rep-cat-fill" style={{ width: `${(n / max) * 100}%` }} />
+                    </span>
+                    <span className="rep-bar-num">{n}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* Top findings table */}
         {worst.length > 0 && (

@@ -74,6 +74,8 @@ export const EN: Record<string, string> = {
   // Executive report (print to PDF)
   "Отчёт — печать в PDF": "Report — print to PDF",
   "Отчёт о безопасности": "Security report",
+  "Организация (для шапки отчёта)": "Organization (report header)",
+  "По категориям": "By category",
   "Сохранить в PDF": "Save as PDF",
   "Ключевые показатели": "Key metrics",
   "Достижимо по данным": "Reachable by data flow",

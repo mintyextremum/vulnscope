@@ -2891,6 +2891,24 @@ kbd,
   color: var(--a);
 }
 
+.rep-head-main { min-width: 0; }
+
+.rep-org {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  border: none;
+  border-bottom: 1px dashed var(--line-strong);
+  background: none;
+  color: var(--t-1);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semi);
+  padding: 2px 0;
+  margin-bottom: var(--sp-2);
+  outline: none;
+}
+.rep-org::placeholder { color: var(--t-4); font-weight: var(--fw-reg); }
+
 .rep-title { font-size: 26px; font-weight: var(--fw-bold); color: var(--t-1); margin: var(--sp-1) 0; }
 .rep-sub { font-size: var(--fs-sm); color: var(--t-3); }
 
@@ -2965,6 +2983,8 @@ kbd,
 .rep-bar-fill.sev-medium { background: var(--med); }
 .rep-bar-fill.sev-low { background: var(--low); }
 .rep-bar-fill.sev-info { background: var(--info); }
+.rep-cat-fill { background: var(--a); }
+.rep-cat-label { width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .rep-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .rep-table th {
@@ -3009,6 +3029,9 @@ kbd,
   .report-page .rep-tile-val,
   .report-page .rep-dyn-cell b { color: #111; }
   .rep-tile, .rep-dyn { background: #fafafa; box-shadow: inset 0 0 0 1px #ddd; }
+  /* The org header prints as plain text; if left blank, it is dropped. */
+  .rep-org { border: none; color: #111; }
+  .rep-org:placeholder-shown { display: none; }
   .rep-h2 { break-after: avoid; }
   .rep-table, .rep-tiles, .rep-dyn, .rep-bars { break-inside: avoid; }
   .rep-table tr { break-inside: avoid; }
