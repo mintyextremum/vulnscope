@@ -491,6 +491,72 @@ fn scan_one_file(
                 package: None,
             });
         }
+
+        // Sensitive-data leakage — the other direction of data flow: a secret or
+        // credential traced to a place it is exposed (a log, the response, an
+        // outbound call). Reported as confirmed findings alongside injection.
+        for flow in taint::analyze_leaks(&content, lang) {
+            let sink = flow.steps.last().cloned().unwrap_or(taint::FlowStep {
+                line: 0,
+                code: String::new(),
+                role: taint::FlowRole::Sink,
+                file: None,
+            });
+            let (snippet, snippet_start_line) = index.snippet(sink.line);
+            let steps: Vec<CombineSpot> = flow
+                .steps
+                .iter()
+                .map(|s| CombineSpot {
+                    category: match s.role {
+                        taint::FlowRole::Source => "Источник: чувствительные данные".to_string(),
+                        taint::FlowRole::Propagation => "Передача через переменную".to_string(),
+                        taint::FlowRole::Call => "Передача в функцию".to_string(),
+                        taint::FlowRole::Sink => "Приёмник: разглашение".to_string(),
+                    },
+                    line: s.line,
+                    code: s.code.clone(),
+                    file: s.file.clone(),
+                })
+                .collect();
+            findings.push(Finding {
+                id: format!("VS-LEAK:{}:{}", rel, sink.line),
+                fingerprint: String::new(),
+                suppressed: false,
+                suppression_reason: None,
+                is_new: false,
+                rule_id: "VS-LEAK".to_string(),
+                title: "Чувствительные данные попадают в лог или ответ".to_string(),
+                description: "Анализ потока данных проследил секрет или учётные данные от места, \
+                     где они читаются, до места, где они разглашаются — в журнал, в HTTP-ответ \
+                     или во внешний запрос — без маскирования или хеширования по пути. Секреты в \
+                     логах и ответах утекают в системы хранения логов и третьим лицам."
+                    .to_string(),
+                recommendation: "Не выводите секреты в логи и ответы. Маскируйте значение, логируйте \
+                     только идентификатор, храните секреты в защищённом хранилище."
+                    .to_string(),
+                severity: flow.severity,
+                confidence: Confidence::Medium,
+                source: FindingSource::Builtin,
+                source_label: "Анализ потока данных".to_string(),
+                category: flow.category.to_string(),
+                file: rel.to_string(),
+                line: sink.line,
+                end_line: sink.line,
+                column: 1,
+                end_column: 1,
+                snippet,
+                snippet_start_line,
+                cwe: flow.cwe.iter().map(|s| s.to_string()).collect(),
+                owasp: None,
+                cve: Vec::new(),
+                references: Vec::new(),
+                extra: Some(FindingExtra {
+                    flow: steps,
+                    ..Default::default()
+                }),
+                package: None,
+            });
+        }
     }
 
     // Combination pass (BETA): when several amplifying vectors co-occur in one
@@ -1232,8 +1298,8 @@ fn mark_reachable_findings(findings: &mut [Finding]) {
         return;
     }
     for f in findings.iter_mut() {
-        // The flow findings themselves are the path, not a separate signal.
-        if f.rule_id == "VS-FLOW" || f.line == 0 {
+        // The data-flow findings themselves are the path, not a separate signal.
+        if f.rule_id == "VS-FLOW" || f.rule_id == "VS-LEAK" || f.line == 0 {
             continue;
         }
         if on_path.contains(&(f.file.clone(), f.line)) {
