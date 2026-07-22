@@ -261,6 +261,60 @@ pub fn to_snapshot(target_label: &str, scanned_at: &str, findings: &[(String, &F
     }
 }
 
+// ------------------------------------------------------------ history series
+
+/// One data point per completed scan of a target — a compact severity tally kept
+/// over time so the report can draw the trend. The single `Snapshot` above only
+/// remembers the *previous* scan (for the new/fixed delta); this appends a small
+/// row per run so "are we getting safer over the last N scans?" has an answer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryPoint {
+    pub scanned_at: String,
+    pub total: u32,
+    pub critical: u32,
+    pub high: u32,
+    pub medium: u32,
+    pub low: u32,
+    pub info: u32,
+    /// Findings the taint engine proved reachable — the highest-signal count.
+    pub reachable: u32,
+}
+
+/// Keep the series bounded: a trend needs recent history, not every scan ever.
+const HISTORY_CAP: usize = 60;
+
+fn series_path(root: &Path) -> Result<PathBuf> {
+    let mut h = Sha256::new();
+    h.update(normalize_root(root).as_bytes());
+    let key = hex16(&h.finalize());
+    Ok(history_dir()?.join(format!("{key}.series.json")))
+}
+
+pub fn load_history(root: &Path) -> Vec<HistoryPoint> {
+    let Ok(path) = series_path(root) else {
+        return Vec::new();
+    };
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+/// Appends one point and trims to the last `HISTORY_CAP`. A write failure is not
+/// fatal to the scan — the trend is a nicety, not the result.
+pub fn append_history(root: &Path, point: HistoryPoint) -> Result<()> {
+    let mut series = load_history(root);
+    series.push(point);
+    let len = series.len();
+    if len > HISTORY_CAP {
+        series.drain(0..len - HISTORY_CAP);
+    }
+    let path = series_path(root)?;
+    std::fs::write(&path, serde_json::to_string(&series)?)?;
+    Ok(())
+}
+
 /// Compares this scan against the previous snapshot of the same target.
 /// Splits the current findings into new / unchanged, and names what is gone.
 ///
@@ -589,6 +643,40 @@ mod tests {
         assert!(warn.unwrap().contains("повреждён"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn history_series_appends_and_caps() {
+        // Route the series to a scratch dir so the test never touches real app
+        // data. A non-existent root exercises the string-normalisation key and is
+        // deterministic across machines.
+        let root = std::env::temp_dir().join("vulnscope-hist-root-Z9");
+        let _ = std::fs::remove_file(series_path(&root).unwrap());
+
+        let point = |n: u32| HistoryPoint {
+            scanned_at: format!("2026-07-{n:02}"),
+            total: n,
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+            info: 0,
+            reachable: 0,
+        };
+
+        // Empty until the first scan.
+        assert!(load_history(&root).is_empty());
+
+        // Write more than the cap; the series keeps only the most recent, in order.
+        for i in 1..=(HISTORY_CAP as u32 + 5) {
+            append_history(&root, point(i)).unwrap();
+        }
+        let series = load_history(&root);
+        assert_eq!(series.len(), HISTORY_CAP, "series must be bounded to the cap");
+        assert_eq!(series.first().unwrap().total, 6, "oldest points are dropped");
+        assert_eq!(series.last().unwrap().total, HISTORY_CAP as u32 + 5, "newest kept");
+
+        let _ = std::fs::remove_file(series_path(&root).unwrap());
     }
 
     #[test]

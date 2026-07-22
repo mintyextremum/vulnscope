@@ -275,6 +275,15 @@ fn import_user_rules(json: String) -> Result<usize, String> {
     Ok(added)
 }
 
+// ------------------------------------------------------------ trend history
+
+/// The scan-history series for a target, oldest first — powers the trend chart
+/// in the report. Empty until a project has been scanned at least once.
+#[tauri::command]
+fn get_scan_history(root: String) -> Vec<baseline::HistoryPoint> {
+    baseline::load_history(std::path::Path::new(&root))
+}
+
 // ------------------------------------------------------------ suppression
 
 #[tauri::command]
@@ -501,6 +510,7 @@ pub fn run() {
             get_keybind_actions,
             check_keybind_conflicts,
             get_settings_path,
+            get_scan_history,
             get_suppressions,
             suppress_finding,
             unsuppress_finding,

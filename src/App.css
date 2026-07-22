@@ -2986,6 +2986,39 @@ kbd,
 .rep-cat-fill { background: var(--a); }
 .rep-cat-label { width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Trend chart — total / critical+high / reachable over the last N scans. */
+.rep-trend {
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  background: var(--surface-1);
+}
+.rep-trend-svg { width: 100%; height: 210px; display: block; overflow: visible; }
+.rep-trend-axis { stroke: var(--line-strong); stroke-width: 1; }
+.rep-trend-area { fill: var(--a); opacity: 0.08; stroke: none; }
+.rep-trend-total { stroke: var(--t-3); stroke-width: 2; }
+.rep-trend-sev { stroke: var(--crit); stroke-width: 2; }
+.rep-trend-reach { stroke: var(--a); stroke-width: 2; }
+circle.rep-trend-total { fill: var(--t-3); stroke: none; }
+circle.rep-trend-sev { fill: var(--crit); stroke: none; }
+circle.rep-trend-reach { fill: var(--a); stroke: none; }
+.rep-trend-x {
+  display: flex;
+  justify-content: space-between;
+  color: var(--t-4);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  margin-top: var(--sp-1);
+}
+.rep-trend-x-mid { color: var(--t-3); }
+.rep-trend-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-2); }
+.rep-trend-key { display: inline-flex; align-items: center; gap: 6px; color: var(--t-2); font-size: var(--fs-sm); }
+.rep-trend-key b { color: var(--t-1); font-variant-numeric: tabular-nums; }
+.rep-trend-sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.rep-trend-sw.sw-total { background: var(--t-3); }
+.rep-trend-sw.sw-sev { background: var(--crit); }
+.rep-trend-sw.sw-reach { background: var(--a); }
+
 .rep-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .rep-table th {
   text-align: left;
@@ -3033,8 +3066,10 @@ kbd,
   .rep-org { border: none; color: #111; }
   .rep-org:placeholder-shown { display: none; }
   .rep-h2 { break-after: avoid; }
-  .rep-table, .rep-tiles, .rep-dyn, .rep-bars { break-inside: avoid; }
+  .rep-table, .rep-tiles, .rep-dyn, .rep-bars, .rep-trend { break-inside: avoid; }
   .rep-table tr { break-inside: avoid; }
+  .rep-trend { background: #fafafa; box-shadow: inset 0 0 0 1px #ddd; border: none; }
+  .rep-trend-total, circle.rep-trend-total { stroke: #555; fill: #555; }
 }
 
 /* ==================================================================== help */

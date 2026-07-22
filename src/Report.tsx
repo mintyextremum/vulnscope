@@ -1,5 +1,6 @@
-import { useContext, useMemo, useState } from "react";
-import type { ScanReport, Finding, Severity } from "./types";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import type { ScanReport, Finding, Severity, HistoryPoint } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import { Icon, formatNumber, formatDuration } from "./components";
 import { computeScore, type Grade } from "./score";
@@ -33,6 +34,19 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
   // The organisation for the report header — accountability wants a "who is this
   // for". Kept in localStorage; the field shows on screen and prints as text.
   const [org, setOrg] = useState(() => localStorage.getItem("vs.org") ?? "");
+
+  // The scan-history series, for the trend chart. Loaded lazily: an empty or
+  // single-point series simply hides the chart.
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
+  useEffect(() => {
+    let live = true;
+    invoke<HistoryPoint[]>("get_scan_history", { root: report.root })
+      .then((h) => live && setHistory(h))
+      .catch(() => live && setHistory([]));
+    return () => {
+      live = false;
+    };
+  }, [report.root]);
 
   const confirmed = report.findings.filter((f) => !f.extra?.experimental && !f.suppressed);
   const counts = SEVERITY_ORDER.reduce(
@@ -170,6 +184,14 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
           <p className="rep-verdict">{trend}</p>
         </div>
 
+        {/* Trend over recent scans */}
+        {history.length >= 2 && (
+          <>
+            <h2 className="rep-h2">{t("Динамика за последние сканы")}</h2>
+            <TrendChart history={history} lang={lang} t={t} />
+          </>
+        )}
+
         {/* Efficiency */}
         <h2 className="rep-h2">{t("Эффективность")}</h2>
         <div className="rep-tiles">
@@ -261,6 +283,99 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
         <div className="rep-foot">
           {t("Сгенерировано VulnScope")} · {dateStr(new Date().toISOString())}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A compact multi-series line chart of the last several scans: total findings,
+ * critical+high, and reachable-by-data-flow. It answers "is this project getting
+ * safer over time?" — the one thing a single scan cannot show. Pure inline SVG so
+ * it prints to PDF with the rest of the page and needs no charting library.
+ */
+function TrendChart({
+  history,
+  lang,
+  t,
+}: {
+  history: HistoryPoint[];
+  lang: string;
+  t: (s: string, v?: Record<string, string | number>) => string;
+}) {
+  const W = 720;
+  const H = 210;
+  const padL = 10;
+  const padR = 10;
+  const padT = 14;
+  const padB = 30;
+
+  const series = useMemo(() => {
+    const total = history.map((p) => p.total);
+    const sevHi = history.map((p) => p.critical + p.high);
+    const reach = history.map((p) => p.reachable);
+    const maxY = Math.max(1, ...total, ...sevHi, ...reach);
+    const n = history.length;
+    const x = (i: number) => padL + (i * (W - padL - padR)) / Math.max(1, n - 1);
+    const y = (v: number) => padT + (1 - v / maxY) * (H - padT - padB);
+    const line = (vals: number[]) => vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+    const area =
+      `${padL},${y(0)} ` + total.map((v, i) => `${x(i)},${y(v)}`).join(" ") + ` ${x(n - 1)},${y(0)}`;
+    return {
+      total,
+      sevHi,
+      reach,
+      maxY,
+      x,
+      y,
+      lineTotal: line(total),
+      lineSev: line(sevHi),
+      lineReach: line(reach),
+      area,
+      n,
+    };
+  }, [history]);
+
+  const dateShort = (iso: string) =>
+    new Date(iso).toLocaleDateString(lang === "en" ? "en-US" : "ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+
+  const last = history[history.length - 1];
+  const first = history[0];
+  const dot = (vals: number[], cls: string) => (
+    <circle className={cls} cx={series.x(series.n - 1)} cy={series.y(vals[series.n - 1])} r="3.5" />
+  );
+
+  return (
+    <div className="rep-trend">
+      <svg viewBox={`0 0 ${W} ${H}`} className="rep-trend-svg" preserveAspectRatio="none" role="img">
+        {/* baseline */}
+        <line className="rep-trend-axis" x1={padL} y1={series.y(0)} x2={W - padR} y2={series.y(0)} />
+        <polygon className="rep-trend-area" points={series.area} />
+        <polyline className="rep-trend-total" points={series.lineTotal} fill="none" />
+        <polyline className="rep-trend-sev" points={series.lineSev} fill="none" />
+        <polyline className="rep-trend-reach" points={series.lineReach} fill="none" />
+        {dot(series.total, "rep-trend-total")}
+        {dot(series.sevHi, "rep-trend-sev")}
+        {dot(series.reach, "rep-trend-reach")}
+      </svg>
+      <div className="rep-trend-x">
+        <span>{dateShort(first.scannedAt)}</span>
+        <span className="rep-trend-x-mid">{t("{n} сканов", { n: history.length })}</span>
+        <span>{dateShort(last.scannedAt)}</span>
+      </div>
+      <div className="rep-trend-legend">
+        <span className="rep-trend-key">
+          <i className="rep-trend-sw sw-total" /> {t("Всего")} <b>{last.total}</b>
+        </span>
+        <span className="rep-trend-key">
+          <i className="rep-trend-sw sw-sev" /> {t("Критич. + высокие")} <b>{last.critical + last.high}</b>
+        </span>
+        <span className="rep-trend-key">
+          <i className="rep-trend-sw sw-reach" /> {t("Достижимо")} <b>{last.reachable}</b>
+        </span>
       </div>
     </div>
   );

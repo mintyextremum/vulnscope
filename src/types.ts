@@ -263,6 +263,18 @@ export interface ScanReport {
   warnings: string[];
 }
 
+/** One point in a target's scan-history series, from `get_scan_history`. */
+export interface HistoryPoint {
+  scannedAt: string;
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+  reachable: number;
+}
+
 export type ScanPhase =
   | "preparing"
   | "cloning"
