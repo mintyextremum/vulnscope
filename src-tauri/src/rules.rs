@@ -4738,6 +4738,30 @@ pub static HEURISTICS: &[Heuristic] = &[
         sink: r"(?i)\b(?:eval|exec|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load)\s*\(",
         cwe: &["CWE-94"],
     },
+    Heuristic {
+        id: "VS-EXP-006",
+        title: "Возможный XSS",
+        description: "В одной строке встречаются пользовательский ввод и запись в HTML-приёмник (innerHTML, document.write, dangerouslySetInnerHTML и т.п.). Если ввод попадает в разметку без экранирования, это межсайтовый скриптинг. Это эвристика (BETA): проверьте, экранируется ли значение.",
+        recommendation: "Не вставляйте ввод в HTML напрямую. Используйте textContent/установку текста, шаблонизатор с автоэкранированием или явное HTML-экранирование.",
+        severity: Severity::Medium,
+        category: "XSS",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\()",
+        cwe: &["CWE-79"],
+    },
+    Heuristic {
+        id: "VS-EXP-007",
+        title: "Возможный открытый редирект",
+        description: "В одной строке встречаются пользовательский ввод и переход/редирект по адресу. Если адрес берётся из ввода без проверки, злоумышленник уведёт пользователя на свой сайт. Это эвристика (BETA): проверьте, что адрес сверяется с белым списком.",
+        recommendation: "Не редиректьте по адресу из ввода. Разрешайте только относительные пути или сверяйте хост с белым списком.",
+        severity: Severity::Medium,
+        category: "Открытый редирект",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)(?:\b(?:redirect|sendRedirect|HttpResponseRedirect)\s*\(|(?:res|response)\.redirect\s*\(|Response\.Redirect\s*\(|location\.(?:href|assign|replace)\s*[=(]|window\.location\s*=)",
+        cwe: &["CWE-601"],
+    },
 ];
 
 static TAINT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(TAINT).expect("bad TAINT"));

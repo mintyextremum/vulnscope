@@ -957,6 +957,43 @@ def run():
     }
 
     #[test]
+    fn traces_xss_into_inner_html() {
+        let code = "\
+function show(req) {
+  const name = req.query.name;
+  document.getElementById('x').innerHTML = name;
+}
+";
+        let flows = analyze(code, Language::JavaScript);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "XSS");
+    }
+
+    #[test]
+    fn escaped_value_is_not_xss() {
+        let code = "\
+function show(req) {
+  const name = req.query.name;
+  const safe = escape(name);
+  el.innerHTML = safe;
+}
+";
+        assert!(analyze(code, Language::JavaScript).is_empty());
+    }
+
+    #[test]
+    fn traces_open_redirect() {
+        let code = "\
+def go(request):
+    target = request.args.get('next')
+    return redirect(target)
+";
+        let flows = analyze(code, Language::Python);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "Открытый редирект");
+    }
+
+    #[test]
     fn traces_through_a_helper_in_js() {
         let code = "\
 function run(req) {

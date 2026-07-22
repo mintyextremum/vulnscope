@@ -279,6 +279,17 @@ export const EN: Record<string, string> = {
     "User input and an eval/exec-like call appear on the same line. If the input is run as code or deserialized unsafely, this is arbitrary code execution. This is a heuristic (BETA).",
   "Не исполняйте и не десериализуйте пользовательские данные. Используйте безопасные парсеры и белые списки.":
     "Do not run or deserialize user data. Use safe parsers and allowlists.",
+  "Возможный XSS": "Possible XSS",
+  "В одной строке встречаются пользовательский ввод и запись в HTML-приёмник (innerHTML, document.write, dangerouslySetInnerHTML и т.п.). Если ввод попадает в разметку без экранирования, это межсайтовый скриптинг. Это эвристика (BETA): проверьте, экранируется ли значение.":
+    "User input and a write to an HTML sink (innerHTML, document.write, dangerouslySetInnerHTML, etc.) appear on the same line. If the input reaches markup without escaping, this is cross-site scripting. This is a heuristic (BETA): check whether the value is escaped.",
+  "Не вставляйте ввод в HTML напрямую. Используйте textContent/установку текста, шаблонизатор с автоэкранированием или явное HTML-экранирование.":
+    "Do not put input into HTML directly. Use textContent/text assignment, an auto-escaping template engine, or explicit HTML escaping.",
+  "Возможный открытый редирект": "Possible open redirect",
+  "В одной строке встречаются пользовательский ввод и переход/редирект по адресу. Если адрес берётся из ввода без проверки, злоумышленник уведёт пользователя на свой сайт. Это эвристика (BETA): проверьте, что адрес сверяется с белым списком.":
+    "User input and a redirect/navigation to an address appear on the same line. If the address comes from input without validation, an attacker can send the user to their own site. This is a heuristic (BETA): check that the address is matched against an allowlist.",
+  "Не редиректьте по адресу из ввода. Разрешайте только относительные пути или сверяйте хост с белым списком.":
+    "Do not redirect to an address from input. Allow only relative paths, or match the host against an allowlist.",
+  "XSS": "XSS",
   // Finding detail: exploitation example, impact, fix code, sink corroboration
   "Пример эксплуатации": "Exploitation example",
   "Возможные последствия": "Potential impact",
