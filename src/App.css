@@ -2842,6 +2842,177 @@ kbd,
   .score-hero { flex-direction: column; align-items: flex-start; }
 }
 
+/* ================================================================== report */
+
+.report-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--s-2);
+}
+
+.report-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 46px;
+  padding: 0 var(--sp-4);
+  background: var(--s-1);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.report-page {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-6) var(--sp-6) var(--sp-12);
+  max-width: 920px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.rep-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 2px solid var(--line-strong);
+  margin-bottom: var(--sp-5);
+}
+
+.rep-kicker {
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--a);
+}
+
+.rep-title { font-size: 26px; font-weight: var(--fw-bold); color: var(--t-1); margin: var(--sp-1) 0; }
+.rep-sub { font-size: var(--fs-sm); color: var(--t-3); }
+
+.rep-score {
+  flex-shrink: 0;
+  text-align: center;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-2);
+  box-shadow: inset 0 0 0 2px var(--tone);
+  min-width: 120px;
+}
+.rep-score.tone-ok { --tone: var(--ok); }
+.rep-score.tone-med { --tone: var(--med); }
+.rep-score.tone-high { --tone: var(--high); }
+.rep-score.tone-crit { --tone: var(--crit); }
+
+.rep-grade { font-size: 40px; font-weight: var(--fw-bold); line-height: 1; color: var(--tone); }
+.rep-score-num { font-size: var(--fs-base); color: var(--t-2); font-variant-numeric: tabular-nums; }
+.rep-score-num span { color: var(--t-4); }
+.rep-score-label { font-size: var(--fs-xs); color: var(--t-3); margin-top: 2px; }
+
+.rep-h2 {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semi);
+  color: var(--t-1);
+  margin: var(--sp-5) 0 var(--sp-3);
+  padding-bottom: var(--sp-1);
+  border-bottom: 1px solid var(--line);
+}
+
+.rep-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--sp-2);
+}
+
+.rep-tile {
+  padding: var(--sp-3);
+  border-radius: var(--r-2);
+  background: var(--s-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.rep-tile-val { font-size: 24px; font-weight: var(--fw-bold); color: var(--t-1); font-variant-numeric: tabular-nums; }
+.rep-tile-key { font-size: var(--fs-xs); color: var(--t-3); margin-top: 2px; }
+.rep-tile-hint { font-size: 10px; color: var(--t-4); margin-top: 2px; }
+
+.rep-dyn {
+  padding: var(--sp-3);
+  border-radius: var(--r-2);
+  background: var(--s-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.rep-dyn-row { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
+.rep-dyn-cell { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--t-2); font-size: var(--fs-sm); }
+.rep-dyn-cell b { font-size: var(--fs-lg); color: var(--t-1); }
+.rep-dyn-cell.bad b { color: var(--crit); }
+.rep-dyn-cell.good b { color: var(--ok); }
+.rep-dyn-cell .material-symbols-outlined { font-size: 17px; }
+.rep-dyn-when { margin-left: auto; font-size: var(--fs-xs); color: var(--t-4); }
+.rep-verdict { margin: var(--sp-2) 0 0; color: var(--t-2); font-size: var(--fs-sm); }
+
+.rep-bars { display: flex; flex-direction: column; gap: var(--sp-1); }
+.rep-bar-row { display: flex; align-items: center; gap: var(--sp-2); }
+.rep-bar-label { width: 110px; font-size: var(--fs-sm); color: var(--t-2); flex-shrink: 0; }
+.rep-bar-track { flex: 1; height: 12px; border-radius: 999px; background: var(--s-4); overflow: hidden; }
+.rep-bar-fill { display: block; height: 100%; border-radius: 999px; }
+.rep-bar-num { width: 40px; text-align: right; font-variant-numeric: tabular-nums; color: var(--t-2); font-size: var(--fs-sm); }
+.rep-bar-fill.sev-critical { background: var(--crit); }
+.rep-bar-fill.sev-high { background: var(--high); }
+.rep-bar-fill.sev-medium { background: var(--med); }
+.rep-bar-fill.sev-low { background: var(--low); }
+.rep-bar-fill.sev-info { background: var(--info); }
+
+.rep-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.rep-table th {
+  text-align: left;
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--t-4);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--line-strong);
+}
+.rep-table td { padding: var(--sp-1) var(--sp-2); border-bottom: 1px solid var(--line); color: var(--t-2); }
+.rep-file { font-family: var(--mono); font-size: var(--fs-xs); color: var(--t-3); }
+.rep-sev { font-weight: var(--fw-med); }
+.rep-sev.sev-critical { color: var(--crit); }
+.rep-sev.sev-high { color: var(--high); }
+.rep-sev.sev-medium { color: var(--med); }
+.rep-sev.sev-low { color: var(--low); }
+.rep-sev.sev-info { color: var(--info); }
+.rep-more { color: var(--t-4); font-size: var(--fs-xs); margin-top: var(--sp-2); }
+.rep-foot { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 1px solid var(--line); color: var(--t-4); font-size: var(--fs-xs); text-align: center; }
+
+/* Print to PDF: only the report page, on white, colours kept. */
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body * { visibility: hidden; }
+  .report-page, .report-page * { visibility: visible; }
+  .no-print { display: none !important; }
+  .report-screen { position: static; background: #fff; }
+  .report-page {
+    position: absolute;
+    left: 0;
+    top: 0;
+    max-width: none;
+    padding: 0;
+    overflow: visible;
+    color: #111;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report-page .rep-title,
+  .report-page .rep-tile-val,
+  .report-page .rep-dyn-cell b { color: #111; }
+  .rep-tile, .rep-dyn { background: #fafafa; box-shadow: inset 0 0 0 1px #ddd; }
+  .rep-h2 { break-after: avoid; }
+  .rep-table, .rep-tiles, .rep-dyn, .rep-bars { break-inside: avoid; }
+  .rep-table tr { break-inside: avoid; }
+}
+
 /* ==================================================================== help */
 
 .help-body {
