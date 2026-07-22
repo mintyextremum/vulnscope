@@ -1065,6 +1065,8 @@ pub async fn run_scan(
     findings = merge_duplicate_advisories(findings);
     findings = merge_duplicate_code_findings(findings);
 
+    mark_reachable_findings(&mut findings);
+
     // Fingerprint first: suppression and comparison both key off it.
     for f in &mut findings {
         f.fingerprint = baseline::fingerprint(f);
@@ -1196,6 +1198,44 @@ pub async fn run_scan(
 
     progress.emit(ScanPhase::Done, "", true);
     Ok(report)
+}
+
+/// Marks every code finding that sits on a data-flow path the taint engine
+/// traced from untrusted input, by cross-referencing each finding's location
+/// against the steps of the `VS-FLOW` findings.
+///
+/// This is the bridge between the two engines: a pattern rule says "this call is
+/// dangerous", the taint engine says "and untrusted data actually reaches it".
+/// A finding true on both counts is reachable — the report's highest-signal
+/// class, and what the security score weights most.
+fn mark_reachable_findings(findings: &mut [Finding]) {
+    use std::collections::HashSet;
+    // Every (file, line) covered by a traced flow. A step in another file carries
+    // that file; otherwise it is the flow finding's own file.
+    let mut on_path: HashSet<(String, u32)> = HashSet::new();
+    for f in findings.iter() {
+        if f.rule_id != "VS-FLOW" {
+            continue;
+        }
+        if let Some(extra) = &f.extra {
+            for step in &extra.flow {
+                let file = step.file.clone().unwrap_or_else(|| f.file.clone());
+                on_path.insert((file, step.line));
+            }
+        }
+    }
+    if on_path.is_empty() {
+        return;
+    }
+    for f in findings.iter_mut() {
+        // The flow findings themselves are the path, not a separate signal.
+        if f.rule_id == "VS-FLOW" || f.line == 0 {
+            continue;
+        }
+        if on_path.contains(&(f.file.clone(), f.line)) {
+            f.extra.get_or_insert_with(FindingExtra::default).on_data_path = true;
+        }
+    }
 }
 
 /// Identifiers that name the same underlying vulnerability: the advisory's own
@@ -1999,6 +2039,43 @@ mod tests {
         let mut b = a.clone();
         b.id = "other".into();
         assert_eq!(merge_duplicate_advisories(vec![a, b]).len(), 2);
+    }
+
+    #[test]
+    fn reachability_marks_findings_on_a_traced_path() {
+        // A traced flow whose sink lands on app.py:10, plus a pattern finding on
+        // that same line and one on a line the flow never touches.
+        let mut flow = dep_finding("VS-FLOW", &[], "x", "1", Severity::High, FindingSource::Builtin, None);
+        flow.package = None;
+        flow.file = "app.py".into();
+        flow.line = 10;
+        flow.extra = Some(FindingExtra {
+            flow: vec![CombineSpot {
+                category: "Приёмник (опасный вызов)".into(),
+                line: 10,
+                code: "os.system(x)".into(),
+                file: None,
+            }],
+            ..Default::default()
+        });
+
+        let mut on_path = dep_finding("VS-PY-001", &[], "x", "1", Severity::High, FindingSource::Builtin, None);
+        on_path.package = None;
+        on_path.file = "app.py".into();
+        on_path.line = 10;
+
+        let mut off_path = on_path.clone();
+        off_path.id = "off".into();
+        off_path.line = 99;
+
+        let mut findings = vec![flow, on_path, off_path];
+        mark_reachable_findings(&mut findings);
+
+        let reachable = |f: &Finding| f.extra.as_ref().map(|e| e.on_data_path).unwrap_or(false);
+        assert!(reachable(&findings[1]), "finding on the flow line must be reachable");
+        assert!(!reachable(&findings[2]), "finding off the flow must not be");
+        // The flow finding itself is the path, not a separately-marked signal.
+        assert!(!reachable(&findings[0]));
     }
 
     fn user_rule(id: &str, pattern: &str, langs: &[&str]) -> userrules::UserRule {

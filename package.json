@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "audit:contrast": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/contrast-audit.mjs",
     "audit:i18n": "node scripts/i18n-audit.mjs",
-    "audit:sarif": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/sarif-audit.mjs"
+    "audit:sarif": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/sarif-audit.mjs",
+    "audit:score": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/score-audit.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

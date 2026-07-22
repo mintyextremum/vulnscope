@@ -432,6 +432,11 @@ pub struct FindingExtra {
     /// the taint engine. Each spot's `category` holds the step's role label.
     #[serde(default)]
     pub flow: Vec<CombineSpot>,
+    /// True when this finding sits on a data-flow path the taint engine traced
+    /// from untrusted input — i.e. it is reachable by an attacker, not just
+    /// present. Drives prioritisation and the security score.
+    #[serde(default)]
+    pub on_data_path: bool,
 }
 
 /// One link of a dangerous combination: a category, the line it sits on, and

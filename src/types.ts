@@ -188,6 +188,9 @@ export interface FindingExtra {
   /** A traced data-flow path (source → propagation → sink). Each spot's
    * `category` holds the step's role label. */
   flow?: CombineSpot[];
+  /** This finding sits on a data-flow path the taint engine traced from
+   * untrusted input — reachable by an attacker, not merely present. */
+  onDataPath?: boolean;
 }
 
 /** One link of a dangerous combination or a data-flow step. */

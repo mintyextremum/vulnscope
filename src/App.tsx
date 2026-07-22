@@ -35,6 +35,7 @@ import {
 } from "./components";
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
+import { computeScore, type SecurityScore, type Grade } from "./score";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
 import { toHtml } from "./html";
@@ -1646,6 +1647,16 @@ function ScanningScreen({ progress, plan }: { progress: ScanProgress | null; pla
         </div>
       </div>
 
+      {/* A slim progress line under the phase: a filled gradient bar when the
+          phase counts files, an indeterminate sweep when it cannot (cloning,
+          querying OSV). aria-hidden — the ring and live region already speak. */}
+      <div
+        className={`progress-line ${counted ? "" : "indeterminate"}`}
+        aria-hidden="true"
+      >
+        <div className="progress-line-fill" style={counted ? { width: `${pct}%` } : undefined} />
+      </div>
+
       {/* Built from the options this scan was started with, so a step that will
           never run is never shown waiting: OSV takes seconds while the code pass
           takes milliseconds, and without this the wait looks like a freeze. */}
@@ -1750,6 +1761,75 @@ function scanSummary(report: ScanReport, lang: Lang): string {
   return parts.join(" ");
 }
 
+/** Maps a grade to the severity-token family it should be painted in. */
+const GRADE_TONE: Record<Grade, string> = {
+  A: "ok",
+  B: "ok",
+  C: "med",
+  D: "high",
+  F: "crit",
+};
+
+/**
+ * The dashboard's headline: one animated ring that turns the whole report into a
+ * 0–100 security score and an A–F grade, with the factor breakdown beside it.
+ * The number that makes the report a verdict, not a list.
+ */
+function ScoreHero({ score }: { score: SecurityScore }) {
+  const t = useT();
+  const tone = GRADE_TONE[score.grade];
+  const R = 52;
+  const C = 2 * Math.PI * R;
+  const dash = (score.score / 100) * C;
+
+  return (
+    <div className={`score-hero tone-${tone}`}>
+      <div className="score-ring-wrap">
+        <svg className="score-ring" viewBox="0 0 120 120" role="img" aria-label={`${score.score} / 100`}>
+          <circle className="score-track" cx="60" cy="60" r={R} />
+          <circle
+            className="score-arc"
+            cx="60"
+            cy="60"
+            r={R}
+            style={{ strokeDasharray: `${dash} ${C}` }}
+          />
+        </svg>
+        <div className="score-center">
+          <div className="score-grade">{score.grade}</div>
+          <div className="score-num">{Math.round(score.score)}</div>
+        </div>
+      </div>
+
+      <div className="score-body">
+        <div className="score-title">{t("Оценка защищённости")}</div>
+        <div className="score-label">{t(score.label)}</div>
+        {score.reachable > 0 && (
+          <div className="score-reach" title={t("Учитываются подтверждённые находки; BETA и подавленные не входят. Достижимые по потоку данных весят больше.")}>
+            <Icon name="my_location" />
+            {t("{n} на пути данных", { n: String(score.reachable) })}
+          </div>
+        )}
+        <div className="score-factors">
+          {score.factors.map((f) => (
+            <span key={f.severity} className={`score-factor ${f.severity}`} title={`−${f.penalty}`}>
+              <span className={`sev-dot ${f.severity}`} />
+              {t(SEVERITY_LABEL[f.severity])}
+              <b>{f.count}</b>
+            </span>
+          ))}
+          {score.factors.length === 0 && (
+            <span className="score-clean">
+              <Icon name="verified_user" />
+              {t("Подтверждённых находок нет")}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Overview({ report }: { report: ScanReport }) {
   const t = useT();
   const lang = useContext(LangContext);
@@ -1785,9 +1865,12 @@ function Overview({ report }: { report: ScanReport }) {
   // reached "Готово" on the progress screen; this is the result.
   const summary = scanSummary(report, lang);
 
+  const score = useMemo(() => computeScore(report), [report]);
+
   return (
     <div className="overview">
       <Announce message={summary} />
+      {score && <ScoreHero score={score} />}
       {!report.cancelled && report.delta.previousScanAt && (
         <div className="delta-bar">
           <div className={`delta-stat ${report.delta.newCount > 0 ? "bad" : ""}`}>
