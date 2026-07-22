@@ -1212,6 +1212,31 @@ pub async fn run_scan(
         counts.add(f.severity);
     }
 
+    // Record a compact point in the scan-history series so the report can draw
+    // the trend over the last several scans. Reachability is already marked, so
+    // this is just a tally; a failed write must not sink the scan.
+    let reachable = findings
+        .iter()
+        .filter(|f| {
+            !f.suppressed
+                && !f.extra.as_ref().map(|e| e.experimental).unwrap_or(false)
+                && f.extra.as_ref().map(|e| e.on_data_path).unwrap_or(false)
+        })
+        .count() as u32;
+    let point = baseline::HistoryPoint {
+        scanned_at: snapshot.scanned_at.clone(),
+        total: counts.total(),
+        critical: counts.critical,
+        high: counts.high,
+        medium: counts.medium,
+        low: counts.low,
+        info: counts.info,
+        reachable,
+    };
+    if let Err(e) = baseline::append_history(&root, point) {
+        warnings.push(format!("не удалось обновить историю трендов: {e}"));
+    }
+
     let mut per_file: std::collections::HashMap<&str, SeverityCounts> = Default::default();
     for f in findings.iter().filter(|f| !f.suppressed) {
         per_file.entry(f.file.as_str()).or_default().add(f.severity);
