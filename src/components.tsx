@@ -1363,28 +1363,36 @@ export function FindingDetail({
               <Icon name="route" />
               {t("Поток данных")}
             </h3>
-            <ol className="flow-path">
+            <ol className="flow-diagram">
               {finding.extra.flow.map((s, i) => {
                 // A step may live in another file when the flow crossed a call
                 // boundary; open and label that file, not the finding's own.
                 const stepFile = s.file ?? finding.file;
                 const crossed = !!s.file && s.file !== finding.file;
+                const last = i === finding.extra!.flow!.length - 1;
+                const role = i === 0 ? "source" : last ? "sink" : "mid";
+                const icon = role === "source" ? "my_location" : role === "sink" ? "dangerous" : "south";
                 return (
-                  <li key={i} className={i === 0 ? "flow-source" : i === finding.extra!.flow!.length - 1 ? "flow-sink" : "flow-mid"}>
+                  <li key={i} className={`flow-node role-${role}`}>
+                    <span className="fn-rail">
+                      <span className="fn-marker">
+                        <Icon name={icon} />
+                      </span>
+                    </span>
                     <button
-                      className="combine-spot"
+                      className="fn-body"
                       onClick={() => onOpenFile(stepFile, s.line)}
                       title={t("Открыть строку {n} в коде", { n: String(s.line) })}
                     >
-                      <span className="cs-head">
-                        <span className="cs-cat">
-                          {t(s.category)}
-                          {i === 0 && finding.extra?.entry && (
-                            <span className="cs-entry">{t(finding.extra.entry)}</span>
-                          )}
-                          {crossed && <span className="cs-xfile"><Icon name="alt_route" />{t("другой файл")}</span>}
-                        </span>
-                        <span className="cs-line">
+                      <span className="fn-head">
+                        <span className="fn-role">{t(s.category)}</span>
+                        {i === 0 && finding.extra?.entry && (
+                          <span className="cs-entry">{t(finding.extra.entry)}</span>
+                        )}
+                        {crossed && (
+                          <span className="cs-xfile"><Icon name="alt_route" />{t("другой файл")}</span>
+                        )}
+                        <span className="fn-loc">
                           {stepFile}:{s.line}
                         </span>
                       </span>

@@ -324,6 +324,15 @@ export const EN: Record<string, string> = {
   "Передача через переменную": "Carried through a variable",
   "Передача в функцию": "Passed into a function",
   "Приёмник (опасный вызов)": "Sink (dangerous call)",
+  // Sensitive-data leakage flow
+  "Утечка чувствительных данных": "Sensitive data leak",
+  "Источник: чувствительные данные": "Source: sensitive data",
+  "Приёмник: разглашение": "Sink: exposure",
+  "Чувствительные данные попадают в лог или ответ": "Sensitive data reaches a log or response",
+  "Анализ потока данных проследил секрет или учётные данные от места, где они читаются, до места, где они разглашаются — в журнал, в HTTP-ответ или во внешний запрос — без маскирования или хеширования по пути. Секреты в логах и ответах утекают в системы хранения логов и третьим лицам.":
+    "Data-flow analysis traced a secret or credential from where it is read to where it is exposed — a log, an HTTP response, or an outbound request — with no masking or hashing along the way. Secrets in logs and responses leak to log storage and third parties.",
+  "Не выводите секреты в логи и ответы. Маскируйте значение, логируйте только идентификатор, храните секреты в защищённом хранилище.":
+    "Do not write secrets to logs or responses. Mask the value, log only an identifier, and keep secrets in a secure store.",
   "Пользовательские данные достигают опасного вызова": "User data reaches a dangerous call",
   "Анализ потока данных проследил значение от места, где в программу попадает пользовательский ввод, через присваивания переменных до опасного вызова — без экранирования или проверки по пути. Полный путь показан в разделе «Поток данных»; каждый шаг можно открыть в коде и проверить.":
     "Data-flow analysis traced a value from where user input enters the program, through variable assignments, to a dangerous call — with no escaping or validation along the way. The full path is shown under \"Data flow\"; open each step in the code to verify it.",

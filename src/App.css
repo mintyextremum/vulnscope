@@ -4294,22 +4294,99 @@ kbd,
 
 .tag.reach .material-symbols-outlined { font-size: 12px; }
 
-.flow-path {
+/* The data-flow diagram: steps on a vertical rail, a coloured marker per role,
+   connected top to bottom — the path reads at a glance as a route from the
+   entry point down to the dangerous call. */
+.flow-diagram {
   margin: 0;
-  padding-left: var(--sp-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
+  padding: 0;
+  list-style: none;
   color: var(--t-2);
 }
 
-.flow-path li { line-height: 1.4; }
+.flow-node {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: stretch;
+}
 
-/* Source, hops, and sink get distinct left accents so the path reads at a
-   glance as "user input → … → dangerous call". */
-.flow-source .combine-spot { border-left-color: var(--a); }
-.flow-mid .combine-spot { border-left-color: var(--t-4); }
-.flow-sink .combine-spot { border-left-color: var(--danger); }
+.fn-rail {
+  position: relative;
+  flex-shrink: 0;
+  width: 26px;
+  display: flex;
+  justify-content: center;
+}
+
+/* The connector running to the next node; hidden on the last. */
+.fn-rail::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  bottom: -6px;
+  width: 2px;
+  background: var(--line-strong);
+}
+
+.flow-node:last-child .fn-rail::before { display: none; }
+
+.fn-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--s-2);
+  box-shadow: 0 0 0 2px var(--tone, var(--t-4));
+  color: var(--tone, var(--t-4));
+  margin-top: 2px;
+}
+
+.fn-marker .material-symbols-outlined { font-size: 15px; }
+
+.role-source { --tone: var(--a); }
+.role-mid { --tone: var(--t-4); }
+.role-sink { --tone: var(--danger); }
+
+.fn-body {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  text-align: left;
+  padding: var(--sp-1) var(--sp-2) var(--sp-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--r-1);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.fn-body:hover { background: var(--s-3); }
+
+.fn-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  margin-bottom: 3px;
+}
+
+.fn-role {
+  font-weight: var(--fw-med);
+  color: var(--t-1);
+  font-size: var(--fs-sm);
+}
+
+.fn-loc {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--t-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 /* The BETA subtab reads as experimental: a science glyph and its own chip. */
 .subtab-beta .tag.beta {

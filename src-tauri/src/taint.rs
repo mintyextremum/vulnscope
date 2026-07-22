@@ -930,6 +930,127 @@ pub(crate) fn analyze_with(
     flows
 }
 
+// ---------------------------------------------------- sensitive-data leakage
+
+/// A value that looks like a secret or credential — the *source* of a leak flow.
+/// Word-anchored so `secret_count` is not mistaken for a secret.
+static SECRET_SOURCE_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)\b(?:pass(?:word|wd|phrase)|secret|tokens?|api[_-]?keys?|apikeys?|private[_-]?keys?|credentials?|access[_-]?keys?|client[_-]?secrets?|auth[_-]?tokens?|session[_-]?keys?|bearer)\b",
+    )
+    .expect("bad secret source pattern")
+});
+
+/// A place a value escapes to where a secret must never go: logs, the HTTP
+/// response, or an outbound request.
+static LEAK_SINK_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)(?:console\.(?:log|info|warn|error|debug)|System\.(?:out|err)|\bprint(?:ln|f)?\s*\(|\blog(?:ger)?\.(?:info|debug|warn(?:ing)?|error|trace)|\blogging\.(?:info|debug|warning|error)|\bfmt\.(?:Print|Sprint)\w*|\bputs\b|(?:res|response|reply)\.(?:send|write|json|end)\s*\(|\brender\s*\(|requests\.(?:post|put)\s*\(|\bfetch\s*\(|axios\.)",
+    )
+    .expect("bad leak sink pattern")
+});
+
+/// A value that has been redacted, masked or hashed is safe to log — no leak.
+static SECRET_REDACT_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)(redact|mask|\*{3,}|sha1|sha256|sha512|\bmd5|bcrypt|scrypt|argon2|\bhash|hmac|encrypt|hexdigest|obfuscat|\bx{3,}\b)",
+    )
+    .expect("bad redact pattern")
+});
+
+/// Traces a *secret* value from where it is read to a place it leaks — a log
+/// line, the HTTP response, or an outbound call. The other half of data-flow:
+/// the injection pass asks "does untrusted input reach a dangerous call?", this
+/// asks "does a credential reach somewhere it will be exposed?" (CWE-532/200).
+///
+/// Intra-function and conservative: a value only counts as secret when it is
+/// read from a secret-named source, and a redaction/hash on the way clears it.
+pub fn analyze_leaks(content: &str, lang: Language) -> Vec<TaintFlow> {
+    // Cheap gate: no secret-shaped token anywhere → nothing to trace.
+    if !SECRET_SOURCE_RE.is_match(content) {
+        return Vec::new();
+    }
+    let lines: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let mut tainted: HashMap<String, TaintVar> = HashMap::new();
+    let mut flows: Vec<TaintFlow> = Vec::new();
+
+    for (idx, &text) in lines.iter().enumerate() {
+        if flows.len() >= MAX_FLOWS {
+            break;
+        }
+        let trimmed = text.trim();
+        if trimmed.is_empty() || rules::is_comment_line(text, lang) {
+            continue;
+        }
+        if scoped(lang) && signature_of(text).is_some() {
+            tainted.clear();
+            continue;
+        }
+        let line = (idx + 1) as u32;
+        let code: String = trimmed.chars().take(200).collect();
+
+        // Does a secret reach a leak sink on this line?
+        if LEAK_SINK_RE.is_match(text) && !SECRET_REDACT_RE.is_match(text) {
+            let sink_step = FlowStep { line, code: code.clone(), role: FlowRole::Sink, file: None };
+            if let Some(v) = earliest_referenced(&tainted, text, line) {
+                let mut steps = v.steps.clone();
+                steps.push(sink_step);
+                flows.push(leak_flow(steps));
+                continue;
+            }
+            // Inline: the secret is read and leaked on the very same line.
+            if SECRET_SOURCE_RE.is_match(text) {
+                flows.push(leak_flow(vec![
+                    FlowStep { line, code: code.clone(), role: FlowRole::Source, file: None },
+                    sink_step,
+                ]));
+                continue;
+            }
+        }
+
+        // Assignment: introduce, propagate or clear the secret taint.
+        if let Some(caps) = ASSIGN_RE.captures(text) {
+            let lhs = caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+            let rhs = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+            if lhs.is_empty() {
+                continue;
+            }
+            if SECRET_REDACT_RE.is_match(rhs) {
+                tainted.remove(&lhs);
+            } else if SECRET_SOURCE_RE.is_match(&lhs) || SECRET_SOURCE_RE.is_match(rhs) {
+                tainted.insert(
+                    lhs,
+                    TaintVar {
+                        steps: vec![FlowStep { line, code, role: FlowRole::Source, file: None }],
+                        origin_param: None,
+                    },
+                );
+            } else if let Some(mut v) = tainted
+                .iter()
+                .filter(|(name, _)| contains_word(rhs, name))
+                .map(|(_, v)| v.clone())
+                .min_by_key(|v| v.source_line())
+            {
+                v.steps.push(FlowStep { line, code, role: FlowRole::Propagation, file: None });
+                tainted.insert(lhs, v);
+            } else {
+                tainted.remove(&lhs);
+            }
+        }
+    }
+
+    flows
+}
+
+fn leak_flow(steps: Vec<FlowStep>) -> TaintFlow {
+    TaintFlow {
+        category: "Утечка чувствительных данных",
+        cwe: &["CWE-532", "CWE-200"],
+        severity: Severity::Medium,
+        steps,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1135,6 +1256,50 @@ function show(req) {
 }
 ";
         assert!(analyze(code, Language::JavaScript).is_empty());
+    }
+
+    #[test]
+    fn traces_secret_to_a_log() {
+        let code = "\
+def login(user):
+    password = user.get_password()
+    logger.info('login attempt: ' + password)
+";
+        let flows = analyze_leaks(code, Language::Python);
+        assert_eq!(flows.len(), 1, "one leak flow expected: {flows:?}");
+        assert_eq!(flows[0].category, "Утечка чувствительных данных");
+        assert_eq!(flows[0].steps.last().unwrap().role, FlowRole::Sink);
+    }
+
+    #[test]
+    fn redacted_secret_is_not_a_leak() {
+        let code = "\
+def login(user):
+    password = user.get_password()
+    safe = mask(password)
+    logger.info(safe)
+";
+        assert!(analyze_leaks(code, Language::Python).is_empty());
+    }
+
+    #[test]
+    fn non_secret_variable_is_not_a_leak() {
+        let code = "\
+def show(user):
+    name = user.name
+    console.log(name)
+";
+        assert!(analyze_leaks(code, Language::Python).is_empty());
+    }
+
+    #[test]
+    fn secret_hashed_before_logging_is_safe() {
+        // Reading into a secret-named var, but logging its hash — not the value.
+        let code = "\
+token = get_token()
+log.debug('token digest ' + sha256(token))
+";
+        assert!(analyze_leaks(code, Language::Python).is_empty());
     }
 
     #[test]
