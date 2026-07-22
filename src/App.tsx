@@ -43,6 +43,7 @@ import { toXml1C } from "./xml1c";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
 import { HelpScreen } from "./Help";
+import { ReportScreen } from "./Report";
 import { RuleEditor } from "./RuleEditor";
 import { SettingsScreen } from "./Settings";
 import { Titlebar } from "./Titlebar";
@@ -56,7 +57,7 @@ import {
   ViewTransition,
 } from "./ui";
 
-type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings" | "help";
+type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings" | "help" | "report";
 
 /** An audit target imported from a 1C project registry. */
 interface Project1c {
@@ -777,7 +778,7 @@ export default function App() {
   );
 
   /** Opens a secondary screen, remembering where to return to. */
-  const SECONDARY: Screen[] = ["rules", "myrules", "settings", "help"];
+  const SECONDARY: Screen[] = ["rules", "myrules", "settings", "help", "report"];
   const goto = useCallback(
     (target: Screen) => {
       // Hopping between secondary screens keeps the primary one to return to.
@@ -1153,6 +1154,7 @@ export default function App() {
                   <div className="export-menu" role="menu">
                     {(
                       [
+                        ["summarize", t("Отчёт — печать в PDF"), () => goto("report")],
                         ["data_object", t("JSON — полные данные"), exportReport],
                         ["security", t("SARIF — для CI и code scanning"), exportSarif],
                         ["description", t("Markdown — для тикета или чата"), exportMarkdown],
@@ -1258,6 +1260,10 @@ export default function App() {
       )}
 
       {screen === "help" && <HelpScreen onClose={() => setScreen(prevScreen)} />}
+
+      {screen === "report" && report && (
+        <ReportScreen report={report} onClose={() => setScreen(prevScreen)} />
+      )}
 
       {screen === "rules" && <RulesScreen onClose={() => setScreen(prevScreen)} />}
 
