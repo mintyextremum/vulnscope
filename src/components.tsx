@@ -1379,6 +1379,9 @@ export function FindingDetail({
                       <span className="cs-head">
                         <span className="cs-cat">
                           {t(s.category)}
+                          {i === 0 && finding.extra?.entry && (
+                            <span className="cs-entry">{t(finding.extra.entry)}</span>
+                          )}
                           {crossed && <span className="cs-xfile"><Icon name="alt_route" />{t("другой файл")}</span>}
                         </span>
                         <span className="cs-line">

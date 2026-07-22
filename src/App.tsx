@@ -41,6 +41,7 @@ import { toCsv } from "./csv";
 import { toHtml } from "./html";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
+import { HelpScreen } from "./Help";
 import { RuleEditor } from "./RuleEditor";
 import { SettingsScreen } from "./Settings";
 import { Titlebar } from "./Titlebar";
@@ -54,7 +55,7 @@ import {
   ViewTransition,
 } from "./ui";
 
-type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings";
+type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings" | "help";
 type ResultTab = "overview" | "findings" | "beta" | "code" | "skipped";
 
 const TABS: ResultTab[] = ["overview", "findings", "beta", "code", "skipped"];
@@ -694,17 +695,21 @@ export default function App() {
   );
 
   /** Opens a secondary screen, remembering where to return to. */
+  const SECONDARY: Screen[] = ["rules", "myrules", "settings", "help"];
   const goto = useCallback(
     (target: Screen) => {
-      setPrevScreen(screen === "rules" || screen === "myrules" ? prevScreen : (screen as Screen));
+      // Hopping between secondary screens keeps the primary one to return to.
+      setPrevScreen(SECONDARY.includes(screen) ? prevScreen : (screen as Screen));
       setScreen(target);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [screen, prevScreen]
   );
 
   const openRules = useCallback(() => goto("rules"), [goto]);
   const openSettings = useCallback(() => goto("settings"), [goto]);
   const openMyRules = useCallback(() => goto("myrules"), [goto]);
+  const openHelp = useCallback(() => goto("help"), [goto]);
 
   const commands: Command[] = useMemo(
     () => [
@@ -1068,6 +1073,16 @@ export default function App() {
             {t("Отменить")}
           </button>
         )}
+        {screen !== "scanning" && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={openHelp}
+            title={t("Справка")}
+            aria-label={t("Справка")}
+          >
+            <Icon name="help" />
+          </button>
+        )}
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => setPaletteOpen(true)}
@@ -1116,6 +1131,8 @@ export default function App() {
           startScan={startScan}
         />
       )}
+
+      {screen === "help" && <HelpScreen onClose={() => setScreen(prevScreen)} />}
 
       {screen === "rules" && <RulesScreen onClose={() => setScreen(prevScreen)} />}
 
@@ -1239,7 +1256,16 @@ export default function App() {
             </button>
           </div>
 
-          {tab === "overview" && <Overview report={report} />}
+          {tab === "overview" && (
+            <Overview
+              report={report}
+              onOpenFinding={(f) => {
+                setSelectedFinding(f);
+                setSelectedFile(null);
+                setTab("findings");
+              }}
+            />
+          )}
 
           {(tab === "findings" || tab === "beta") && (
             <div className="results">
@@ -1830,7 +1856,88 @@ function ScoreHero({ score }: { score: SecurityScore }) {
   );
 }
 
-function Overview({ report }: { report: ScanReport }) {
+/**
+ * Attack paths — the flagship made actionable.
+ *
+ * The score says "how bad"; this says "here are the exact routes an attacker
+ * takes". The traced data-flows, ranked worst-first (severity, then whether the
+ * chain crosses a file, then its length), each shown as a one-line
+ * entry → sink summary you can click straight into. A grade plus its receipts.
+ */
+function AttackPaths({
+  report,
+  onOpenFinding,
+}: {
+  report: ScanReport;
+  onOpenFinding: (f: Finding) => void;
+}) {
+  const t = useT();
+  const paths = useMemo(() => {
+    const sevRank: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+    return report.findings
+      .filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed)
+      .map((f) => {
+        const flow = f.extra?.flow ?? [];
+        const crosses = flow.some((s) => s.file && s.file !== f.file);
+        return { f, flow, crosses, steps: flow.length };
+      })
+      .sort(
+        (a, b) =>
+          sevRank[a.f.severity] - sevRank[b.f.severity] ||
+          Number(b.crosses) - Number(a.crosses) ||
+          b.steps - a.steps
+      )
+      .slice(0, 6);
+  }, [report.findings]);
+
+  if (paths.length === 0) return null;
+
+  return (
+    <div className="card attack-paths">
+      <div className="card-title">
+        <Icon name="conversion_path" />
+        {t("Пути атаки")}
+        <span className="count">{report.findings.filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed).length}</span>
+        <span className="ap-sub">{t("прослежено от ввода до опасного вызова")}</span>
+      </div>
+      <div className="ap-list">
+        {paths.map(({ f, flow, crosses, steps }) => {
+          const sink = flow[flow.length - 1];
+          return (
+            <button key={f.id} className="ap-row" onClick={() => onOpenFinding(f)}>
+              <span className={`sev-dot ${f.severity}`} />
+              <span className="ap-entry">
+                <Icon name="login" />
+                {t(f.extra?.entry ?? "пользовательский ввод")}
+              </span>
+              <Icon name="arrow_right_alt" className="ap-arrow" />
+              <span className="ap-sink">{t(f.category)}</span>
+              {crosses && (
+                <span className="ap-xfile" title={t("Цепочка проходит через другой файл")}>
+                  <Icon name="alt_route" />
+                  {t("межфайловый")}
+                </span>
+              )}
+              <span className="ap-loc">
+                {(sink?.file ?? f.file).split(/[\\/]/).pop()}
+                {sink ? `:${sink.line}` : ""}
+              </span>
+              <span className="ap-steps">{t("{n} шагов", { n: String(steps) })}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Overview({
+  report,
+  onOpenFinding,
+}: {
+  report: ScanReport;
+  onOpenFinding: (f: Finding) => void;
+}) {
   const t = useT();
   const lang = useContext(LangContext);
 
@@ -1871,6 +1978,7 @@ function Overview({ report }: { report: ScanReport }) {
     <div className="overview">
       <Announce message={summary} />
       {score && <ScoreHero score={score} />}
+      {!report.cancelled && <AttackPaths report={report} onOpenFinding={onOpenFinding} />}
       {!report.cancelled && report.delta.previousScanAt && (
         <div className="delta-bar">
           <div className={`delta-stat ${report.delta.newCount > 0 ? "bad" : ""}`}>

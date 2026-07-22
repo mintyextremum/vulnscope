@@ -185,6 +185,103 @@ export const EN: Record<string, string> = {
     "Based on confirmed findings; BETA and suppressed are excluded. Findings reachable by data flow weigh more.",
   "{n} на пути данных": "{n} on a data path",
   "Подтверждённых находок нет": "No confirmed findings",
+  // Attack paths + entry kinds
+  "Пути атаки": "Attack paths",
+  "прослежено от ввода до опасного вызова": "traced from input to a dangerous call",
+  "Цепочка проходит через другой файл": "The chain passes through another file",
+  "межфайловый": "cross-file",
+  "{n} шагов": "{n} steps",
+  "HTTP-запрос": "HTTP request",
+  "аргумент командной строки": "command-line argument",
+  "переменная окружения": "environment variable",
+  "стандартный ввод": "standard input",
+  "пользовательский ввод": "user input",
+  // Help screen (reference)
+  "Справка": "Help",
+  "Что это": "What it is",
+  "VulnScope — локальный сканер безопасности кода. Он ничего не отправляет наружу (кроме запросов к базе CVE, и то по желанию): весь анализ идёт на вашей машине. Укажите папку или ссылку на GitHub-репозиторий — и получите размеченный отчёт.":
+    "VulnScope is a local code-security scanner. It sends nothing out (except CVE-database queries, and only if you want them): all analysis runs on your machine. Point it at a folder or a GitHub URL and get an annotated report.",
+  "Движки поиска": "Detection engines",
+  "Больше 270 паттернов на 38 языках плюс детекторы секретов. Каждая находка размечена CWE, OWASP и уровнем важности.":
+    "Over 270 patterns across 38 languages plus secret detectors. Every finding is tagged with CWE, OWASP and a severity.",
+  "Флагман: прослеживает пользовательский ввод от источника до опасного вызова и показывает весь путь. Только подтверждённые находки, каждая самопроверяема.":
+    "Flagship: traces user input from source to a dangerous call and shows the whole path. Confirmed findings only, each self-verifiable.",
+  "Ключи, токены и пароли в исходниках. Значение секрета никогда не попадает в отчёт — только факт и место.":
+    "Keys, tokens and passwords in source. The secret's value never reaches the report — only the fact and the location.",
+  "Манифесты сверяются с базой OSV.dev (с кэшем). Показывает уязвимые пакеты и версию, где исправлено.":
+    "Manifests are checked against OSV.dev (cached). Shows vulnerable packages and the version that fixes them.",
+  "Semgrep, Bandit, Trivy, gitleaks и другие подключаются по желанию; их находки объединяются с встроенными без дублей.":
+    "Semgrep, Bandit, Trivy, gitleaks and others plug in optionally; their findings merge with the built-in ones without duplicates.",
+  "Эвристики (BETA)": "Heuristics (BETA)",
+  "Подозрительные места, которые точные правила не поймали. Живут на отдельной вкладке и не влияют на счётчики и оценку.":
+    "Suspicious spots the precise rules missed. They live on their own tab and do not affect the counts or the score.",
+  "Флагман: оценка и пути атаки": "Flagship: score & attack paths",
+  "Весь отчёт в одном балле 0–100 и классе A–F. Находки взвешены по важности и по реальной достижимости из недоверенного ввода.":
+    "The whole report as one 0–100 score and an A–F grade. Findings are weighted by severity and by real reachability from untrusted input.",
+  "Достижимость": "Reachability",
+  "Находка, до которой реально доходит пользовательский ввод, помечена «Достижимо» и весит в оценке больше — «присутствует» не то же, что «эксплуатируемо».":
+    "A finding that user input actually reaches is marked \"Reachable\" and weighs more in the score — \"present\" is not \"exploitable\".",
+  "На дашборде — сами маршруты «точка входа → опасный вызов», отсортированные по опасности. Клик открывает находку.":
+    "On the dashboard: the routes themselves, \"entry point → dangerous call\", sorted by severity. Click one to open the finding.",
+  "Точка входа": "Entry point",
+  "Движок определяет, откуда входит ввод: HTTP-запрос, аргумент командной строки, переменная окружения или стандартный ввод.":
+    "The engine classifies where input enters: HTTP request, command-line argument, environment variable or standard input.",
+  "Анализ потока данных подробно": "Data-flow analysis in detail",
+  "Межпроцедурный": "Interprocedural",
+  "Поток прослеживается через вызовы функций-хелперов, а не только внутри одной функции.":
+    "The flow is traced through helper-function calls, not only within a single function.",
+  "Межфайловый": "Cross-file",
+  "Источник в одном файле, приёмник в другом — цепочка честно переходит границу файла и открывается в нужном.":
+    "Source in one file, sink in another — the chain honestly crosses the file boundary and opens in the right file.",
+  "Санитайзеры": "Sanitizers",
+  "Экранирование, параметризация и проверка по пути обрывают поток — в том числе пользовательские функции-санитайзеры.":
+    "Escaping, parameterization and validation along the way break the flow — including user-defined sanitizer functions.",
+  "Классы уязвимостей": "Vulnerability classes",
+  "Инъекция команд и SQL, path traversal, SSRF, выполнение кода, XSS и открытый редирект.":
+    "Command and SQL injection, path traversal, SSRF, code execution, XSS and open redirect.",
+  "Значки находок": "Finding badges",
+  "Находка с прослеженным путём данных от источника до приёмника.":
+    "A finding with a traced data path from source to sink.",
+  "Паттерн-находка лежит на прослеженном пути данных — по-настоящему достижима для атакующего.":
+    "A pattern finding sits on a traced data path — genuinely reachable by an attacker.",
+  "Несколько подозрительных мест в одном файле, усиливающих друг друга в вероятную цепочку эксплуатации (BETA).":
+    "Several suspicious spots in one file that amplify each other into a likely exploit chain (BETA).",
+  "Эвристическая, ещё не подтверждённая находка — для ручной проверки.":
+    "A heuristic, not-yet-confirmed finding — for manual review.",
+  "Не было в предыдущем сканировании этой цели.":
+    "Was not in the previous scan of this target.",
+  "Работа с находками": "Working with findings",
+  "Фильтры": "Filters",
+  "По важности, файлу, поиску и «только новые». Активные фильтры показаны строкой, каждый снимается одним кликом; счётчики следуют за фильтром.":
+    "By severity, file, search and \"new only\". Active filters are shown as a strip, each removed in one click; the counts follow the filter.",
+  "Дерево файлов": "File tree",
+  "Слева — файлы с находками; выбор файла сужает список и счётчики к нему.":
+    "On the left, files with findings; picking a file narrows the list and the counts to it.",
+  "Правка и перепроверка": "Edit & re-check",
+  "Код можно поправить прямо в просмотрщике и перепроверить: исправленное гаснет, а файл загорается «Чисто».":
+    "Edit code right in the viewer and re-check: fixed findings drop out and the file lights up \"Clean\".",
+  "Подавление": "Suppression",
+  "Ложное срабатывание можно заглушить — оно уходит из счётчиков, а правило пишется в .vulnscope-ignore внутри проекта.":
+    "A false positive can be silenced — it leaves the counts and the rule is written to .vulnscope-ignore inside the project.",
+  "Полные данные отчёта для машинной обработки.":
+    "The full report data for machine processing.",
+  "Формат GitHub code scanning и CI-дашбордов; путь потока данных выгружается как codeFlows.":
+    "The format for GitHub code scanning and CI dashboards; the data-flow path is exported as codeFlows.",
+  "Для тикета, чата, таблицы или готового к просмотру документа. Можно выгрузить только отфильтрованную выборку.":
+    "For a ticket, chat, spreadsheet or a ready-to-read document. You can export just the filtered subset.",
+  "Настройка": "Configuration",
+  "Темы": "Themes",
+  "Горячие клавиши": "Keyboard shortcuts",
+  "Свой формат правил с редактором и проверкой на живом сниппете. Хранятся отдельно от встроенных.":
+    "Your own rule format with an editor and a live-snippet test. Stored separately from the built-in ones.",
+  "10 схем плюс тонкая настройка любого цвета-токена; все проверены на контраст и различимость при цветовой слепоте.":
+    "10 schemes plus fine control of any colour token; all checked for contrast and colour-blind distinguishability.",
+  "Переназначаемые сочетания и командная палитра (Ctrl+K) для всего.":
+    "Rebindable shortcuts and a command palette (Ctrl+K) for everything.",
+  "Масштаб интерфейса, всегда видимый фокус, подписи уровней, крупные цели, уменьшение анимации.":
+    "Interface scale, always-visible focus, severity labels, large targets, reduced motion.",
+  "VulnScope — локальный анализ, код не покидает вашу машину.":
+    "VulnScope — local analysis; your code never leaves your machine.",
   "Файлов проверено": "Files scanned",
   "Строк кода": "Lines of code",
   "Зависимостей проверено": "Dependencies checked",

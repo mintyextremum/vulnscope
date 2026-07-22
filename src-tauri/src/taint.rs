@@ -71,6 +71,50 @@ impl TaintFlow {
     pub fn sink_line(&self) -> u32 {
         self.steps.last().map(|s| s.line).unwrap_or(0)
     }
+
+    /// Where the untrusted data enters, classified from the source line — so a
+    /// finding says "from an HTTP request" or "from a CLI argument" rather than
+    /// a generic "user input". This is what a real attack path starts at.
+    pub fn entry_kind(&self) -> &'static str {
+        let code = self.steps.first().map(|s| s.code.as_str()).unwrap_or("");
+        classify_entry(code)
+    }
+}
+
+/// A Russian label for where untrusted data enters, from the source line.
+fn classify_entry(code: &str) -> &'static str {
+    let c = code.to_lowercase();
+    if c.contains("argv") || c.contains("sys.argv") {
+        "аргумент командной строки"
+    } else if c.contains("getenv")
+        || c.contains("process.env")
+        || c.contains("os.environ")
+        || c.contains("std::env")
+        || c.contains("environment")
+    {
+        "переменная окружения"
+    } else if c.contains("stdin")
+        || c.contains("readline")
+        || c.contains("console.read")
+        || contains_word(&c, "input")
+    {
+        "стандартный ввод"
+    } else if c.contains("req")
+        || c.contains("request")
+        || c.contains("param")
+        || c.contains("body")
+        || c.contains("cookie")
+        || c.contains("form")
+        || c.contains("payload")
+        || c.contains("$_get")
+        || c.contains("$_post")
+        || c.contains("$_request")
+        || c.contains("$_cookie")
+    {
+        "HTTP-запрос"
+    } else {
+        "пользовательский ввод"
+    }
 }
 
 /// Shared user-input source pattern (same one the heuristics use).
@@ -1091,6 +1135,27 @@ function show(req) {
 }
 ";
         assert!(analyze(code, Language::JavaScript).is_empty());
+    }
+
+    #[test]
+    fn classifies_the_entry_point() {
+        assert_eq!(classify_entry("cmd = request.args.get('c')"), "HTTP-запрос");
+        assert_eq!(classify_entry("name = sys.argv[1]"), "аргумент командной строки");
+        assert_eq!(classify_entry("token = os.environ.get('T')"), "переменная окружения");
+        assert_eq!(classify_entry("line = input()"), "стандартный ввод");
+        assert_eq!(classify_entry("x = something_unknown()"), "пользовательский ввод");
+    }
+
+    #[test]
+    fn flow_reports_its_entry_kind() {
+        let code = "\
+def run(request):
+    cmd = request.args.get('cmd')
+    os.system(cmd)
+";
+        let flows = analyze(code, Language::Python);
+        assert_eq!(flows.len(), 1);
+        assert_eq!(flows[0].entry_kind(), "HTTP-запрос");
     }
 
     #[test]

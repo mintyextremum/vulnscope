@@ -191,6 +191,9 @@ export interface FindingExtra {
   /** This finding sits on a data-flow path the taint engine traced from
    * untrusted input — reachable by an attacker, not merely present. */
   onDataPath?: boolean;
+  /** For a data-flow finding, where the untrusted data enters (a Russian label
+   * like "HTTP-запрос"), translated at the call site. */
+  entry?: string | null;
 }
 
 /** One link of a dangerous combination or a data-flow step. */
