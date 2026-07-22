@@ -414,6 +414,7 @@ fn scan_one_file(
                     category: match s.role {
                         taint::FlowRole::Source => "Источник (пользовательский ввод)".to_string(),
                         taint::FlowRole::Propagation => "Передача через переменную".to_string(),
+                        taint::FlowRole::Call => "Передача в функцию".to_string(),
                         taint::FlowRole::Sink => "Приёмник (опасный вызов)".to_string(),
                     },
                     line: s.line,
