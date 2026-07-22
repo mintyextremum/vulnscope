@@ -61,7 +61,7 @@ export function findingToMarkdown(f: Finding, t: TFn, includeSnippet = false): s
   if (f.extra?.flow && f.extra.flow.length > 0) {
     out.push(`**${t("Поток данных")}:**`);
     for (const s of f.extra.flow) {
-      out.push(`- ${t(s.category)} — \`${f.file}:${s.line}\`: \`${s.code}\``);
+      out.push(`- ${t(s.category)} — \`${s.file ?? f.file}:${s.line}\`: \`${s.code}\``);
     }
     out.push("");
   }

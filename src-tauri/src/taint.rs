@@ -47,6 +47,10 @@ pub struct FlowStep {
     pub line: u32,
     pub code: String,
     pub role: FlowRole,
+    /// The file this step is in, when it differs from the file being analyzed —
+    /// set only on a sink reached across a file boundary. `None` means "the same
+    /// file", which every step is until the flow crosses into a callee elsewhere.
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -167,18 +171,23 @@ struct Func {
 /// A dangerous call a parameter reaches inside a function, carried up so a caller
 /// can show the sink that its argument ends up at.
 #[derive(Clone, PartialEq)]
-struct SinkHit {
+pub(crate) struct SinkHit {
     line: u32,
     code: String,
     category: &'static str,
     cwe: &'static [&'static str],
     severity: Severity,
+    /// The file the sink lives in, set when this summary was exported from
+    /// another file so a cross-file flow can point at the right place.
+    file: Option<String>,
 }
 
 /// What a function does to its parameters, computed once and reused at every
 /// call site: which parameters reach a sink, and which flow into its return.
+/// Exported per file so a caller elsewhere can resolve a call across the
+/// boundary — the cross-file layer of the flagship engine.
 #[derive(Clone, Default, PartialEq)]
-struct Summary {
+pub(crate) struct Summary {
     sink_params: BTreeMap<usize, SinkHit>,
     return_params: BTreeSet<usize>,
 }
@@ -202,7 +211,7 @@ type OnSink<'a> =
 /// signatures are keyword-led (`def`/`function`/`func`) or an arrow assignment,
 /// so a definition can never be mistaken for a call. Everything else keeps the
 /// original whole-file behaviour — a smaller claim, but never a false one.
-fn scoped(lang: Language) -> bool {
+pub(crate) fn scoped(lang: Language) -> bool {
     matches!(
         lang,
         Language::Python
@@ -407,6 +416,7 @@ fn process_line(
     sinks: &[&CompiledSink],
     funcs_by_name: &HashMap<String, usize>,
     summaries: &[Summary],
+    externals: &HashMap<String, Summary>,
     tainted: &mut HashMap<String, TaintVar>,
     on_sink: &mut OnSink,
     on_return: &mut dyn FnMut(&TaintVar),
@@ -430,7 +440,7 @@ fn process_line(
                 s.category,
                 s.cwe,
                 s.severity,
-                vec![FlowStep { line, code: code.clone(), role: FlowRole::Sink }],
+                vec![FlowStep { line, code: code.clone(), role: FlowRole::Sink, file: None }],
             );
             sunk = true;
             break;
@@ -440,7 +450,9 @@ fn process_line(
     // 1b) Interprocedural sink: the tainted value is passed to a function that
     //     sinks that argument. The chain gains a call step and the callee's sink.
     if !sunk {
-        if let Some(r) = call_reaches_sink(text, line, &code, tainted, funcs_by_name, summaries) {
+        if let Some(r) =
+            call_reaches_sink(text, line, &code, tainted, funcs_by_name, summaries, externals)
+        {
             on_sink(r.var, r.category, r.cwe, r.severity, r.tail);
             sunk = true;
         }
@@ -461,12 +473,12 @@ fn process_line(
             tainted.insert(
                 lhs,
                 TaintVar {
-                    steps: vec![FlowStep { line, code, role: FlowRole::Source }],
+                    steps: vec![FlowStep { line, code, role: FlowRole::Source, file: None }],
                     origin_param: None,
                 },
             );
         } else if let Some(effect) =
-            resolve_call(rhs, line, &code, tainted, funcs_by_name, summaries)
+            resolve_call(rhs, line, &code, tainted, funcs_by_name, summaries, externals)
         {
             // The rhs passes a tainted value to a function defined in this file,
             // so its summary — not a surface substring match — decides the taint.
@@ -481,7 +493,7 @@ fn process_line(
             .map(|(_, v)| v.clone())
             .min_by_key(|v| v.source_line())
         {
-            v.steps.push(FlowStep { line, code, role: FlowRole::Propagation });
+            v.steps.push(FlowStep { line, code, role: FlowRole::Propagation, file: None });
             tainted.insert(lhs, v);
         } else {
             tainted.remove(&lhs);
@@ -520,9 +532,24 @@ fn earliest_referenced<'a>(
     best
 }
 
+/// Resolves a called name to a summary: a function defined in this file wins,
+/// otherwise one exported by another file (the cross-file layer).
+fn lookup_summary<'a>(
+    name: &str,
+    funcs_by_name: &HashMap<String, usize>,
+    summaries: &'a [Summary],
+    externals: &'a HashMap<String, Summary>,
+) -> Option<&'a Summary> {
+    if let Some(&fi) = funcs_by_name.get(name) {
+        return summaries.get(fi);
+    }
+    externals.get(name)
+}
+
 /// If a call on this line hands a tainted argument to a function that sinks that
 /// argument, returns the tail steps (call + sink), the sink metadata, and the
-/// argument's taint chain.
+/// argument's taint chain. The callee may live in this file or another one, in
+/// which case the sink step carries that file.
 fn call_reaches_sink<'a>(
     text: &str,
     line: u32,
@@ -530,11 +557,13 @@ fn call_reaches_sink<'a>(
     tainted: &'a HashMap<String, TaintVar>,
     funcs_by_name: &HashMap<String, usize>,
     summaries: &[Summary],
+    externals: &HashMap<String, Summary>,
 ) -> Option<Reached<'a>> {
     for c in CALL_RE.captures_iter(text) {
         let name = &c[1];
-        let Some(&fi) = funcs_by_name.get(name) else { continue };
-        let summary = &summaries[fi];
+        let Some(summary) = lookup_summary(name, funcs_by_name, summaries, externals) else {
+            continue;
+        };
         if summary.sink_params.is_empty() {
             continue;
         }
@@ -543,8 +572,13 @@ fn call_reaches_sink<'a>(
             if let Some(v) = earliest_referenced(tainted, &arg, line) {
                 return Some(Reached {
                     tail: vec![
-                        FlowStep { line, code: code.to_string(), role: FlowRole::Call },
-                        FlowStep { line: hit.line, code: hit.code.clone(), role: FlowRole::Sink },
+                        FlowStep { line, code: code.to_string(), role: FlowRole::Call, file: None },
+                        FlowStep {
+                            line: hit.line,
+                            code: hit.code.clone(),
+                            role: FlowRole::Sink,
+                            file: hit.file.clone(),
+                        },
                     ],
                     category: hit.category,
                     cwe: hit.cwe,
@@ -569,8 +603,8 @@ enum CallEffect {
 }
 
 /// Resolves what happens when the rhs passes a tainted value to a function
-/// defined in this file. `None` means no such call touches a tainted value, so
-/// the caller falls back to plain variable propagation.
+/// defined in this file or exported by another. `None` means no such call
+/// touches a tainted value, so the caller falls back to plain propagation.
 fn resolve_call(
     rhs: &str,
     line: u32,
@@ -578,21 +612,28 @@ fn resolve_call(
     tainted: &HashMap<String, TaintVar>,
     funcs_by_name: &HashMap<String, usize>,
     summaries: &[Summary],
+    externals: &HashMap<String, Summary>,
 ) -> Option<CallEffect> {
     let mut consumed = false;
     for c in CALL_RE.captures_iter(rhs) {
         let name = &c[1];
-        let Some(&fi) = funcs_by_name.get(name) else { continue };
-        let summary = &summaries[fi];
+        let Some(summary) = lookup_summary(name, funcs_by_name, summaries, externals) else {
+            continue;
+        };
         for (i, arg) in split_top_commas(&c[2]).into_iter().enumerate() {
             let Some(v) = earliest_referenced(tainted, &arg, line) else { continue };
             if summary.return_params.contains(&i) {
                 let mut carried = v.clone();
-                carried.steps.push(FlowStep { line, code: code.to_string(), role: FlowRole::Call });
+                carried.steps.push(FlowStep {
+                    line,
+                    code: code.to_string(),
+                    role: FlowRole::Call,
+                    file: None,
+                });
                 return Some(CallEffect::Returns(carried));
             }
-            // A tainted value went into a file-local helper that does not return
-            // it: remember, in case nothing else returns it.
+            // A tainted value went into a helper that does not return it:
+            // remember, in case nothing else returns it.
             consumed = true;
         }
     }
@@ -631,11 +672,16 @@ fn summarize(
                     line: (f.sig + 1) as u32,
                     code: String::new(),
                     role: FlowRole::Source,
+                    file: None,
                 }],
                 origin_param: Some(i),
             },
         );
     }
+    // Summaries are computed intra-file: a function's own body plus calls to
+    // functions in the same file. Cross-file resolution happens only at the
+    // top-level trace, keeping the export a self-contained fact about one file.
+    let no_externals: HashMap<String, Summary> = HashMap::new();
 
     let mut out = Summary::default();
     for idx in f.body.clone() {
@@ -658,6 +704,7 @@ fn summarize(
                     line,
                     code: trimmed.chars().take(200).collect(),
                     role: FlowRole::Sink,
+                    file: None,
                 });
                 out.sink_params.entry(pi).or_insert(SinkHit {
                     line: sink.line,
@@ -665,6 +712,8 @@ fn summarize(
                     category,
                     cwe,
                     severity,
+                    // Filled in with the file when this summary is exported.
+                    file: sink.file,
                 });
             }
         };
@@ -679,6 +728,7 @@ fn summarize(
             sinks,
             funcs_by_name,
             summaries,
+            &no_externals,
             &mut tainted,
             &mut on_sink,
             &mut on_return,
@@ -687,10 +737,71 @@ fn summarize(
     out
 }
 
+/// The public functions a file exports for cross-file tracing: name → summary,
+/// with the summary's sink pointing at this file. Only functions that actually
+/// sink or return a parameter are worth exporting.
+pub(crate) fn collect_exports(content: &str, lang: Language, rel: &str) -> Vec<(String, Summary)> {
+    if !scoped(lang) {
+        return Vec::new();
+    }
+    let sinks: Vec<&CompiledSink> = SINKS.iter().filter(|s| s.langs.contains(&lang)).collect();
+    if sinks.is_empty() {
+        return Vec::new();
+    }
+    let lines: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let funcs = functions(&lines, lang);
+    let funcs_by_name: HashMap<String, usize> =
+        funcs.iter().enumerate().map(|(i, f)| (f.name.clone(), i)).collect();
+
+    // Same fixpoint as the main analysis, so an exported summary reflects the
+    // helper's full intra-file behaviour.
+    let mut summaries = vec![Summary::default(); funcs.len()];
+    for _ in 0..MAX_SUMMARY_ITERS {
+        let mut changed = false;
+        for (fi, f) in funcs.iter().enumerate() {
+            let s = summarize(&lines, f, lang, &sinks, &funcs_by_name, &summaries);
+            if s != summaries[fi] {
+                summaries[fi] = s;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+
+    funcs
+        .into_iter()
+        .zip(summaries)
+        .filter_map(|(f, mut s)| {
+            if s.sink_params.is_empty() && s.return_params.is_empty() {
+                return None;
+            }
+            // Stamp the file onto each sink so a caller elsewhere can point at it.
+            for hit in s.sink_params.values_mut() {
+                hit.file = Some(rel.to_string());
+            }
+            Some((f.name, s))
+        })
+        .collect()
+}
+
 /// Traces user-controlled data through `content` and returns every source→sink
 /// flow found, following calls into the file's own functions. Deterministic:
-/// the same input always yields the same flows.
+/// the same input always yields the same flows. The single-file entry point;
+/// the scanner uses [`analyze_with`] to also resolve calls across files.
+#[allow(dead_code)] // intra-file public entry, exercised by the unit tests
 pub fn analyze(content: &str, lang: Language) -> Vec<TaintFlow> {
+    analyze_with(content, lang, &HashMap::new())
+}
+
+/// As [`analyze`], but also resolves calls to functions exported by other files
+/// (`externals`: name → summary), producing flows that cross a file boundary.
+pub(crate) fn analyze_with(
+    content: &str,
+    lang: Language,
+    externals: &HashMap<String, Summary>,
+) -> Vec<TaintFlow> {
     // Cheap gate: no source indicator anywhere → nothing to trace.
     if !rules::content_has_taint(content) {
         return Vec::new();
@@ -765,6 +876,7 @@ pub fn analyze(content: &str, lang: Language) -> Vec<TaintFlow> {
             &sinks,
             &funcs_by_name,
             &summaries,
+            externals,
             &mut tainted,
             &mut on_sink,
             &mut on_return,
@@ -979,6 +1091,45 @@ function show(req) {
 }
 ";
         assert!(analyze(code, Language::JavaScript).is_empty());
+    }
+
+    #[test]
+    fn traces_across_a_file_boundary() {
+        // The sink lives in another file's helper. Exporting that file's summary
+        // and feeding it as an external lets the caller's flow cross the boundary.
+        let helper = "\
+def execute(value):
+    os.system(value)
+";
+        let exports: std::collections::HashMap<String, Summary> =
+            collect_exports(helper, Language::Python, "helpers.py").into_iter().collect();
+        assert!(exports.contains_key("execute"), "helper should export a sinking summary");
+
+        let caller = "\
+def run(request):
+    cmd = request.args.get('cmd')
+    execute(cmd)
+";
+        let flows = analyze_with(caller, Language::Python, &exports);
+        assert_eq!(flows.len(), 1, "one cross-file flow expected: {flows:?}");
+        let f = &flows[0];
+        assert_eq!(f.category, "Инъекция команд");
+        let sink = f.steps.last().unwrap();
+        assert_eq!(sink.role, FlowRole::Sink);
+        assert_eq!(sink.file.as_deref(), Some("helpers.py"), "sink step must carry the callee file");
+        assert!(f.steps.iter().any(|s| s.role == FlowRole::Call));
+    }
+
+    #[test]
+    fn no_cross_file_flow_without_the_export() {
+        // Same caller, but with no external summary: the unknown call is opaque,
+        // so nothing is reported. Cross-file needs the pre-pass to have run.
+        let caller = "\
+def run(request):
+    cmd = request.args.get('cmd')
+    execute(cmd)
+";
+        assert!(analyze(caller, Language::Python).is_empty());
     }
 
     #[test]

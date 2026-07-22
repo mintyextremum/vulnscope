@@ -216,6 +216,11 @@ export const EN: Record<string, string> = {
     "Data-flow analysis traced a value from where user input enters the program, through variable assignments, to a dangerous call — with no escaping or validation along the way. The full path is shown under \"Data flow\"; open each step in the code to verify it.",
   "Разорвите поток: примените параметризацию, экранирование или белый список на одном из шагов между источником и приёмником — лучше как можно ближе к приёмнику.":
     "Break the flow: apply parameterization, escaping, or an allowlist at one of the steps between source and sink — ideally as close to the sink as possible.",
+  "Пользовательские данные достигают опасного вызова в другом файле":
+    "User data reaches a dangerous call in another file",
+  "Анализ потока данных проследил значение от пользовательского ввода через вызов функции в другом файле до опасного вызова там — без экранирования или проверки по пути. Полный межфайловый путь показан в разделе «Поток данных»; каждый шаг, включая приёмник в другом файле, можно открыть в коде и проверить.":
+    "Data-flow analysis traced a value from user input, through a call into a function in another file, to a dangerous call there — with no escaping or validation along the way. The full cross-file path is shown under \"Data flow\"; open each step, including the sink in the other file, to verify it.",
+  "другой файл": "other file",
   // Rule catalogue: confidence filter + filtered count — 18.07.2026
   "{n} из {total}": "{n} of {total}",
   // BETA tab + dangerous-combination findings

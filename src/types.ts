@@ -190,11 +190,14 @@ export interface FindingExtra {
   flow?: CombineSpot[];
 }
 
-/** One link of a dangerous combination. */
+/** One link of a dangerous combination or a data-flow step. */
 export interface CombineSpot {
   category: string;
   line: number;
   code: string;
+  /** Set on a data-flow step that crossed into a callee in another file; the
+   *  step then points there instead of at the finding's own file. */
+  file?: string | null;
 }
 
 export interface SeverityCounts {

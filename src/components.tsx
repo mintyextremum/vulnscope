@@ -1349,23 +1349,32 @@ export function FindingDetail({
               {t("Поток данных")}
             </h3>
             <ol className="flow-path">
-              {finding.extra.flow.map((s, i) => (
-                <li key={i} className={i === 0 ? "flow-source" : i === finding.extra!.flow!.length - 1 ? "flow-sink" : "flow-mid"}>
-                  <button
-                    className="combine-spot"
-                    onClick={() => onOpenFile(finding.file, s.line)}
-                    title={t("Открыть строку {n} в коде", { n: String(s.line) })}
-                  >
-                    <span className="cs-head">
-                      <span className="cs-cat">{t(s.category)}</span>
-                      <span className="cs-line">
-                        {finding.file}:{s.line}
+              {finding.extra.flow.map((s, i) => {
+                // A step may live in another file when the flow crossed a call
+                // boundary; open and label that file, not the finding's own.
+                const stepFile = s.file ?? finding.file;
+                const crossed = !!s.file && s.file !== finding.file;
+                return (
+                  <li key={i} className={i === 0 ? "flow-source" : i === finding.extra!.flow!.length - 1 ? "flow-sink" : "flow-mid"}>
+                    <button
+                      className="combine-spot"
+                      onClick={() => onOpenFile(stepFile, s.line)}
+                      title={t("Открыть строку {n} в коде", { n: String(s.line) })}
+                    >
+                      <span className="cs-head">
+                        <span className="cs-cat">
+                          {t(s.category)}
+                          {crossed && <span className="cs-xfile"><Icon name="alt_route" />{t("другой файл")}</span>}
+                        </span>
+                        <span className="cs-line">
+                          {stepFile}:{s.line}
+                        </span>
                       </span>
-                    </span>
-                    <code className="cs-code">{s.code}</code>
-                  </button>
-                </li>
-              ))}
+                      <code className="cs-code">{s.code}</code>
+                    </button>
+                  </li>
+                );
+              })}
             </ol>
           </div>
         )}

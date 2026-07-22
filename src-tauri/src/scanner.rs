@@ -227,6 +227,7 @@ fn scan_one_file(
     dataflow: bool,
     user_rules: &[userrules::CompiledUserRule],
     max_findings: usize,
+    externals: &std::collections::HashMap<String, taint::Summary>,
 ) -> Option<(Vec<Finding>, u32, u64)> {
     let bytes = std::fs::read(abs).ok()?;
     let size = bytes.len() as u64;
@@ -400,13 +401,25 @@ fn scan_one_file(
     // variables to a dangerous sink and reports the whole path. These are
     // confirmed findings (not BETA): every one carries a self-verifiable chain.
     if dataflow {
-        for flow in taint::analyze(&content, lang) {
-            let sink = flow.steps.last().cloned().unwrap_or(taint::FlowStep {
-                line: 0,
-                code: String::new(),
-                role: taint::FlowRole::Sink,
-            });
-            let (snippet, snippet_start_line) = index.snippet(sink.line);
+        for flow in taint::analyze_with(&content, lang, externals) {
+            // Anchor at the deepest step still in this file: the sink for an
+            // in-file flow, the call site for one that crosses into another file
+            // (whose sink line means nothing in this file's line numbering).
+            let anchor = flow
+                .steps
+                .iter()
+                .rev()
+                .find(|s| s.file.is_none())
+                .or_else(|| flow.steps.last())
+                .cloned()
+                .unwrap_or(taint::FlowStep {
+                    line: 0,
+                    code: String::new(),
+                    role: taint::FlowRole::Sink,
+                    file: None,
+                });
+            let (snippet, snippet_start_line) = index.snippet(anchor.line);
+            let crosses_file = flow.steps.iter().any(|s| s.file.is_some());
             let steps: Vec<CombineSpot> = flow
                 .steps
                 .iter()
@@ -419,21 +432,34 @@ fn scan_one_file(
                     },
                     line: s.line,
                     code: s.code.clone(),
+                    file: s.file.clone(),
                 })
                 .collect();
             findings.push(Finding {
-                id: format!("VS-FLOW:{}:{}:{}", rel, sink.line, flow.category),
+                id: format!("VS-FLOW:{}:{}:{}", rel, anchor.line, flow.category),
                 fingerprint: String::new(),
                 suppressed: false,
                 suppression_reason: None,
                 is_new: false,
                 rule_id: "VS-FLOW".to_string(),
-                title: "Пользовательские данные достигают опасного вызова".to_string(),
-                description: "Анализ потока данных проследил значение от места, где в программу \
+                title: if crosses_file {
+                    "Пользовательские данные достигают опасного вызова в другом файле".to_string()
+                } else {
+                    "Пользовательские данные достигают опасного вызова".to_string()
+                },
+                description: if crosses_file {
+                    "Анализ потока данных проследил значение от пользовательского ввода через вызов \
+                     функции в другом файле до опасного вызова там — без экранирования или проверки \
+                     по пути. Полный межфайловый путь показан в разделе «Поток данных»; каждый шаг, \
+                     включая приёмник в другом файле, можно открыть в коде и проверить."
+                        .to_string()
+                } else {
+                    "Анализ потока данных проследил значение от места, где в программу \
                      попадает пользовательский ввод, через присваивания переменных до опасного \
                      вызова — без экранирования или проверки по пути. Полный путь показан в разделе \
                      «Поток данных»; каждый шаг можно открыть в коде и проверить."
-                    .to_string(),
+                        .to_string()
+                },
                 recommendation: "Разорвите поток: примените параметризацию, экранирование или белый \
                      список на одном из шагов между источником и приёмником — лучше как можно ближе \
                      к приёмнику."
@@ -444,8 +470,8 @@ fn scan_one_file(
                 source_label: "Анализ потока данных".to_string(),
                 category: flow.category.to_string(),
                 file: rel.to_string(),
-                line: sink.line,
-                end_line: sink.line,
+                line: anchor.line,
+                end_line: anchor.line,
                 column: 1,
                 end_column: 1,
                 snippet,
@@ -511,6 +537,9 @@ pub fn recheck_file(
         dataflow,
         &compiled_user,
         max_findings,
+        // A single-file re-check has no project-wide export map, so cross-file
+        // flows are not re-derived here; the intra-file result still matches.
+        &Default::default(),
     ) {
         Some((f, _, _)) => f,
         None => Vec::new(),
@@ -598,6 +627,7 @@ fn detect_combination(findings: &[Finding], rel: &str, index: &LineIndex) -> Opt
                 category: cat.to_string(),
                 line,
                 code: index.line_text(line).trim().to_string(),
+                file: None,
             })
         })
         .collect();
@@ -819,10 +849,46 @@ pub async fn run_scan(
     let lines_total = AtomicU64::new(0);
     let bytes_total = AtomicU64::new(0);
 
+    // ------------------------------------------ cross-file data-flow pre-pass
+    // The flagship's cross-file layer: before scanning, collect each file's
+    // exported function summaries (which parameter reaches a sink / is returned).
+    // A call in one file can then resolve to a function in another. Only names
+    // defined in exactly one file across the project are kept, so a collision
+    // can never fabricate a false cross-file flow. Gated on `dataflow`, and only
+    // the languages the engine can segment contribute.
+    let externals: std::collections::HashMap<String, taint::Summary> = if dataflow {
+        let per_file: Vec<(String, taint::Summary)> = tokio::task::block_in_place(|| {
+            discovery
+                .candidates
+                .par_iter()
+                .filter(|c| !cancel.load(Ordering::Relaxed) && taint::scoped(c.language))
+                .flat_map_iter(|c| {
+                    std::fs::read(&c.abs_path)
+                        .ok()
+                        .and_then(|b| String::from_utf8(b).ok())
+                        .map(|content| taint::collect_exports(&content, c.language, &c.rel_path))
+                        .unwrap_or_default()
+                })
+                .collect()
+        });
+        let mut counts: std::collections::HashMap<&str, u32> = Default::default();
+        for (name, _) in &per_file {
+            *counts.entry(name.as_str()).or_default() += 1;
+        }
+        per_file
+            .iter()
+            .filter(|(n, _)| counts.get(n.as_str()) == Some(&1))
+            .map(|(n, s)| (n.clone(), s.clone()))
+            .collect()
+    } else {
+        Default::default()
+    };
+
     let max_findings = cfg.max_findings_per_file as usize;
     let scan_results: Vec<(String, Language, Vec<Finding>, u32, u64)> = {
         let candidates = &discovery.candidates;
         let cancel = cancel.clone();
+        let externals = &externals;
 
         tokio::task::block_in_place(|| {
             candidates
@@ -841,6 +907,7 @@ pub async fn run_scan(
                         dataflow,
                         &compiled_user,
                         max_findings,
+                        externals,
                     );
 
                     progress.processed.fetch_add(1, Ordering::Relaxed);
@@ -1534,7 +1601,7 @@ mod tests {
         )
         .unwrap();
 
-        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, false, false, &[], 200).unwrap();
+        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, false, false, &[], 200, &Default::default()).unwrap();
         let secret_findings: Vec<_> = findings
             .iter()
             .filter(|f| f.source == FindingSource::Secrets)
@@ -1706,7 +1773,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/app.py")
             .unwrap();
-        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, false, false, &[], 200).unwrap();
+        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, false, false, &[], 200, &Default::default()).unwrap();
 
         assert!(lines >= 5);
         assert!(size > 0);
@@ -1726,7 +1793,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/safe.py")
             .unwrap();
-        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, false, false, &[], 200).unwrap();
+        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, false, false, &[], 200, &Default::default()).unwrap();
         assert!(clean.is_empty(), "clean file produced findings: {clean:?}");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -1966,7 +2033,7 @@ mod tests {
         assert!(warns.is_empty());
 
         let (findings, _, _) =
-            scan_one_file(&path, "app.py", Language::Python, false, false, false, &compiled, 200).unwrap();
+            scan_one_file(&path, "app.py", Language::Python, false, false, false, &compiled, 200, &Default::default()).unwrap();
 
         let mine: Vec<_> = findings
             .iter()
@@ -1992,13 +2059,13 @@ mod tests {
         let py = dir.join("a.py");
         std::fs::write(&py, "# banned_call(1)\n").unwrap();
         let (compiled, _) = userrules::compile(&[user_rule("MY-001", r"banned_call\s*\(", &["python"])]);
-        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, false, false, &compiled, 200).unwrap();
+        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, false, false, &compiled, 200, &Default::default()).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         // A python-scoped rule must not fire on Rust.
         let rs = dir.join("b.rs");
         std::fs::write(&rs, "fn f() { banned_call(1); }\n").unwrap();
-        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, false, &compiled, 200).unwrap();
+        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, false, &compiled, 200, &Default::default()).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -2020,7 +2087,7 @@ mod tests {
         .unwrap();
 
         let (findings, _, _) =
-            scan_one_file(&path, "chain.py", Language::Python, false, true, false, &[], 200).unwrap();
+            scan_one_file(&path, "chain.py", Language::Python, false, true, false, &[], 200, &Default::default()).unwrap();
         let combo = findings
             .iter()
             .find(|f| f.rule_id == "VS-EXP-COMBO")
@@ -2042,7 +2109,7 @@ mod tests {
 
         // With the experimental pass off, no combination is emitted.
         let (plain, _, _) =
-            scan_one_file(&path, "chain.py", Language::Python, false, false, false, &[], 200).unwrap();
+            scan_one_file(&path, "chain.py", Language::Python, false, false, false, &[], 200, &Default::default()).unwrap();
         assert!(!plain.iter().any(|f| f.rule_id == "VS-EXP-COMBO"));
 
         let _ = std::fs::remove_dir_all(&dir);
