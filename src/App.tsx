@@ -57,6 +57,14 @@ import {
 } from "./ui";
 
 type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings" | "help";
+
+/** An audit target imported from a 1C project registry. */
+interface Project1c {
+  name: string;
+  path: string;
+  repo: string;
+  owner: string;
+}
 type ResultTab = "overview" | "findings" | "beta" | "code" | "skipped";
 
 const TABS: ResultTab[] = ["overview", "findings", "beta", "code", "skipped"];
@@ -102,6 +110,7 @@ export default function App() {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [projects1c, setProjects1c] = useState<Project1c[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<number | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -341,6 +350,64 @@ export default function App() {
       // Clipboard can refuse (focus/permission); fall back to the Save dialog.
       showFlash(t("Не удалось скопировать — используйте экспорт в Markdown"));
     }
+  };
+
+  /**
+   * Imports an audit-target registry that 1C exported: a list of projects to
+   * scan, each a local path or a repo URL, with the responsible person. Closes
+   * the loop — 1C decides what to audit, the scanner reads it and fills the
+   * target. File-based XML, so it works with any 1C config that can write a file.
+   *
+   * Schema (Russian element names, so a 1C processing maps straight to it):
+   *   <СписокПроектов><Проект>
+   *     <Наименование>…</Наименование>
+   *     <Путь>…</Путь> | <Репозиторий>https://…</Репозиторий>
+   *     <Ответственный>…</Ответственный>
+   *   </Проект>…</СписокПроектов>
+   */
+  const import1c = async () => {
+    const file = await openDialog({ multiple: false, filters: [{ name: "XML (1С)", extensions: ["xml"] }] });
+    if (typeof file !== "string") return;
+    try {
+      // The backend reads the file (the webview has no filesystem of its own),
+      // the same route rule/theme import takes.
+      const raw = await invoke<string>("read_source", {
+        root: file.replace(/[\\/][^\\/]+$/, ""),
+        relative: file.split(/[\\/]/).pop() ?? "",
+      });
+      const doc = new DOMParser().parseFromString(raw, "application/xml");
+      if (doc.querySelector("parsererror")) throw new Error(t("Файл не является корректным XML"));
+      const text = (el: Element, tag: string) =>
+        el.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
+      const projects: Project1c[] = Array.from(doc.getElementsByTagName("Проект"))
+        .map((el) => ({
+          name: text(el, "Наименование") || text(el, "Имя"),
+          path: text(el, "Путь") || text(el, "Каталог"),
+          repo: text(el, "Репозиторий") || text(el, "Ссылка"),
+          owner: text(el, "Ответственный"),
+        }))
+        .filter((p) => p.path || p.repo);
+      if (projects.length === 0) {
+        setError(t("В файле нет проектов (ожидаются элементы «Проект» с «Путь» или «Репозиторий»)."));
+        return;
+      }
+      setProjects1c(projects);
+      setError(null);
+    } catch (e) {
+      setError(t("Не удалось прочитать файл 1С: {e}", { e: String(e) }));
+    }
+  };
+
+  /** Fills the scan target from a project picked out of a 1C import. */
+  const pick1cProject = (pr: Project1c) => {
+    if (pr.repo) {
+      setMode("repo");
+      setRepoUrl(pr.repo);
+    } else {
+      setMode("local");
+      setLocalPath(pr.path);
+    }
+    setProjects1c([]);
   };
 
   /** Exports a 1C:Enterprise-loadable XML, for corporate reporting in 1C. */
@@ -1184,6 +1251,9 @@ export default function App() {
           setEnabledTools={setEnabledTools}
           canScan={canScan}
           startScan={startScan}
+          import1c={import1c}
+          projects1c={projects1c}
+          pick1cProject={pick1cProject}
         />
       )}
 
@@ -1435,6 +1505,9 @@ interface SetupProps {
   setEnabledTools: (v: Set<ToolId>) => void;
   canScan: boolean;
   startScan: () => void;
+  import1c: () => void;
+  projects1c: Project1c[];
+  pick1cProject: (pr: Project1c) => void;
 }
 
 function SetupScreen(p: SetupProps) {
@@ -1523,6 +1596,26 @@ function SetupScreen(p: SetupProps) {
               </div>
             </>
           )}
+
+          {/* Import an audit-target registry exported from 1C, then pick one. */}
+          <div className="import-1c">
+            <button className="btn btn-ghost btn-sm" onClick={p.import1c}>
+              <Icon name="account_balance" />
+              {t("Импорт проектов из 1С")}
+            </button>
+            {p.projects1c.length > 0 && (
+              <div className="import-1c-list">
+                {p.projects1c.map((pr, i) => (
+                  <button key={i} className="import-1c-item" onClick={() => p.pick1cProject(pr)}>
+                    <Icon name={pr.repo ? "cloud_download" : "folder"} />
+                    <span className="i1c-name">{pr.name || pr.repo || pr.path}</span>
+                    <span className="i1c-target">{pr.repo || pr.path}</span>
+                    {pr.owner && <span className="i1c-owner">{pr.owner}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="card">

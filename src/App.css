@@ -305,6 +305,56 @@ kbd,
   font-size: var(--fs-xs);
 }
 
+/* 1C project import: a button plus the picked registry below it. */
+.import-1c {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+
+.import-1c-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sp-2);
+}
+
+.import-1c-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border: none;
+  border-radius: var(--r-1);
+  background: var(--s-1);
+  color: var(--t-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.import-1c-item:hover { background: var(--s-3); }
+.import-1c-item .material-symbols-outlined { font-size: 17px; color: var(--t-4); }
+
+.i1c-name { font-weight: var(--fw-med); color: var(--t-1); white-space: nowrap; }
+
+.i1c-target {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--t-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.i1c-owner {
+  font-size: var(--fs-xs);
+  color: var(--t-3);
+  white-space: nowrap;
+}
+
 /* Export dropdown: every format in one menu, so the button is not a single
    silent JSON save with the rest hidden in the palette. */
 .export-wrap { position: relative; display: inline-flex; }
