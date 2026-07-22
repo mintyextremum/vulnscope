@@ -420,6 +420,9 @@ fn scan_one_file(
                 });
             let (snippet, snippet_start_line) = index.snippet(anchor.line);
             let crosses_file = flow.steps.iter().any(|s| s.file.is_some());
+            // Where the untrusted data enters, so the source step and the
+            // attack-paths panel name the real entry point, not "user input".
+            let entry = flow.entry_kind();
             let steps: Vec<CombineSpot> = flow
                 .steps
                 .iter()
@@ -482,6 +485,7 @@ fn scan_one_file(
                 references: Vec::new(),
                 extra: Some(FindingExtra {
                     flow: steps,
+                    entry: Some(entry.to_string()),
                     ..Default::default()
                 }),
                 package: None,

@@ -1239,7 +1239,16 @@ export default function App() {
             </button>
           </div>
 
-          {tab === "overview" && <Overview report={report} />}
+          {tab === "overview" && (
+            <Overview
+              report={report}
+              onOpenFinding={(f) => {
+                setSelectedFinding(f);
+                setSelectedFile(null);
+                setTab("findings");
+              }}
+            />
+          )}
 
           {(tab === "findings" || tab === "beta") && (
             <div className="results">
@@ -1830,7 +1839,88 @@ function ScoreHero({ score }: { score: SecurityScore }) {
   );
 }
 
-function Overview({ report }: { report: ScanReport }) {
+/**
+ * Attack paths — the flagship made actionable.
+ *
+ * The score says "how bad"; this says "here are the exact routes an attacker
+ * takes". The traced data-flows, ranked worst-first (severity, then whether the
+ * chain crosses a file, then its length), each shown as a one-line
+ * entry → sink summary you can click straight into. A grade plus its receipts.
+ */
+function AttackPaths({
+  report,
+  onOpenFinding,
+}: {
+  report: ScanReport;
+  onOpenFinding: (f: Finding) => void;
+}) {
+  const t = useT();
+  const paths = useMemo(() => {
+    const sevRank: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+    return report.findings
+      .filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed)
+      .map((f) => {
+        const flow = f.extra?.flow ?? [];
+        const crosses = flow.some((s) => s.file && s.file !== f.file);
+        return { f, flow, crosses, steps: flow.length };
+      })
+      .sort(
+        (a, b) =>
+          sevRank[a.f.severity] - sevRank[b.f.severity] ||
+          Number(b.crosses) - Number(a.crosses) ||
+          b.steps - a.steps
+      )
+      .slice(0, 6);
+  }, [report.findings]);
+
+  if (paths.length === 0) return null;
+
+  return (
+    <div className="card attack-paths">
+      <div className="card-title">
+        <Icon name="conversion_path" />
+        {t("Пути атаки")}
+        <span className="count">{report.findings.filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed).length}</span>
+        <span className="ap-sub">{t("прослежено от ввода до опасного вызова")}</span>
+      </div>
+      <div className="ap-list">
+        {paths.map(({ f, flow, crosses, steps }) => {
+          const sink = flow[flow.length - 1];
+          return (
+            <button key={f.id} className="ap-row" onClick={() => onOpenFinding(f)}>
+              <span className={`sev-dot ${f.severity}`} />
+              <span className="ap-entry">
+                <Icon name="login" />
+                {t(f.extra?.entry ?? "пользовательский ввод")}
+              </span>
+              <Icon name="arrow_right_alt" className="ap-arrow" />
+              <span className="ap-sink">{t(f.category)}</span>
+              {crosses && (
+                <span className="ap-xfile" title={t("Цепочка проходит через другой файл")}>
+                  <Icon name="alt_route" />
+                  {t("межфайловый")}
+                </span>
+              )}
+              <span className="ap-loc">
+                {(sink?.file ?? f.file).split(/[\\/]/).pop()}
+                {sink ? `:${sink.line}` : ""}
+              </span>
+              <span className="ap-steps">{t("{n} шагов", { n: String(steps) })}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Overview({
+  report,
+  onOpenFinding,
+}: {
+  report: ScanReport;
+  onOpenFinding: (f: Finding) => void;
+}) {
   const t = useT();
   const lang = useContext(LangContext);
 
@@ -1871,6 +1961,7 @@ function Overview({ report }: { report: ScanReport }) {
     <div className="overview">
       <Announce message={summary} />
       {score && <ScoreHero score={score} />}
+      {!report.cancelled && <AttackPaths report={report} onOpenFinding={onOpenFinding} />}
       {!report.cancelled && report.delta.previousScanAt && (
         <div className="delta-bar">
           <div className={`delta-stat ${report.delta.newCount > 0 ? "bad" : ""}`}>

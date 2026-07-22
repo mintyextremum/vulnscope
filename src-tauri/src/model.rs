@@ -437,6 +437,10 @@ pub struct FindingExtra {
     /// present. Drives prioritisation and the security score.
     #[serde(default)]
     pub on_data_path: bool,
+    /// For a data-flow finding, where the untrusted data enters — "HTTP-запрос",
+    /// "аргумент командной строки", etc. Powers the attack-paths panel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
 }
 
 /// One link of a dangerous combination: a category, the line it sits on, and
