@@ -2743,6 +2743,78 @@ kbd,
   .score-hero { flex-direction: column; align-items: flex-start; }
 }
 
+/* ==================================================================== help */
+
+.help-body {
+  max-width: 900px;
+}
+
+.help-section {
+  margin-bottom: var(--sp-6);
+}
+
+.help-h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semi);
+  color: var(--t-1);
+  margin: 0 0 var(--sp-3);
+}
+
+.help-h2 .material-symbols-outlined { font-size: 20px; color: var(--a); }
+
+.help-intro {
+  color: var(--t-2);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 720px;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--sp-2);
+}
+
+.help-item {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-2);
+  background: var(--s-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.help-item-icon {
+  font-size: 20px !important;
+  color: var(--a);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.help-term {
+  font-weight: var(--fw-med);
+  color: var(--t-1);
+  font-size: var(--fs-base);
+  margin-bottom: 2px;
+}
+
+.help-desc {
+  color: var(--t-3);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.help-foot {
+  color: var(--t-4);
+  font-size: var(--fs-sm);
+  text-align: center;
+  padding: var(--sp-4) 0 var(--sp-8);
+}
+
 /* ============================================ attack paths (flagship, actionable) */
 
 .attack-paths { margin-bottom: var(--sp-3); }

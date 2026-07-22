@@ -41,6 +41,7 @@ import { toCsv } from "./csv";
 import { toHtml } from "./html";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
 import { RulesScreen } from "./Rules";
+import { HelpScreen } from "./Help";
 import { RuleEditor } from "./RuleEditor";
 import { SettingsScreen } from "./Settings";
 import { Titlebar } from "./Titlebar";
@@ -54,7 +55,7 @@ import {
   ViewTransition,
 } from "./ui";
 
-type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings";
+type Screen = "setup" | "scanning" | "results" | "rules" | "myrules" | "settings" | "help";
 type ResultTab = "overview" | "findings" | "beta" | "code" | "skipped";
 
 const TABS: ResultTab[] = ["overview", "findings", "beta", "code", "skipped"];
@@ -694,17 +695,21 @@ export default function App() {
   );
 
   /** Opens a secondary screen, remembering where to return to. */
+  const SECONDARY: Screen[] = ["rules", "myrules", "settings", "help"];
   const goto = useCallback(
     (target: Screen) => {
-      setPrevScreen(screen === "rules" || screen === "myrules" ? prevScreen : (screen as Screen));
+      // Hopping between secondary screens keeps the primary one to return to.
+      setPrevScreen(SECONDARY.includes(screen) ? prevScreen : (screen as Screen));
       setScreen(target);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [screen, prevScreen]
   );
 
   const openRules = useCallback(() => goto("rules"), [goto]);
   const openSettings = useCallback(() => goto("settings"), [goto]);
   const openMyRules = useCallback(() => goto("myrules"), [goto]);
+  const openHelp = useCallback(() => goto("help"), [goto]);
 
   const commands: Command[] = useMemo(
     () => [
@@ -1068,6 +1073,16 @@ export default function App() {
             {t("Отменить")}
           </button>
         )}
+        {screen !== "scanning" && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={openHelp}
+            title={t("Справка")}
+            aria-label={t("Справка")}
+          >
+            <Icon name="help" />
+          </button>
+        )}
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => setPaletteOpen(true)}
@@ -1116,6 +1131,8 @@ export default function App() {
           startScan={startScan}
         />
       )}
+
+      {screen === "help" && <HelpScreen onClose={() => setScreen(prevScreen)} />}
 
       {screen === "rules" && <RulesScreen onClose={() => setScreen(prevScreen)} />}
 
