@@ -43,6 +43,10 @@ export interface FindingFilters {
   /** Path the list is narrowed to via the tree, or null for the whole report. */
   file: string | null;
   clearFile: () => void;
+  /** git-blame author the list is narrowed to, or null. Set from a finding's
+   *  author chip; shown here with a one-click remove. */
+  author: string | null;
+  clearAuthor: () => void;
   reset: () => void;
 }
 
@@ -509,6 +513,7 @@ export function FindingList({
         const anyActive =
           activeSevs.length > 0 ||
           !!filters.file ||
+          !!filters.author ||
           filters.query.trim() !== "" ||
           filters.onlyNew ||
           filters.showSuppressed;
@@ -532,6 +537,13 @@ export function FindingList({
               <button className="af-chip" onClick={filters.clearFile} title={t("Показать находки во всех файлах")}>
                 <Icon name="description" />
                 {filters.file.split(/[\\/]/).pop()}
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.author && (
+              <button className="af-chip" onClick={filters.clearAuthor} title={t("Показать находки всех авторов")}>
+                <Icon name="person" />
+                {filters.author}
                 <Icon name="close" />
               </button>
             )}
@@ -1088,6 +1100,7 @@ export function FindingDetail({
   root,
   onSuppressionChanged,
   editorCommand = "",
+  onFilterAuthor,
 }: {
   finding: Finding | null;
   onOpenFile: (path: string, line: number) => void;
@@ -1095,6 +1108,8 @@ export function FindingDetail({
   onSuppressionChanged: () => void;
   /** The configured editor command; empty hides the open-in-editor button. */
   editorCommand?: string;
+  /** Narrow the findings list to this git-blame author. Absent → chip is static. */
+  onFilterAuthor?: (author: string) => void;
 }) {
   const t = useT();
   const [reason, setReason] = useState("");
@@ -1549,16 +1564,35 @@ export function FindingDetail({
             {finding.extra?.blame && (
               <div className="meta-item">
                 <div className="meta-key">{t("Автор строки")}</div>
-                <div
-                  className="meta-val blame-val"
-                  title={finding.extra.blame.email ?? undefined}
-                >
-                  <Icon name="person" />
-                  {finding.extra.blame.author}
-                  <span className="blame-commit">
-                    {finding.extra.blame.commit} · {finding.extra.blame.date}
-                  </span>
-                </div>
+                {(() => {
+                  const blame = finding.extra.blame;
+                  const body = (
+                    <>
+                      <Icon name="person" />
+                      {blame.author}
+                      <span className="blame-commit">
+                        {blame.commit} · {blame.date}
+                      </span>
+                    </>
+                  );
+                  // With a handler wired, the author is a button that filters the
+                  // findings list to everything this person last touched — triage
+                  // by owner. Without one it stays a plain label.
+                  return onFilterAuthor ? (
+                    <button
+                      className="meta-val blame-val blame-filter"
+                      title={t("Показать все находки этого автора")}
+                      onClick={() => onFilterAuthor(blame.author)}
+                    >
+                      {body}
+                      <Icon name="filter_alt" className="blame-filter-icon" />
+                    </button>
+                  ) : (
+                    <div className="meta-val blame-val" title={blame.email ?? undefined}>
+                      {body}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             {finding.cve.length > 0 && (

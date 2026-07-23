@@ -2290,6 +2290,22 @@ kbd,
   border-radius: var(--r-1);
   padding: 1px var(--sp-1);
 }
+/* Clickable author: reset button chrome, hint the filter action on hover. */
+.blame-filter {
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--r-1);
+  padding: 2px 6px;
+  margin: -2px -6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+.blame-filter:hover { background: var(--s-2); border-color: var(--line); }
+.blame-filter-icon { font-size: 13px !important; color: var(--t-4) !important; opacity: 0; transition: opacity 0.12s; }
+.blame-filter:hover .blame-filter-icon { opacity: 1; }
 
 .code-block {
   background: var(--s-2);

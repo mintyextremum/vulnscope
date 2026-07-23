@@ -109,6 +109,9 @@ export default function App() {
   const [onlyNew, setOnlyNew] = useState(false);
   const [showSuppressed, setShowSuppressed] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  // Triage by who last touched the line (git blame). Set from the author chip in
+  // a finding's detail; null means "everyone".
+  const [authorFilter, setAuthorFilter] = useState<string | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
   const [focusLine, setFocusLine] = useState<number | null>(null);
 
@@ -513,6 +516,9 @@ export default function App() {
   const matchesNonSeverity = useCallback(
     (f: Finding) => {
       if (onlyNew && !f.isNew) return false;
+      // Author narrowing keys on the raw git-blame author (what the detail chip
+      // shows); findings without blame drop out while an author is selected.
+      if (authorFilter && f.extra?.blame?.author !== authorFilter) return false;
       // Suppressed findings stay reachable but out of the way: the default list
       // answers "what needs attention", and the user already decided these do not.
       if (!showSuppressed && f.suppressed) return false;
@@ -540,7 +546,7 @@ export default function App() {
     },
     // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onlyNew, showSuppressed, findingQuery, lang]
+    [onlyNew, showSuppressed, findingQuery, authorFilter, lang]
   );
 
   /** Every filter except the file narrowing. */
@@ -576,7 +582,7 @@ export default function App() {
 
   /** True while anything is narrowing the list, so counts can say "N из M". */
   const anyFilterActive =
-    sevFilter.size > 0 || onlyNew || showSuppressed || findingQuery.trim() !== "";
+    sevFilter.size > 0 || onlyNew || showSuppressed || findingQuery.trim() !== "" || !!authorFilter;
 
   const filteredFindings = useMemo(() => {
     if (!report) return [];
@@ -677,6 +683,7 @@ export default function App() {
     setOnlyNew(false);
     setShowSuppressed(false);
     setFindingQuery("");
+    setAuthorFilter(null);
     // The tree selection narrows the list too, so "reset filters" has to drop it
     // as well — otherwise the list stays a subset after the user asked for all.
     setSelectedFile(null);
@@ -762,9 +769,11 @@ export default function App() {
       toggleSev,
       file: tab === "findings" || tab === "beta" ? selectedFile : null,
       clearFile: () => setSelectedFile(null),
+      author: authorFilter,
+      clearAuthor: () => setAuthorFilter(null),
       reset: resetFilters,
     }),
-    [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, sevFilter, toggleSev, resetFilters]
+    [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, sevFilter, toggleSev, authorFilter, resetFilters]
   );
 
   const openFileAt = useCallback((path: string, line: number) => {
@@ -1512,6 +1521,11 @@ export default function App() {
                   root={report.root}
                   onSuppressionChanged={rescan}
                   editorCommand={settings?.editorCommand ?? ""}
+                  onFilterAuthor={(author) => {
+                    setAuthorFilter(author);
+                    setSelectedFile(null);
+                    setTab("findings");
+                  }}
                 />
               </div>
             </div>

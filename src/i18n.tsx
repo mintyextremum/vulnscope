@@ -121,6 +121,8 @@ export const EN: Record<string, string> = {
     "The file has neither projects nor staff (expected «Проект» or «Сотрудник» elements).",
   Автор: "Author",
   "Автор строки": "Line author",
+  "Показать все находки этого автора": "Show all findings by this author",
+  "Показать находки всех авторов": "Show findings by all authors",
   Новых: "New",
   "Автор — по git blame строки находки; это последний, кто её менял.":
     "Author comes from git blame of the finding's line; it is the last person who changed it.",
