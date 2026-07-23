@@ -455,9 +455,18 @@ export default function App() {
       filters: [{ name: "XML (1С)", extensions: ["xml"] }],
     });
     if (!path) return;
-    await invoke("save_report", { path, json: toXml1C(report, t, computeScore(report)) }).catch(
-      (e) => setError(String(e))
-    );
+    // The staff registry (imported from 1C on setup) maps git authors onto the
+    // people 1C holds responsible, so the export can carry a per-person breakdown.
+    let staff: Staff1c[] = [];
+    try {
+      staff = JSON.parse(localStorage.getItem("vs.staff1c") ?? "[]");
+    } catch {
+      staff = [];
+    }
+    await invoke("save_report", {
+      path,
+      json: toXml1C(report, t, computeScore(report), staff),
+    }).catch((e) => setError(String(e)));
   };
 
   /** Exports a self-contained HTML report — open in a browser or print to PDF. */

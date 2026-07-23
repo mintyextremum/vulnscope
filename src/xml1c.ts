@@ -1,4 +1,4 @@
-import type { ScanReport, Finding, Severity } from "./types";
+import type { ScanReport, Finding, Severity, Staff1c } from "./types";
 import type { TFn } from "./i18n";
 import type { SecurityScore } from "./score";
 
@@ -49,7 +49,31 @@ function status(f: Finding, t: TFn): string {
   return t("Присутствует");
 }
 
-export function toXml1C(report: ScanReport, t: TFn, score: SecurityScore | null): string {
+/** Who is accountable for a finding: the git-blame author, mapped onto a 1C
+ *  employee when a staff registry was imported (e-mail first, then name/alias),
+ *  otherwise the raw git author. Null when the finding has no blame at all. */
+function responsibleFor(
+  f: Finding,
+  staff: Staff1c[]
+): { name: string; role: string } | null {
+  const b = f.extra?.blame;
+  if (!b) return null;
+  const mail = (b.email ?? "").toLowerCase();
+  const name = b.author.toLowerCase();
+  const emp =
+    (mail && staff.find((s) => s.emails.some((e) => e.toLowerCase() === mail))) ||
+    staff.find(
+      (s) => s.name.toLowerCase() === name || s.aliases.some((a) => a.toLowerCase() === name)
+    );
+  return emp ? { name: emp.name, role: emp.role } : { name: b.author, role: "" };
+}
+
+export function toXml1C(
+  report: ScanReport,
+  t: TFn,
+  score: SecurityScore | null,
+  staff: Staff1c[] = []
+): string {
   const out: string[] = [];
   out.push(`<?xml version="1.0" encoding="UTF-8"?>`);
   out.push(`<ОтчётБезопасности ВерсияСхемы="1.0" Источник="VulnScope">`);
@@ -77,6 +101,39 @@ export function toXml1C(report: ScanReport, t: TFn, score: SecurityScore | null)
   out.push(el("БезИзменений", report.delta.unchangedCount, "    "));
   out.push("  </Динамика>");
 
+  // Accountability breakdown, so 1C can post per-employee KPIs without parsing
+  // every finding. Built from git-blame attribution, mapped through the staff
+  // registry when one was imported. Omitted entirely outside a git work tree
+  // (no blame → no responsible), rather than emitting an empty section.
+  const respRows = new Map<
+    string,
+    { name: string; role: string; total: number; severe: number; isNew: number }
+  >();
+  for (const f of report.findings) {
+    if (f.extra?.experimental || f.suppressed) continue;
+    const r = responsibleFor(f, staff);
+    if (!r) continue;
+    const row = respRows.get(r.name) ?? { name: r.name, role: r.role, total: 0, severe: 0, isNew: 0 };
+    row.total += 1;
+    if (f.severity === "critical" || f.severity === "high") row.severe += 1;
+    if (f.isNew) row.isNew += 1;
+    respRows.set(r.name, row);
+  }
+  if (respRows.size > 0) {
+    const rows = [...respRows.values()].sort((a, b) => b.total - a.total);
+    out.push("  <ПоОтветственным>");
+    for (const r of rows) {
+      out.push(
+        `    <Ответственный ФИО="${esc(r.name)}"${r.role ? ` Должность="${esc(t(r.role))}"` : ""}>`
+      );
+      out.push(el("Находок", r.total, "      "));
+      out.push(el("КритическихВысоких", r.severe, "      "));
+      out.push(el("Новых", r.isNew, "      "));
+      out.push("    </Ответственный>");
+    }
+    out.push("  </ПоОтветственным>");
+  }
+
   out.push("  <Находки>");
   for (const f of report.findings) {
     if (f.extra?.experimental) continue; // BETA are suspicions, not audit records
@@ -91,6 +148,9 @@ export function toXml1C(report: ScanReport, t: TFn, score: SecurityScore | null)
     if (f.owasp) out.push(el("OWASP", f.owasp, "      "));
     out.push(el("Статус", status(f, t), "      "));
     out.push(el("Достижима", f.extra?.onDataPath ? t("Да") : t("Нет"), "      "));
+    // Who last touched this line — the accountable person, when known.
+    const resp = responsibleFor(f, staff);
+    if (resp) out.push(el("Ответственный", resp.name, "      "));
     out.push(el("Отпечаток", f.fingerprint, "      "));
     out.push("    </Находка>");
   }

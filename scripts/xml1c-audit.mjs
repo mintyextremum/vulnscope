@@ -35,8 +35,11 @@ const report = {
   delta: { previousScanAt: "x", newCount: 2, fixedCount: 1, unchangedCount: 3, fixed: [], newBySeverity: {} },
   suppressedCount: 1,
   findings: [
-    finding({ title: "XSS via <script> & \"quotes\"", severity: "critical", extra: { onDataPath: true } }),
-    finding({ isNew: true }),
+    finding({
+      title: "XSS via <script> & \"quotes\"", severity: "critical",
+      extra: { onDataPath: true, blame: { author: "m.ivanova", email: "maria@example.com", commit: "abc12345", date: "2026-06-01" } },
+    }),
+    finding({ isNew: true, extra: { blame: { author: "unknown.dev", email: "u@x.com", commit: "def67890", date: "2026-06-02" } } }),
     finding({ suppressed: true }),
     finding({ extra: { experimental: true } }), // must be excluded
   ],
@@ -47,7 +50,13 @@ const report = {
 };
 const score = { score: 42.5, grade: "D", label: "x", reachable: 1, total: 3, factors: [] };
 
-const xml = toXml1C(report, t, score);
+// A staff registry as 1C would export it: the first finding's blame e-mail maps
+// onto Мария; the second finding's author is unknown to the registry.
+const staff = [
+  { name: "Иванова Мария Петровна", role: "Разработчик", emails: ["maria@example.com"], aliases: ["m.ivanova"] },
+];
+
+const xml = toXml1C(report, t, score, staff);
 const problems = [];
 const check = (cond, msg) => { if (!cond) problems.push(msg); };
 
@@ -73,8 +82,19 @@ check(xml.includes("<ПоВажности>") && xml.includes("<Уровень"),
 check(xml.includes("<ОценкаЗащищённости>42.5</ОценкаЗащищённости>") && xml.includes("<Класс>D</Класс>"), "score not carried");
 check(xml.includes("<Достижима>Да</Достижима>"), "reachability flag missing on the reachable finding");
 
+// 5) Accountability: the mapped employee's ФИО + Должность appear, the git
+//    author unknown to the registry falls back to its own name, and the
+//    per-finding <Ответственный> is present. Suppressed rows stay out of the
+//    summary counts (2 confirmed non-suppressed findings have blame here).
+check(/<ПоОтветственным>[\s\S]*<\/ПоОтветственным>/.test(xml), "accountability block missing");
+check(xml.includes('<Ответственный ФИО="Иванова Мария Петровна" Должность="Разработчик">'), "staff mapping (name+role) missing");
+check(xml.includes('<Ответственный ФИО="unknown.dev">'), "unmapped git author should fall back to its own name");
+check(xml.includes("<Ответственный>Иванова Мария Петровна</Ответственный>"), "per-finding responsible missing");
+const summaryCount = (xml.match(/<Ответственный ФИО=/g) || []).length;
+check(summaryCount === 2, `expected 2 people in the summary, got ${summaryCount}`);
+
 if (problems.length === 0) {
-  console.log("Выгрузка 1С: XML корректен, значения экранированы, BETA исключены, динамика на месте.");
+  console.log("Выгрузка 1С: XML корректен, значения экранированы, BETA исключены, динамика и разбивка по ответственным на месте.");
   process.exit(0);
 }
 console.log("Проблемы в выгрузке 1С:");
