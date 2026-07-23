@@ -1264,6 +1264,35 @@ function show(req) {
         assert_eq!(flows[0].category, "XSS");
     }
 
+    /// Django's mark_safe() disables auto-escaping — feeding request data
+    /// through it is XSS, and the taint engine must treat it as a sink, not
+    /// mistake "safe" in the name for a sanitizer.
+    #[test]
+    fn traces_xss_through_mark_safe() {
+        let code = "\
+def view(request):
+    name = request.GET.get('name')
+    return mark_safe('<b>' + name + '</b>')
+";
+        let flows = analyze(code, Language::Python);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "XSS");
+    }
+
+    /// Flask/Jinja markupsafe.Markup() is the same trap on the Flask side.
+    #[test]
+    fn traces_xss_through_markup() {
+        let code = "\
+def view(request):
+    bio = request.form['bio']
+    html = Markup('<p>%s</p>' % bio)
+    return html
+";
+        let flows = analyze(code, Language::Python);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "XSS");
+    }
+
     #[test]
     fn escaped_value_is_not_xss() {
         let code = "\

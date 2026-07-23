@@ -4750,13 +4750,13 @@ pub static HEURISTICS: &[Heuristic] = &[
     Heuristic {
         id: "VS-EXP-006",
         title: "Возможный XSS",
-        description: "В одной строке встречаются пользовательский ввод и запись в HTML-приёмник (innerHTML, document.write, dangerouslySetInnerHTML и т.п.). Если ввод попадает в разметку без экранирования, это межсайтовый скриптинг. Это эвристика (BETA): проверьте, экранируется ли значение.",
-        recommendation: "Не вставляйте ввод в HTML напрямую. Используйте textContent/установку текста, шаблонизатор с автоэкранированием или явное HTML-экранирование.",
+        description: "В одной строке встречаются пользовательский ввод и запись в HTML-приёмник (innerHTML, document.write, dangerouslySetInnerHTML) или явное отключение автоэкранирования шаблонизатора (Django mark_safe, Flask/Jinja Markup, Rails html_safe, Vue v-html). Если ввод попадает в разметку без экранирования, это межсайтовый скриптинг. Это эвристика (BETA): проверьте, экранируется ли значение.",
+        recommendation: "Не вставляйте ввод в HTML напрямую и не помечайте его «безопасным». Используйте textContent/установку текста, шаблонизатор с автоэкранированием или явное HTML-экранирование.",
         severity: Severity::Medium,
         category: "XSS",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\()",
+        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\(|mark_safe\s*\(|\bMarkup\s*\(|\.html_safe\b|v-html\s*=)",
         cwe: &["CWE-79"],
     },
     Heuristic {
