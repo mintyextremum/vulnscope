@@ -517,10 +517,10 @@ export const EN: Record<string, string> = {
   "Не исполняйте и не десериализуйте пользовательские данные. Используйте безопасные парсеры и белые списки.":
     "Do not run or deserialize user data. Use safe parsers and allowlists.",
   "Возможный XSS": "Possible XSS",
-  "В одной строке встречаются пользовательский ввод и запись в HTML-приёмник (innerHTML, document.write, dangerouslySetInnerHTML и т.п.). Если ввод попадает в разметку без экранирования, это межсайтовый скриптинг. Это эвристика (BETA): проверьте, экранируется ли значение.":
-    "User input and a write to an HTML sink (innerHTML, document.write, dangerouslySetInnerHTML, etc.) appear on the same line. If the input reaches markup without escaping, this is cross-site scripting. This is a heuristic (BETA): check whether the value is escaped.",
-  "Не вставляйте ввод в HTML напрямую. Используйте textContent/установку текста, шаблонизатор с автоэкранированием или явное HTML-экранирование.":
-    "Do not put input into HTML directly. Use textContent/text assignment, an auto-escaping template engine, or explicit HTML escaping.",
+  "В одной строке встречаются пользовательский ввод и запись в HTML-приёмник (innerHTML, document.write, dangerouslySetInnerHTML) или явное отключение автоэкранирования шаблонизатора (Django mark_safe, Flask/Jinja Markup, Rails html_safe, Vue v-html). Если ввод попадает в разметку без экранирования, это межсайтовый скриптинг. Это эвристика (BETA): проверьте, экранируется ли значение.":
+    "User input appears on the same line as a write to an HTML sink (innerHTML, document.write, dangerouslySetInnerHTML) or an explicit disabling of the template engine's auto-escaping (Django mark_safe, Flask/Jinja Markup, Rails html_safe, Vue v-html). If the input reaches markup without escaping, this is cross-site scripting. This is a heuristic (BETA): check whether the value is escaped.",
+  "Не вставляйте ввод в HTML напрямую и не помечайте его «безопасным». Используйте textContent/установку текста, шаблонизатор с автоэкранированием или явное HTML-экранирование.":
+    "Do not put input into HTML directly and do not mark it as «safe». Use textContent/text assignment, an auto-escaping template engine, or explicit HTML escaping.",
   "Возможный открытый редирект": "Possible open redirect",
   "В одной строке встречаются пользовательский ввод и переход/редирект по адресу. Если адрес берётся из ввода без проверки, злоумышленник уведёт пользователя на свой сайт. Это эвристика (BETA): проверьте, что адрес сверяется с белым списком.":
     "User input and a redirect/navigation to an address appear on the same line. If the address comes from input without validation, an attacker can send the user to their own site. This is a heuristic (BETA): check that the address is matched against an allowlist.",
