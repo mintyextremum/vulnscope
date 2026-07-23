@@ -276,6 +276,18 @@ export interface ScanReport {
   warnings: string[];
 }
 
+/** An employee from a 1C staff registry (`СписокСотрудников`), used to map git
+ * blame authors onto the people 1C holds responsible. Kept in localStorage
+ * (`vs.staff1c`) so the mapping survives restarts. */
+export interface Staff1c {
+  name: string;
+  role: string;
+  /** Git author e-mails belonging to this person (primary match key). */
+  emails: string[];
+  /** Git author names/usernames belonging to this person. */
+  aliases: string[];
+}
+
 /** One point in a target's scan-history series, from `get_scan_history`. */
 export interface HistoryPoint {
   scannedAt: string;

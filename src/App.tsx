@@ -16,6 +16,7 @@ import {
   SEVERITY_ORDER,
   severityCounted,
   SEVERITY_SYMBOL,
+  Staff1c,
   ToolId,
   ToolsInfo,
 } from "./types";
@@ -370,6 +371,16 @@ export default function App() {
    *     <Путь>…</Путь> | <Репозиторий>https://…</Репозиторий>
    *     <Ответственный>…</Ответственный>
    *   </Проект>…</СписокПроектов>
+   *
+   * The same file (or a separate one) may carry the staff registry, which maps
+   * git authors onto the people 1C holds responsible — that mapping powers the
+   * per-responsible breakdown in the report:
+   *   <СписокСотрудников><Сотрудник>
+   *     <Имя>Иванова Мария Петровна</Имя>
+   *     <Должность>Разработчик</Должность>
+   *     <Email>maria@…</Email>          (повторяемый)
+   *     <GitИмя>maria.ivanova</GitИмя>  (повторяемый)
+   *   </Сотрудник>…</СписокСотрудников>
    */
   const import1c = async () => {
     const file = await openDialog({ multiple: false, filters: [{ name: "XML (1С)", extensions: ["xml"] }] });
@@ -393,9 +404,29 @@ export default function App() {
           owner: text(el, "Ответственный"),
         }))
         .filter((p) => p.path || p.repo);
-      if (projects.length === 0) {
-        setError(t("В файле нет проектов (ожидаются элементы «Проект» с «Путь» или «Репозиторий»)."));
+
+      // The staff registry: every non-empty <Email>/<GitИмя> is a separate git
+      // identity of the same person, so one employee can own several accounts.
+      const texts = (el: Element, tag: string) =>
+        Array.from(el.getElementsByTagName(tag))
+          .map((x) => x.textContent?.trim() ?? "")
+          .filter(Boolean);
+      const staff: Staff1c[] = Array.from(doc.getElementsByTagName("Сотрудник"))
+        .map((el) => ({
+          name: text(el, "Имя") || text(el, "ФИО") || text(el, "Наименование"),
+          role: text(el, "Должность"),
+          emails: texts(el, "Email").concat(texts(el, "Почта")),
+          aliases: texts(el, "GitИмя").concat(texts(el, "Псевдоним")),
+        }))
+        .filter((s) => s.name);
+
+      if (projects.length === 0 && staff.length === 0) {
+        setError(t("В файле нет ни проектов, ни сотрудников (ожидаются «Проект» или «Сотрудник»)."));
         return;
+      }
+      if (staff.length > 0) {
+        localStorage.setItem("vs.staff1c", JSON.stringify(staff));
+        showFlash(t("Реестр сотрудников из 1С: {n} чел.", { n: staff.length }));
       }
       setProjects1c(projects);
       setError(null);
