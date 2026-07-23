@@ -143,7 +143,13 @@ static SOURCE_RE: Lazy<Regex> =
 /// escaping, encoding, parameterisation, allowlisting, or a numeric coercion.
 static SANITIZER_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r"(?i)\b(?:escape|sanitiz|encode|quote|parameteriz|prepared?statement|bindparam|placeholder|whitelist|allowlist|escapeshellarg|escapeshellcmd|htmlspecialchars|htmlentities|shlex\.quote|escape_filter_chars|filterencode|encodevalue|filepath\.clean|basename|int\s*\(|integer\s*\(|parseint|number\s*\(|to_i\b|::from_str)",
+        // Framework sanitizers and neutralising coercions. Like the rest of the
+        // list these clear taint for every sink category (a value known safe is
+        // treated as safe everywhere) — the same trade-off `basename`/`int(`
+        // already make. Added: secure_filename (Werkzeug path-traversal guard),
+        // bleach.clean / strip_tags (HTML sanitizers), and Go's strconv numeric/
+        // bool coercions (a parsed number can carry no injection payload).
+        r"(?i)\b(?:escape|sanitiz|encode|quote|parameteriz|prepared?statement|bindparam|placeholder|whitelist|allowlist|escapeshellarg|escapeshellcmd|htmlspecialchars|htmlentities|shlex\.quote|escape_filter_chars|filterencode|encodevalue|filepath\.clean|basename|secure_filename|bleach\.clean|strip_tags|strconv\.(?:Atoi|ParseInt|ParseFloat|ParseBool)|int\s*\(|integer\s*\(|parseint|number\s*\(|to_i\b|::from_str)",
     )
     .expect("bad sanitizer pattern")
 });
@@ -1262,6 +1268,44 @@ function show(req) {
         let flows = analyze(code, Language::JavaScript);
         assert_eq!(flows.len(), 1, "{flows:?}");
         assert_eq!(flows[0].category, "XSS");
+    }
+
+    /// Werkzeug's secure_filename strips path separators and traversal — a
+    /// filename through it must not read as path traversal.
+    #[test]
+    fn secure_filename_breaks_path_traversal() {
+        let code = "\
+def download(request):
+    name = secure_filename(request.args.get('f'))
+    return open('/data/' + name)
+";
+        assert!(analyze(code, Language::Python).is_empty(), "secure_filename should sanitize");
+    }
+
+    /// bleach.clean removes dangerous HTML — a value through it is not XSS.
+    #[test]
+    fn bleach_clean_breaks_xss() {
+        let code = "\
+function show(req) {
+  const raw = req.query.bio;
+  const safe = bleach.clean(raw);
+  el.innerHTML = safe;
+}
+";
+        assert!(analyze(code, Language::JavaScript).is_empty(), "bleach.clean should sanitize");
+    }
+
+    /// Go's strconv.Atoi turns input into an int — no injection payload survives.
+    #[test]
+    fn strconv_atoi_breaks_command_injection() {
+        let code = "\
+func handler(w http.ResponseWriter, r *http.Request) {
+	n, _ := strconv.Atoi(r.URL.Query().Get(\"n\"))
+	out, _ := exec.Command(\"sh\", \"-c\", fmt.Sprintf(\"head -n %d f\", n)).Output()
+	w.Write(out)
+}
+";
+        assert!(analyze(code, Language::Go).is_empty(), "strconv.Atoi should sanitize");
     }
 
     /// MongoDB's $where runs JavaScript on the DB server — user input in it is
