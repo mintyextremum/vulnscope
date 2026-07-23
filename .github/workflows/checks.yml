@@ -43,6 +43,9 @@ jobs:
       # 1C loads this XML unattended — malformed or unescaped fails silently.
       - name: 1C export shape
         run: npm run audit:xml1c
+      # Excel/LibreOffice silently refuse a malformed SpreadsheetML workbook.
+      - name: Excel export shape
+        run: npm run audit:excel
       # `tsc --noEmit` says the types hold; it says nothing about whether the
       # bundle builds. Rollup's tree-shaking, env inlining and asset handling
       # only happen here.
