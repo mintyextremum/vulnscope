@@ -4674,8 +4674,17 @@ pub struct Heuristic {
     pub cwe: &'static [&'static str],
 }
 
-/// Shared user-input indicator: request objects, CGI superglobals, argv, stdin.
-const TAINT: &str = r#"(?i)(?:\b(?:req|request|params?|argv|body|cookie|user_?input|stdin|form_?data|payload)\b|\$_(?:GET|POST|REQUEST|COOKIE)|\binput\s*\(|getenv\s*\(|process\.argv|readLine\s*\(|Console\.Read)"#;
+/// Shared user-input indicator: request objects, CGI superglobals, argv, stdin,
+/// plus framework- and platform-specific entry points — DOM sources feeding
+/// DOM XSS (location.search/hash, URLSearchParams, document.URL/referrer,
+/// window.name), Go HTTP accessors (r.URL.Query(), FormValue, gorilla
+/// mux.Vars, gin/echo c.Query/Param/PostForm/GetHeader), the attacker-shaped
+/// subset of PHP's $_SERVER (HTTP_* headers, QUERY_STRING, REQUEST_URI,
+/// PHP_SELF) with $_FILES/filter_input/php://input, and Python's
+/// cgi.FieldStorage. `location.href` is deliberately NOT a source: it is the
+/// open-redirect *sink*, and listing it in both would flag every
+/// `location.href = …` assignment on sight.
+const TAINT: &str = r#"(?i)(?:\b(?:req|request|params?|argv|body|cookie|user_?input|stdin|form_?data|payload)\b|\$_(?:GET|POST|REQUEST|COOKIE|FILES)|\$_SERVER\s*\[\s*['"](?:HTTP_|QUERY_STRING|REQUEST_URI|PHP_SELF)|\binput\s*\(|getenv\s*\(|process\.argv|readLine\s*\(|Console\.Read|\bnew\s+URLSearchParams\b|location\.(?:search|hash)\b|document\.(?:URL\b|documentURI|referrer)|window\.name\b|\.(?:FormValue|PostFormValue)\s*\(|URL\.Query\s*\(|mux\.Vars\s*\(|\bc\.(?:Query|Param|PostForm|GetHeader)\s*\(|filter_input\s*\(|FieldStorage\s*\(|php://input)"#;
 
 pub static HEURISTICS: &[Heuristic] = &[
     Heuristic {
@@ -4687,7 +4696,7 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "Инъекция команд",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)\b(?:system|popen|shell_exec|passthru|proc_open|pcntl_exec|Runtime\.getRuntime|ProcessBuilder|subprocess\.(?:call|run|Popen|check_output)|os\.system|child_process\.\w+|exec(?:File|Sync)?)\s*\(",
+        sink: r"(?i)\b(?:system|popen|shell_exec|passthru|proc_open|pcntl_exec|Runtime\.getRuntime|ProcessBuilder|subprocess\.(?:call|run|Popen|check_output)|os\.system|child_process\.\w+|exec\.Command(?:Context)?|exec(?:File|Sync)?)\s*\(",
         cwe: &["CWE-78"],
     },
     Heuristic {

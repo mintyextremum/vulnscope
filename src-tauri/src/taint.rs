@@ -99,6 +99,16 @@ fn classify_entry(code: &str) -> &'static str {
         || contains_word(&c, "input")
     {
         "стандартный ввод"
+    } else if c.contains("location.")
+        || c.contains("urlsearchparams")
+        || c.contains("document.url")
+        || c.contains("referrer")
+        || c.contains("window.name")
+    {
+        // Browser-side sources: the attacker controls them through the URL the
+        // victim opens, which deserves its own label — "HTTP request" would
+        // point the reviewer at the wrong side of the wire.
+        "адрес страницы (DOM)"
     } else if c.contains("req")
         || c.contains("request")
         || c.contains("param")
@@ -106,10 +116,18 @@ fn classify_entry(code: &str) -> &'static str {
         || c.contains("cookie")
         || c.contains("form")
         || c.contains("payload")
+        || c.contains("query")
+        || c.contains("getheader")
+        || c.contains("mux.vars")
         || c.contains("$_get")
         || c.contains("$_post")
         || c.contains("$_request")
         || c.contains("$_cookie")
+        || c.contains("$_files")
+        || c.contains("$_server")
+        || c.contains("filter_input")
+        || c.contains("fieldstorage")
+        || c.contains("php://input")
     {
         "HTTP-запрос"
     } else {
@@ -1309,6 +1327,76 @@ log.debug('token digest ' + sha256(token))
         assert_eq!(classify_entry("token = os.environ.get('T')"), "переменная окружения");
         assert_eq!(classify_entry("line = input()"), "стандартный ввод");
         assert_eq!(classify_entry("x = something_unknown()"), "пользовательский ввод");
+        // Framework- and platform-specific sources get the right label too.
+        assert_eq!(classify_entry("name := r.URL.Query().Get(\"n\")"), "HTTP-запрос");
+        assert_eq!(classify_entry("$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];"), "HTTP-запрос");
+        assert_eq!(classify_entry("const q = new URLSearchParams(location.search)"), "адрес страницы (DOM)");
+        assert_eq!(classify_entry("var frag = location.hash.slice(1)"), "адрес страницы (DOM)");
+    }
+
+    /// Go's net/http accessors are sources and exec.Command is a sink — the
+    /// bread-and-butter Go command injection must trace end to end.
+    #[test]
+    fn traces_go_query_to_exec_command() {
+        let code = "\
+func handler(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get(\"name\")
+	out, _ := exec.Command(\"sh\", \"-c\", \"ping \"+name).Output()
+	w.Write(out)
+}
+";
+        let flows = analyze(code, Language::Go);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "Инъекция команд");
+        assert_eq!(flows[0].entry_kind(), "HTTP-запрос");
+    }
+
+    /// DOM XSS: the classic location.search → innerHTML flow, entirely in the
+    /// browser. The entry label must say the URL is the attacker's handle.
+    #[test]
+    fn traces_dom_xss_from_location_search() {
+        let code = "\
+function render() {
+  const q = new URLSearchParams(location.search).get('q');
+  document.getElementById('out').innerHTML = q;
+}
+";
+        let flows = analyze(code, Language::JavaScript);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "XSS");
+        assert_eq!(flows[0].entry_kind(), "адрес страницы (DOM)");
+    }
+
+    /// Only the attacker-shaped subset of $_SERVER is a source: HTTP_* headers
+    /// yes, server-controlled keys like DOCUMENT_ROOT no.
+    #[test]
+    fn php_server_headers_are_sources_but_document_root_is_not() {
+        let hot = "\
+$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+system(\"logger \" . $ip);
+";
+        let flows = analyze(hot, Language::Php);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "Инъекция команд");
+
+        let cold = "\
+$root = $_SERVER['DOCUMENT_ROOT'];
+system(\"du -s \" . $root);
+";
+        assert!(analyze(cold, Language::Php).is_empty(), "DOCUMENT_ROOT is not attacker input");
+    }
+
+    /// cgi.FieldStorage() is the source even though the variable is just `form`.
+    #[test]
+    fn traces_python_fieldstorage_to_command() {
+        let code = "\
+form = cgi.FieldStorage()
+name = form.getvalue('name')
+os.system('ping ' + name)
+";
+        let flows = analyze(code, Language::Python);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "Инъекция команд");
     }
 
     #[test]
