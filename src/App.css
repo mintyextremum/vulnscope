@@ -2279,6 +2279,18 @@ kbd,
 
 .corroborated-badge .material-symbols-outlined { font-size: 12px; }
 
+/* git blame attribution in the finding's meta grid */
+.blame-val { display: inline-flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.blame-val .material-symbols-outlined { font-size: 14px; color: var(--t-3); }
+.blame-commit {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--t-4);
+  background: var(--s-2);
+  border-radius: var(--r-1);
+  padding: 1px var(--sp-1);
+}
+
 .code-block {
   background: var(--s-2);
   border-radius: var(--r-2);
@@ -2991,7 +3003,7 @@ kbd,
   border: 1px solid var(--line);
   border-radius: var(--r-2);
   padding: var(--sp-3) var(--sp-3) var(--sp-2);
-  background: var(--surface-1);
+  background: var(--s-1);
 }
 .rep-trend-svg { width: 100%; height: 210px; display: block; overflow: visible; }
 .rep-trend-axis { stroke: var(--line-strong); stroke-width: 1; }
@@ -3020,6 +3032,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 .rep-trend-sw.sw-reach { background: var(--a); }
 
 .rep-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.rep-num-col { text-align: right; font-variant-numeric: tabular-nums; }
 .rep-table th {
   text-align: left;
   padding: var(--sp-1) var(--sp-2);

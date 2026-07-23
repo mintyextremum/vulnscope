@@ -1,4 +1,5 @@
 mod baseline;
+mod blame;
 mod deps;
 mod external;
 mod git;

@@ -441,6 +441,24 @@ pub struct FindingExtra {
     /// "аргумент командной строки", etc. Powers the attack-paths panel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<String>,
+    /// Who last touched the offending line, from `git blame` — accountability
+    /// for the report's per-author breakdown. Absent outside a git work tree,
+    /// in shallow clones (where blame lies), and for uncommitted lines.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blame: Option<BlameInfo>,
+}
+
+/// `git blame` attribution for one finding's line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BlameInfo {
+    pub author: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    /// Abbreviated commit hash, enough to look the change up.
+    pub commit: String,
+    /// Author date as ISO 8601 (date part), for "when was this introduced".
+    pub date: String,
 }
 
 /// One link of a dangerous combination: a category, the line it sits on, and

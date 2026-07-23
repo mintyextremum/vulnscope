@@ -1546,6 +1546,21 @@ export function FindingDetail({
                 <div className="meta-val">{finding.owasp}</div>
               </div>
             )}
+            {finding.extra?.blame && (
+              <div className="meta-item">
+                <div className="meta-key">{t("Автор строки")}</div>
+                <div
+                  className="meta-val blame-val"
+                  title={finding.extra.blame.email ?? undefined}
+                >
+                  <Icon name="person" />
+                  {finding.extra.blame.author}
+                  <span className="blame-commit">
+                    {finding.extra.blame.commit} · {finding.extra.blame.date}
+                  </span>
+                </div>
+              </div>
+            )}
             {finding.cve.length > 0 && (
               <div className="meta-item">
                 <div className="meta-key">CVE</div>
