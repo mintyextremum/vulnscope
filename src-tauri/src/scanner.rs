@@ -1,4 +1,5 @@
 use crate::baseline;
+use crate::blame;
 use crate::deps;
 use crate::external::{self, Tool, ToolStatus};
 use crate::git;
@@ -627,6 +628,12 @@ pub fn recheck_file(
     // caller's diff reports the difference as brand-new problems — on a file
     // that was not even edited.
     let mut findings = merge_duplicate_code_findings(findings);
+
+    // Attribution too, so a re-check does not silently strip the author chip
+    // from findings that survive. Freshly edited (unsaved-to-git) lines simply
+    // come back unattributed.
+    blame::annotate(root, &mut findings);
+
     for f in &mut findings {
         f.fingerprint = baseline::fingerprint(f);
     }
@@ -1142,6 +1149,11 @@ pub async fn run_scan(
     findings = merge_duplicate_code_findings(findings);
 
     mark_reachable_findings(&mut findings);
+
+    // Attribute each finding line to its author via git blame — accountability
+    // for the report. Runs after the merges so every surviving finding gets one.
+    progress.emit(ScanPhase::Finalizing, "git blame", false);
+    blame::annotate(&root, &mut findings);
 
     // Fingerprint first: suppression and comparison both key off it.
     for f in &mut findings {

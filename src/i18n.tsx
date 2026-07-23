@@ -86,6 +86,12 @@ export const EN: Record<string, string> = {
   "Путей атаки": "Attack paths",
   "Динамика с прошлого скана": "Change since last scan",
   "Динамика за последние сканы": "Trend over recent scans",
+  "По сотрудникам": "By author",
+  Автор: "Author",
+  "Автор строки": "Line author",
+  Новых: "New",
+  "Автор — по git blame строки находки; это последний, кто её менял.":
+    "Author comes from git blame of the finding's line; it is the last person who changed it.",
   "{n} сканов": "{n} scans",
   "Критич. + высокие": "Critical + high",
   "Предыдущий скан": "Previous scan",

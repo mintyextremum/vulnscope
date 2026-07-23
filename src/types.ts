@@ -194,6 +194,19 @@ export interface FindingExtra {
   /** For a data-flow finding, where the untrusted data enters (a Russian label
    * like "HTTP-запрос"), translated at the call site. */
   entry?: string | null;
+  /** Who last touched the offending line, from git blame. Absent outside a git
+   * work tree, in shallow clones, and for uncommitted lines. */
+  blame?: BlameInfo | null;
+}
+
+/** git blame attribution for one finding's line. */
+export interface BlameInfo {
+  author: string;
+  email?: string | null;
+  /** Abbreviated commit hash. */
+  commit: string;
+  /** Author date, YYYY-MM-DD. */
+  date: string;
 }
 
 /** One link of a dangerous combination or a data-flow step. */

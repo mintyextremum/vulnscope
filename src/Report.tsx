@@ -86,6 +86,23 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   }, [confirmed]);
 
+  // Per-author accountability, from git blame: who owns how much of the
+  // problem, and how much of it is new since the previous scan. Only rendered
+  // when the scanned project is a (non-shallow) git work tree.
+  const byAuthor = useMemo(() => {
+    const m = new Map<string, { total: number; severe: number; isNew: number }>();
+    for (const f of confirmed) {
+      const a = f.extra?.blame?.author;
+      if (!a) continue;
+      const row = m.get(a) ?? { total: 0, severe: 0, isNew: 0 };
+      row.total += 1;
+      if (f.severity === "critical" || f.severity === "high") row.severe += 1;
+      if (f.isNew) row.isNew += 1;
+      m.set(a, row);
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 12);
+  }, [confirmed]);
+
   const tone = score ? GRADE_TONE[score.grade] : "";
   const worst = [...confirmed]
     .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
@@ -238,6 +255,36 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
                 );
               })}
             </div>
+          </>
+        )}
+
+        {/* Per-author accountability */}
+        {byAuthor.length > 0 && (
+          <>
+            <h2 className="rep-h2">{t("По сотрудникам")}</h2>
+            <table className="rep-table">
+              <thead>
+                <tr>
+                  <th>{t("Автор")}</th>
+                  <th className="rep-num-col">{t("Находок")}</th>
+                  <th className="rep-num-col">{t("Критич. + высокие")}</th>
+                  <th className="rep-num-col">{t("Новых")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byAuthor.map(([author, r]) => (
+                  <tr key={author}>
+                    <td>{author}</td>
+                    <td className="rep-num-col">{r.total}</td>
+                    <td className="rep-num-col">{r.severe > 0 ? r.severe : "—"}</td>
+                    <td className="rep-num-col">{r.isNew > 0 ? r.isNew : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="rep-more">
+              {t("Автор — по git blame строки находки; это последний, кто её менял.")}
+            </p>
           </>
         )}
 
