@@ -267,6 +267,7 @@ export const EN: Record<string, string> = {
   "межфайловый": "cross-file",
   "{n} шагов": "{n} steps",
   "HTTP-запрос": "HTTP request",
+  "адрес страницы (DOM)": "page URL (DOM)",
   "аргумент командной строки": "command-line argument",
   "переменная окружения": "environment variable",
   "стандартный ввод": "standard input",
