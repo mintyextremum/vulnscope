@@ -87,6 +87,21 @@ export const EN: Record<string, string> = {
   "Динамика с прошлого скана": "Change since last scan",
   "Динамика за последние сканы": "Trend over recent scans",
   "По сотрудникам": "By author",
+  "По ответственным (1С)": "By responsible (1C)",
+  "Экспорт и отчётность": "Export & reporting",
+  "Отчёт (PDF)": "Report (PDF)",
+  "Экран отчёта для руководства: оценка, динамика с прошлого скана, график за последние сканы, эффективность, разбивки по категориям и сотрудникам. Печать в PDF одной кнопкой.":
+    "An executive report screen: score, change since the last scan, a trend chart over recent scans, efficiency, and breakdowns by category and by author. One-click print to PDF.",
+  "Обмен с 1С": "1C exchange",
+  "Выгрузка отчёта в XML с русскими элементами для загрузки в 1С. Импорт из 1С — реестр проектов (заполняет цель скана) и реестр сотрудников: отчёт сгруппирует находки по ответственным.":
+    "Report export as XML with Russian element names for loading into 1C. Import from 1C brings a project registry (fills the scan target) and a staff registry: the report then groups findings by responsible person.",
+  "В git-репозитории каждая находка атрибутируется через git blame: кто последним менял строку, каким коммитом и когда.":
+    "In a git repository every finding is attributed via git blame: who last changed the line, in which commit, and when.",
+  "Сопоставлено с реестром сотрудников из 1С ({n} чел.).":
+    "Matched against the 1C staff registry ({n} people).",
+  "Реестр сотрудников из 1С: {n} чел.": "1C staff registry: {n} people",
+  "В файле нет ни проектов, ни сотрудников (ожидаются «Проект» или «Сотрудник»).":
+    "The file has neither projects nor staff (expected «Проект» or «Сотрудник» elements).",
   Автор: "Author",
   "Автор строки": "Line author",
   Новых: "New",

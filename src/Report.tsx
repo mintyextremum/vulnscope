@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { ScanReport, Finding, Severity, HistoryPoint } from "./types";
+import type { ScanReport, Finding, Severity, HistoryPoint, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import { Icon, formatNumber, formatDuration } from "./components";
 import { computeScore, type Grade } from "./score";
@@ -86,22 +86,53 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   }, [confirmed]);
 
+  // The 1C staff registry, if one was imported on the setup screen. It maps git
+  // identities (e-mails, usernames) onto the people 1C holds responsible.
+  const [staff1c] = useState<Staff1c[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("vs.staff1c") ?? "[]");
+    } catch {
+      return [];
+    }
+  });
+
   // Per-author accountability, from git blame: who owns how much of the
   // problem, and how much of it is new since the previous scan. Only rendered
   // when the scanned project is a (non-shallow) git work tree.
+  //
+  // With a 1C registry loaded, git identities collapse onto employees: e-mail
+  // match first (the stable key), then author-name/alias match. Several git
+  // accounts of one person become one row, labelled with the 1C name and role;
+  // authors the registry does not know stay under their git name.
   const byAuthor = useMemo(() => {
-    const m = new Map<string, { total: number; severe: number; isNew: number }>();
+    const staffFor = (author: string, email: string | null | undefined): Staff1c | undefined => {
+      const mail = (email ?? "").toLowerCase();
+      const name = author.toLowerCase();
+      return (
+        (mail && staff1c.find((s) => s.emails.some((e) => e.toLowerCase() === mail))) ||
+        staff1c.find(
+          (s) =>
+            s.name.toLowerCase() === name ||
+            s.aliases.some((a) => a.toLowerCase() === name),
+        ) ||
+        undefined
+      );
+    };
+    const m = new Map<string, { label: string; role: string; total: number; severe: number; isNew: number }>();
     for (const f of confirmed) {
-      const a = f.extra?.blame?.author;
-      if (!a) continue;
-      const row = m.get(a) ?? { total: 0, severe: 0, isNew: 0 };
+      const b = f.extra?.blame;
+      if (!b) continue;
+      const emp = staffFor(b.author, b.email);
+      const key = emp ? `1c:${emp.name}` : `git:${b.author}`;
+      const row =
+        m.get(key) ?? { label: emp?.name ?? b.author, role: emp?.role ?? "", total: 0, severe: 0, isNew: 0 };
       row.total += 1;
       if (f.severity === "critical" || f.severity === "high") row.severe += 1;
       if (f.isNew) row.isNew += 1;
-      m.set(a, row);
+      m.set(key, row);
     }
-    return [...m.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 12);
-  }, [confirmed]);
+    return [...m.values()].sort((a, b) => b.total - a.total).slice(0, 12);
+  }, [confirmed, staff1c]);
 
   const tone = score ? GRADE_TONE[score.grade] : "";
   const worst = [...confirmed]
@@ -261,7 +292,9 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
         {/* Per-author accountability */}
         {byAuthor.length > 0 && (
           <>
-            <h2 className="rep-h2">{t("По сотрудникам")}</h2>
+            <h2 className="rep-h2">
+              {staff1c.length > 0 ? t("По ответственным (1С)") : t("По сотрудникам")}
+            </h2>
             <table className="rep-table">
               <thead>
                 <tr>
@@ -272,9 +305,12 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
                 </tr>
               </thead>
               <tbody>
-                {byAuthor.map(([author, r]) => (
-                  <tr key={author}>
-                    <td>{author}</td>
+                {byAuthor.map((r) => (
+                  <tr key={`${r.label}|${r.role}`}>
+                    <td>
+                      {r.label}
+                      {r.role && <span className="rep-role"> · {t(r.role)}</span>}
+                    </td>
                     <td className="rep-num-col">{r.total}</td>
                     <td className="rep-num-col">{r.severe > 0 ? r.severe : "—"}</td>
                     <td className="rep-num-col">{r.isNew > 0 ? r.isNew : "—"}</td>
@@ -284,6 +320,9 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
             </table>
             <p className="rep-more">
               {t("Автор — по git blame строки находки; это последний, кто её менял.")}
+              {staff1c.length > 0 && (
+                <> {t("Сопоставлено с реестром сотрудников из 1С ({n} чел.).", { n: staff1c.length })}</>
+              )}
             </p>
           </>
         )}
