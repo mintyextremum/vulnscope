@@ -40,6 +40,7 @@ import { toSarif } from "./sarif";
 import { computeScore, type SecurityScore, type Grade } from "./score";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
+import { toExcel } from "./excel";
 import { toHtml } from "./html";
 import { toXml1C } from "./xml1c";
 import { LangContext, Lang, useT, translate, TFn } from "./i18n";
@@ -323,6 +324,16 @@ export default function App() {
     );
   };
 
+  /** The 1C staff registry (imported on setup), for mapping git authors onto
+   *  responsible employees in the Excel and XML exports. */
+  const loadStaff1c = (): Staff1c[] => {
+    try {
+      return JSON.parse(localStorage.getItem("vs.staff1c") ?? "[]");
+    } catch {
+      return [];
+    }
+  };
+
   /** Exports findings as a CSV table, for sorting and triage in a spreadsheet. */
   const exportCsv = async () => {
     if (!report) return;
@@ -334,6 +345,20 @@ export default function App() {
     await invoke("save_report", { path, json: toCsv(report, t) }).catch((e) =>
       setError(String(e))
     );
+  };
+
+  /** Exports a multi-sheet Excel workbook (summary, findings, per-responsible). */
+  const exportExcel = async () => {
+    if (!report) return;
+    const path = await saveDialog({
+      defaultPath: `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}.xls`,
+      filters: [{ name: "Excel", extensions: ["xls"] }],
+    });
+    if (!path) return;
+    await invoke("save_report", {
+      path,
+      json: toExcel(report, t, computeScore(report), loadStaff1c()),
+    }).catch((e) => setError(String(e)));
   };
 
   /** Shows a brief confirmation toast (also announced to screen readers). */
@@ -457,15 +482,9 @@ export default function App() {
     if (!path) return;
     // The staff registry (imported from 1C on setup) maps git authors onto the
     // people 1C holds responsible, so the export can carry a per-person breakdown.
-    let staff: Staff1c[] = [];
-    try {
-      staff = JSON.parse(localStorage.getItem("vs.staff1c") ?? "[]");
-    } catch {
-      staff = [];
-    }
     await invoke("save_report", {
       path,
-      json: toXml1C(report, t, computeScore(report), staff),
+      json: toXml1C(report, t, computeScore(report), loadStaff1c()),
     }).catch((e) => setError(String(e)));
   };
 
@@ -945,6 +964,14 @@ export default function App() {
         run: exportCsv,
       },
       {
+        id: "export-excel",
+        label: t("Экспорт в Excel (книга)"),
+        hint: t("сводка, находки, ответственные"),
+        icon: "table_view",
+        when: screen === "results" && !!report,
+        run: exportExcel,
+      },
+      {
         id: "export-html",
         label: t("Экспорт в HTML (для браузера)"),
         hint: t("открыть или напечатать в PDF"),
@@ -1042,6 +1069,7 @@ export default function App() {
       exportSarif,
       exportMarkdown,
       exportCsv,
+      exportExcel,
       exportHtml,
       exportFiltered,
       filteredFindings,
@@ -1213,6 +1241,7 @@ export default function App() {
                           ["security", t("SARIF — для CI и code scanning"), exportSarif],
                           ["description", t("Markdown — для тикета или чата"), exportMarkdown],
                           ["table_chart", t("CSV — открыть в Excel"), exportCsv],
+                          ["table_view", t("Excel — книга с листами и разбивкой"), exportExcel],
                           ["print", t("HTML — открыть и печатать в PDF"), exportHtml],
                           ["account_balance", t("XML для 1С — загрузка в отчётность"), exportXml1C],
                           ["content_copy", t("Скопировать Markdown"), copyMarkdown],
