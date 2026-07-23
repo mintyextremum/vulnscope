@@ -1264,6 +1264,21 @@ function show(req) {
         assert_eq!(flows[0].category, "XSS");
     }
 
+    /// MongoDB's $where runs JavaScript on the DB server — user input in it is
+    /// NoSQL injection / server-side code execution, its own category (CWE-943).
+    #[test]
+    fn traces_nosql_where_injection() {
+        let code = "\
+function find(req) {
+  const term = req.query.term;
+  return db.users.find({ $where: 'this.name == \\'' + term + '\\'' });
+}
+";
+        let flows = analyze(code, Language::JavaScript);
+        assert_eq!(flows.len(), 1, "{flows:?}");
+        assert_eq!(flows[0].category, "NoSQL-инъекция");
+    }
+
     /// Django's mark_safe() disables auto-escaping — feeding request data
     /// through it is XSS, and the taint engine must treat it as a sink, not
     /// mistake "safe" in the name for a sanitizer.

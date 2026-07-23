@@ -917,7 +917,7 @@ pub static RULES: &[Rule] = &[
         recommendation: "Не используйте $where. Стройте условия обычными операторами ($eq, $in) и приводите типы параметров запроса.",
         severity: Severity::High,
         confidence: Confidence::Medium,
-        category: "SQL-инъекция",
+        category: "NoSQL-инъекция",
         languages: JS_FAMILY,
         pattern: r#"["']?\$where["']?\s*:"#,
         unless_contains: &[],
@@ -4770,6 +4770,18 @@ pub static HEURISTICS: &[Heuristic] = &[
         taint: TAINT,
         sink: r"(?i)(?:\b(?:redirect|sendRedirect|HttpResponseRedirect)\s*\(|(?:res|response)\.redirect\s*\(|Response\.Redirect\s*\(|location\.(?:href|assign|replace)\s*[=(]|window\.location\s*=)",
         cwe: &["CWE-601"],
+    },
+    Heuristic {
+        id: "VS-EXP-008",
+        title: "Возможная NoSQL-инъекция",
+        description: "В одной строке встречаются пользовательский ввод и серверный оператор NoSQL, исполняющий выражение ($where, mapReduce, db.eval, $function, $accumulator). Если ввод попадает в такой оператор, это инъекция кода в БД и обход фильтров запроса. Это эвристика (BETA).",
+        recommendation: "Не используйте $where/mapReduce/db.eval с пользовательскими данными. Стройте условия обычными операторами ($eq, $in) и приводите типы параметров.",
+        severity: Severity::High,
+        category: "NoSQL-инъекция",
+        languages: HEUR_LANGS,
+        taint: TAINT,
+        sink: r"(?i)(?:\$where\b|\bmapReduce\s*\(|\bdb\.eval\s*\(|\$function\b|\$accumulator\b)",
+        cwe: &["CWE-943"],
     },
 ];
 

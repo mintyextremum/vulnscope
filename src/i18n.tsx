@@ -518,6 +518,18 @@ export const EN: Record<string, string> = {
     "User input and a SQL query execution appear on the same line. If the input is concatenated into the query text, this is SQL injection. This is a heuristic (BETA): check whether parameterization is used.",
   "Используйте параметризованные запросы (placeholders), а не конкатенацию/интерполяцию ввода в SQL.":
     "Use parameterized queries (placeholders) rather than concatenating/interpolating input into SQL.",
+  "Возможная NoSQL-инъекция": "Possible NoSQL injection",
+  "В одной строке встречаются пользовательский ввод и серверный оператор NoSQL, исполняющий выражение ($where, mapReduce, db.eval, $function, $accumulator). Если ввод попадает в такой оператор, это инъекция кода в БД и обход фильтров запроса. Это эвристика (BETA).":
+    "User input and a server-side NoSQL operator that executes an expression ($where, mapReduce, db.eval, $function, $accumulator) appear on the same line. If the input reaches such an operator, this is code injection into the database and a bypass of query filters. This is a heuristic (BETA).",
+  "Не используйте $where/mapReduce/db.eval с пользовательскими данными. Стройте условия обычными операторами ($eq, $in) и приводите типы параметров.":
+    "Do not use $where/mapReduce/db.eval with user data. Build conditions with ordinary operators ($eq, $in) and coerce parameter types.",
+  "Ввод «{\"$gt\": \"\"}» в фильтр или JS в $where («'; return true; //») обходит проверку и выдаёт чужие записи.":
+    "Input «{\"$gt\": \"\"}» in a filter, or JS in $where («'; return true; //»), bypasses the check and returns other people's records.",
+  "Обход аутентификации и фильтров запроса": "Authentication and query-filter bypass",
+  "Чтение чужих данных": "Reading other users' data",
+  "Выполнение JS на сервере БД ($where)": "JavaScript execution on the DB server ($where)",
+  "db.users.find({ name: { $eq: String(req.query.name) } })  // fixed operator, coerced type; never $where with input":
+    "db.users.find({ name: { $eq: String(req.query.name) } })  // fixed operator, coerced type; never $where with input",
   "Возможный path traversal": "Possible path traversal",
   "В одной строке встречаются пользовательский ввод и открытие файла. Если имя файла задаёт пользователь, через ../ он выйдет за пределы каталога. Это эвристика (BETA): проверьте, ограничен ли путь.":
     "User input and a file open appear on the same line. If the user controls the file name, ../ escapes the directory. This is a heuristic (BETA): check whether the path is constrained.",
@@ -2124,6 +2136,7 @@ export const EN: Record<string, string> = {
   "Выполнение кода": "Code execution",
   "Инъекция команд": "Command injection",
   "SQL-инъекция": "SQL injection",
+  "NoSQL-инъекция": "NoSQL injection",
   "LDAP-инъекция": "LDAP injection",
   "XPath-инъекция": "XPath injection",
   "Загрязнение прототипа": "Prototype pollution",

