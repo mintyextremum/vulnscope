@@ -4518,6 +4518,56 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 .delta-stat.bad b, .delta-stat.bad .material-symbols-outlined { color: var(--crit); }
 .delta-stat.good b, .delta-stat.good .material-symbols-outlined { color: var(--ok); }
 
+/* Compact multi-scan trend on the dashboard; opens the full report on click. */
+.trend-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--s-1);
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  margin-bottom: var(--sp-3);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+}
+.trend-strip:hover { border-color: var(--line); background: var(--s-2); }
+.trend-strip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--t-3);
+  white-space: nowrap;
+}
+.trend-strip-label .material-symbols-outlined { font-size: 16px; color: var(--t-4); }
+.trend-strip-svg { flex: 1; height: 34px; min-width: 80px; }
+.trend-strip-area { stroke: none; opacity: 0.12; }
+.trend-strip-area.good { fill: var(--ok); }
+.trend-strip-area.bad { fill: var(--crit); }
+.trend-strip-area.flat { fill: var(--t-4); }
+.trend-strip-line { stroke-width: 1.5; }
+.trend-strip-line.good { stroke: var(--ok); }
+.trend-strip-line.bad { stroke: var(--crit); }
+.trend-strip-line.flat { stroke: var(--t-3); }
+.trend-strip-dot.good { fill: var(--ok); }
+.trend-strip-dot.bad { fill: var(--crit); }
+.trend-strip-dot.flat { fill: var(--t-3); }
+.trend-strip-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--t-3);
+  white-space: nowrap;
+}
+.trend-strip-delta .material-symbols-outlined { font-size: 16px; }
+.trend-strip-delta.good, .trend-strip-delta.good .material-symbols-outlined { color: var(--ok); }
+.trend-strip-delta.bad, .trend-strip-delta.bad .material-symbols-outlined { color: var(--crit); }
+
 .tag.is-new {
   background: var(--a);
   color: var(--on-a);
