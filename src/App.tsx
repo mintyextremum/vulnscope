@@ -6,6 +6,7 @@ import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialo
 import "./App.css";
 import {
   Finding,
+  HistoryPoint,
   ScanOptions,
   ScanPhase,
   ScanProgress,
@@ -1488,6 +1489,7 @@ export default function App() {
                 setSelectedFile(null);
                 setTab("findings");
               }}
+              onOpenReport={() => goto("report")}
             />
           )}
 
@@ -2183,12 +2185,75 @@ function AttackPaths({
   );
 }
 
+/**
+ * A compact trend of total findings over the last several scans, shown on the
+ * dashboard — the screen people actually look at after every run. The full
+ * multi-series chart lives in the report; this is the at-a-glance sparkline that
+ * says "getting better or worse?" and opens the report on click. Hidden until a
+ * target has been scanned at least twice (one point is not a trend).
+ */
+function TrendStrip({ report, onOpen }: { report: ScanReport; onOpen: () => void }) {
+  const t = useT();
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
+  useEffect(() => {
+    let live = true;
+    invoke<HistoryPoint[]>("get_scan_history", { root: report.root })
+      .then((h) => live && setHistory(h))
+      .catch(() => live && setHistory([]));
+    return () => {
+      live = false;
+    };
+  }, [report.root]);
+
+  if (history.length < 2) return null;
+
+  const W = 220;
+  const H = 34;
+  const pad = 3;
+  const totals = history.map((p) => p.total);
+  // Scale to the data's own min..max, not 0..max: totals cluster near each other
+  // (a mature project barely moves scan to scan), so a zero-based axis would draw
+  // a flat line pinned to the top and hide the very variation this is here to show.
+  const lo = Math.min(...totals);
+  const hi = Math.max(...totals);
+  const span = hi - lo || 1;
+  const x = (i: number) => pad + (i * (W - 2 * pad)) / (history.length - 1);
+  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - 2 * pad);
+  const line = totals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const area =
+    `${x(0)},${H - pad} ` + totals.map((v, i) => `${x(i)},${y(v)}`).join(" ") + ` ${x(history.length - 1)},${H - pad}`;
+  const delta = totals[totals.length - 1] - totals[0];
+  // Fewer findings over time is improvement — the whole point of the tool.
+  const dir = delta < 0 ? "good" : delta > 0 ? "bad" : "flat";
+
+  return (
+    <button className="trend-strip" onClick={onOpen} title={t("Открыть отчёт с полным графиком динамики")}>
+      <span className="trend-strip-label">
+        <Icon name="show_chart" />
+        {t("Динамика")}
+      </span>
+      <svg className="trend-strip-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        <polygon className={`trend-strip-area ${dir}`} points={area} />
+        <polyline className={`trend-strip-line ${dir}`} points={line} fill="none" />
+        <circle className={`trend-strip-dot ${dir}`} cx={x(history.length - 1)} cy={y(totals[totals.length - 1])} r="2.5" />
+      </svg>
+      <span className={`trend-strip-delta ${dir}`}>
+        <Icon name={dir === "good" ? "trending_down" : dir === "bad" ? "trending_up" : "remove"} />
+        {delta > 0 ? "+" : ""}
+        {delta} {t("находок за {n} сканов", { n: history.length })}
+      </span>
+    </button>
+  );
+}
+
 function Overview({
   report,
   onOpenFinding,
+  onOpenReport,
 }: {
   report: ScanReport;
   onOpenFinding: (f: Finding) => void;
+  onOpenReport: () => void;
 }) {
   const t = useT();
   const lang = useContext(LangContext);
@@ -2261,6 +2326,8 @@ function Overview({
           </span>
         </div>
       )}
+
+      {!report.cancelled && <TrendStrip report={report} onOpen={onOpenReport} />}
 
       {report.suppressedCount > 0 && (
         <div className="warn-box">
