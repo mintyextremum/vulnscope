@@ -475,21 +475,11 @@ export function FindingList({
             </button>
           )}
         </div>
+        {/* Toggles only — things you switch on. What is *currently* narrowing the
+            list (including the file picked in the tree) lives in the active-filters
+            strip below, which shows every one of them with a one-click remove;
+            repeating the file chip here put the same control on screen twice. */}
         <div className="lf-toggles">
-          {/* Picking a file in the tree narrows this list. That is deliberate,
-              but it used to be invisible: the list just showed fewer findings
-              with nothing saying why or how to get back. */}
-          {filters.file && (
-            <button
-              className="chip on chip-file"
-              onClick={filters.clearFile}
-              title={`${filters.file} — ${t("показать находки во всех файлах")}`}
-            >
-              <Icon name="description" />
-              {filters.file.split(/[\\/]/).pop()}
-              <Icon name="close" />
-            </button>
-          )}
           {filters.newCount > 0 && (
             <button
               className={`chip ${filters.onlyNew ? "on" : ""}`}

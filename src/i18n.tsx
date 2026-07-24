@@ -125,6 +125,10 @@ export const EN: Record<string, string> = {
   Автор: "Author",
   "Автор строки": "Line author",
   "Только достижимые": "Reachable only",
+  // «Свернуть» без уточнения уже занято кнопкой окна (Minimize) — здесь нужен
+  // свой ключ, иначе список путей просил бы «свернуть окно».
+  "Показать все пути ({n})": "Show all paths ({n})",
+  "Свернуть список": "Collapse list",
   "Показать только достижимые": "Show reachable only",
   "Показать только находки, до которых доходит недоверенный ввод":
     "Show only findings that untrusted input actually reaches",
