@@ -323,7 +323,7 @@ export default function App() {
       filters: [{ name: "Markdown", extensions: ["md"] }],
     });
     if (!path) return;
-    await invoke("save_report", { path, json: toMarkdown(report, t) }).catch((e) =>
+    await invoke("save_report", { path, json: toMarkdown(report, t, undefined, loadStaff1c()) }).catch((e) =>
       setError(String(e))
     );
   };
@@ -380,7 +380,7 @@ export default function App() {
   const copyMarkdown = async () => {
     if (!report) return;
     try {
-      await navigator.clipboard.writeText(toMarkdown(report, t));
+      await navigator.clipboard.writeText(toMarkdown(report, t, undefined, loadStaff1c()));
       showFlash(t("Отчёт скопирован в буфер обмена"));
     } catch {
       // Clipboard can refuse (focus/permission); fall back to the Save dialog.
@@ -500,7 +500,7 @@ export default function App() {
       filters: [{ name: "HTML", extensions: ["html"] }],
     });
     if (!path) return;
-    await invoke("save_report", { path, json: toHtml(report, t) }).catch((e) =>
+    await invoke("save_report", { path, json: toHtml(report, t, undefined, loadStaff1c()) }).catch((e) =>
       setError(String(e))
     );
   };
@@ -722,9 +722,9 @@ export default function App() {
     });
     const base = `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}-filtered`;
     const cfg = {
-      md: { ext: "md", name: "Markdown", body: () => toMarkdown(filteredReport, t, note) },
+      md: { ext: "md", name: "Markdown", body: () => toMarkdown(filteredReport, t, note, loadStaff1c()) },
       csv: { ext: "csv", name: "CSV", body: () => toCsv(filteredReport, t) },
-      html: { ext: "html", name: "HTML", body: () => toHtml(filteredReport, t, note) },
+      html: { ext: "html", name: "HTML", body: () => toHtml(filteredReport, t, note, loadStaff1c()) },
     }[kind];
     const path = await saveDialog({
       defaultPath: `${base}.${cfg.ext}`,
