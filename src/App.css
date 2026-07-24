@@ -3107,8 +3107,12 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 
 /* ==================================================================== help */
 
+/* The card grid is already responsive (auto-fill); a 900px cap pinned it to two
+   columns and left a third of a wide window empty. Widen and centre it — the
+   prose keeps its own narrower cap below, so lines never run window-wide. */
 .help-body {
-  max-width: 900px;
+  max-width: 1320px;
+  margin: 0 auto;
 }
 
 .help-section {
