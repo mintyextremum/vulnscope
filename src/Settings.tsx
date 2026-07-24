@@ -179,7 +179,7 @@ export function SettingsScreen({
               onChange={(v) => apply({ ...s, maxFileSizeMb: v })}
             />
             <Num
-              label={t("Длина строки для «минифицирован»")}
+              label={t("Порог длины строки")}
               unit={t("символов")}
               hint={t("Файл со строкой длиннее считается бандлом и не сканируется.")}
               value={s.minifiedLineLen}
@@ -391,6 +391,11 @@ export function SettingsScreen({
                 ))}
               </div>
             </div>
+
+            {/* Its own section: a boxed Num card sitting in the third column
+                next to two plain fields read as an orphan. A header spans the
+                grid, so the card starts a fresh row and says why it is here. */}
+            <div className="set-section">{t("Производительность")}</div>
 
             <Num
               label={t("Подсветка синтаксиса до")}

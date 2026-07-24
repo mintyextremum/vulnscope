@@ -1529,7 +1529,8 @@ export const EN: Record<string, string> = {
   МБ: "MB",
   "Файлы крупнее пропускаются: это почти всегда сгенерированные данные, а не код.":
     "Larger files are skipped: they are almost always generated data, not code.",
-  "Длина строки для «минифицирован»": "Line length for “minified”",
+  "Порог длины строки": "Line-length threshold",
+  Производительность: "Performance",
   символов: "chars",
   "Файл со строкой длиннее считается бандлом и не сканируется.":
     "A file with a longer line is treated as a bundle and not scanned.",
