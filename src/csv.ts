@@ -1,6 +1,7 @@
-import type { ScanReport, Finding } from "./types";
+import type { ScanReport, Finding, Staff1c } from "./types";
 import { SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
+import { resolveResponsible } from "./responsible.ts";
 
 /**
  * CSV export.
@@ -27,7 +28,7 @@ function cell(value: string | number): string {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 
-export function toCsv(report: ScanReport, t: TFn): string {
+export function toCsv(report: ScanReport, t: TFn, staff: Staff1c[] = []): string {
   const headers = [
     t("Уровень"),
     t("правило"),
@@ -39,6 +40,9 @@ export function toCsv(report: ScanReport, t: TFn): string {
     "CVE",
     t("Категория"),
     t("Источник"),
+    // Last column so a spreadsheet can pivot findings by owner (git blame,
+    // mapped onto a 1C employee when a staff registry was imported).
+    t("Ответственный"),
     t("Подавлено"),
     t("Причина"),
   ];
@@ -55,6 +59,7 @@ export function toCsv(report: ScanReport, t: TFn): string {
       f.cve.join(" "),
       t(f.category),
       t(f.sourceLabel),
+      resolveResponsible(f, staff)?.name ?? "",
       f.suppressed ? t("Да") : t("Нет"),
       f.suppressed ? f.suppressionReason ?? "" : "",
     ]
