@@ -1,4 +1,4 @@
-import type { ScanReport, Severity, Finding } from "./types";
+import type { ScanReport, Severity, Finding, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
 
@@ -34,11 +34,27 @@ function esc(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** git-blame author of a finding, mapped onto a 1C employee when a registry was
+ *  imported, else the raw git author; null when the finding has no blame. */
+function responsibleName(f: Finding, staff: Staff1c[]): string | null {
+  const b = f.extra?.blame;
+  if (!b) return null;
+  const mail = (b.email ?? "").toLowerCase();
+  const name = b.author.toLowerCase();
+  const emp =
+    (mail && staff.find((s) => s.emails.some((e) => e.toLowerCase() === mail))) ||
+    staff.find((s) => s.name.toLowerCase() === name || s.aliases.some((a) => a.toLowerCase() === name));
+  return emp ? emp.name : b.author;
+}
+
 /**
  * `note` is shown as a warning in the header. The filtered export passes one: a
  * document holding a subset must say so, or it reads as the whole report.
+ *
+ * `staff` (from an imported 1C registry) maps git authors onto responsible
+ * people for the accountability table; empty falls back to raw git names.
  */
-export function toHtml(report: ScanReport, t: TFn, note?: string): string {
+export function toHtml(report: ScanReport, t: TFn, note?: string, staff: Staff1c[] = []): string {
   const total = SEVERITY_ORDER.reduce((n, s) => n + report.counts[s], 0);
   const active = report.findings.filter((f) => !f.suppressed);
   const suppressed = report.findings.filter((f) => f.suppressed);
@@ -101,6 +117,40 @@ export function toHtml(report: ScanReport, t: TFn, note?: string): string {
     .map((s) => chip(s, report.counts[s]))
     .join(" ");
 
+  // Accountability by responsible person, from git blame — rendered only when
+  // the scan ran on a git work tree (otherwise no finding carries an author).
+  const byAuthor = new Map<string, { total: number; severe: number; isNew: number }>();
+  for (const f of report.findings) {
+    if (f.suppressed || f.extra?.experimental) continue;
+    const who = responsibleName(f, staff);
+    if (!who) continue;
+    const r = byAuthor.get(who) ?? { total: 0, severe: 0, isNew: 0 };
+    r.total += 1;
+    if (f.severity === "critical" || f.severity === "high") r.severe += 1;
+    if (f.isNew) r.isNew += 1;
+    byAuthor.set(who, r);
+  }
+  const authorSection =
+    byAuthor.size > 0
+      ? `<section>
+        <h2>${esc(t("По ответственным"))}</h2>
+        <table class="resp">
+          <thead><tr><th>${esc(t("Ответственный"))}</th><th>${esc(t("Находок"))}</th><th>${esc(
+            t("Критич. + высокие")
+          )}</th><th>${esc(t("Новых"))}</th></tr></thead>
+          <tbody>${[...byAuthor.entries()]
+            .sort((a, b) => b[1].total - a[1].total)
+            .map(
+              ([who, r]) =>
+                `<tr><td>${esc(who)}</td><td>${r.total}</td><td>${r.severe || "—"}</td><td>${
+                  r.isNew || "—"
+                }</td></tr>`
+            )
+            .join("")}</tbody>
+        </table>
+      </section>`
+      : "";
+
   return `<!doctype html>
 <html>
 <meta charset="utf-8">
@@ -132,6 +182,10 @@ export function toHtml(report: ScanReport, t: TFn, note?: string): string {
     background: #ececed; padding: 1px 5px; border-radius: 4px; }
   .tag { font-size: 11.5px; background: #ececed; color: #45464f; padding: 1px 7px; border-radius: 10px; }
   .rec { background: #eef6ee; border-radius: 6px; padding: 8px 12px; font-size: 13.5px; }
+  table.resp { border-collapse: collapse; font-size: 13.5px; margin-top: 4px; }
+  table.resp th { text-align: left; color: #62636c; font-weight: 600; padding: 4px 14px 4px 0; border-bottom: 1px solid #e6e6ea; }
+  table.resp td { padding: 4px 14px 4px 0; border-bottom: 1px solid #f0f0f2; font-variant-numeric: tabular-nums; }
+  table.resp td:not(:first-child), table.resp th:not(:first-child) { text-align: right; }
   .sup { color: #62636c; font-size: 13px; font-style: italic; }
   .warn { background: #fff4e5; border: 1px solid #ffd8a8; border-radius: 6px; padding: 10px 14px; }
   .ok { color: #2b8a3e; font-size: 16px; }
@@ -141,6 +195,8 @@ export function toHtml(report: ScanReport, t: TFn, note?: string): string {
   @media (prefers-color-scheme: dark) {
     body { color: #e4e4e7; background: #161618; }
     header, .card, footer, h2 { border-color: #2a2a2e; }
+    table.resp th { color: #9a9aa2; border-color: #2a2a2e; }
+    table.resp td { border-color: #232326; }
     .card { background: #1c1c1f; }
     .chip, code, .tag { background: #26262a; color: #c4c4c8; }
     .target, .summary, .meta, .sup, .tag, .n, footer { color: #9a9aa2; }
@@ -167,6 +223,7 @@ export function toHtml(report: ScanReport, t: TFn, note?: string): string {
     <div class="chips">${chips}</div>
   </header>
   ${empty}
+  ${authorSection}
   ${sections}
   ${suppressedSection}
   <footer>${esc(t("Сгенерировано VulnScope"))} · ${esc(report.finishedAt)}</footer>
