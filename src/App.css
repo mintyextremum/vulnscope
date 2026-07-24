@@ -2801,6 +2801,9 @@ kbd,
   margin-top: 2px;
 }
 
+/* The scale, dimmer than the score so the number still reads first. */
+.score-num-max { color: var(--t-4); font-size: var(--fs-xs); }
+
 .score-body {
   min-width: 0;
   display: flex;
@@ -3193,6 +3196,27 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   gap: 2px;
   margin-top: var(--sp-2);
 }
+
+/* Expanded: scroll inside the panel so a flow-heavy project cannot push the
+   rest of the dashboard off the screen. */
+.ap-list.expanded { max-height: 340px; overflow-y: auto; }
+
+.ap-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: none;
+  background: none;
+  border-radius: var(--r-1);
+  color: var(--t-3);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.ap-more:hover { background: var(--s-2); color: var(--t-1); }
+.ap-more .material-symbols-outlined { font-size: 16px; }
 
 .ap-row {
   display: flex;

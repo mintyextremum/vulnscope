@@ -517,10 +517,13 @@ export default function App() {
    * the severity filter over those and picking "Критическая" would leave every
    * other pill at zero — the pills are how you pick.
    */
-  const matchesNonSeverity = useCallback(
+  /**
+   * The narrowing that is neither a severity pick nor one of the "only X"
+   * toggles: search, author, and the suppressed rule. Split out so a toggle's
+   * own chip can count what clicking it would yield without counting itself.
+   */
+  const matchesBase = useCallback(
     (f: Finding) => {
-      if (onlyNew && !f.isNew) return false;
-      if (onlyReachable && !f.extra?.onDataPath) return false;
       // Author narrowing keys on the raw git-blame author (what the detail chip
       // shows); findings without blame drop out while an author is selected.
       if (authorFilter && f.extra?.blame?.author !== authorFilter) return false;
@@ -551,7 +554,16 @@ export default function App() {
     },
     // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onlyNew, onlyReachable, showSuppressed, findingQuery, authorFilter, lang]
+    [showSuppressed, findingQuery, authorFilter, lang]
+  );
+
+  const matchesNonSeverity = useCallback(
+    (f: Finding) => {
+      if (onlyNew && !f.isNew) return false;
+      if (onlyReachable && !f.extra?.onDataPath) return false;
+      return matchesBase(f);
+    },
+    [onlyNew, onlyReachable, matchesBase]
   );
 
   /** Every filter except the file narrowing. */
@@ -584,6 +596,27 @@ export default function App() {
     }
     return out;
   }, [report, tab, selectedFile, matchesNonSeverity]);
+
+  /**
+   * Counts for the two "only X" chips, scoped the same way the severity pills
+   * are: a chip reading "329" above a sixteen-row list was quoting the whole
+   * project at a filtered view. Each count applies every other filter but not
+   * its own toggle, so it answers exactly "how many would clicking this leave".
+   */
+  const chipCounts = useMemo(() => {
+    if (!report) return { newCount: 0, reachableCount: 0 };
+    let newCount = 0;
+    let reachableCount = 0;
+    for (const f of report.findings) {
+      if ((tab === "beta") !== !!f.extra?.experimental) continue;
+      if (selectedFile && (tab === "findings" || tab === "beta") && f.file !== selectedFile) continue;
+      if (sevFilter.size > 0 && !sevFilter.has(f.severity)) continue;
+      if (!matchesBase(f)) continue;
+      if (f.isNew && (!onlyReachable || f.extra?.onDataPath)) newCount++;
+      if (f.extra?.onDataPath && (!onlyNew || f.isNew)) reachableCount++;
+    }
+    return { newCount, reachableCount };
+  }, [report, tab, selectedFile, sevFilter, matchesBase, onlyNew, onlyReachable]);
 
   /** True while anything is narrowing the list, so counts can say "N из M". */
   const anyFilterActive =
@@ -768,10 +801,8 @@ export default function App() {
             return true;
           }).length
         : 0,
-      newCount: report?.delta.newCount ?? 0,
-      reachableCount: report
-        ? report.findings.filter((f) => f.extra?.onDataPath && !f.suppressed && !f.extra?.experimental).length
-        : 0,
+      newCount: chipCounts.newCount,
+      reachableCount: chipCounts.reachableCount,
       suppressedCount: report?.suppressedCount ?? 0,
       query: findingQuery,
       setQuery: setFindingQuery,
@@ -789,7 +820,7 @@ export default function App() {
       clearAuthor: () => setAuthorFilter(null),
       reset: resetFilters,
     }),
-    [report, selectedFile, tab, findingQuery, onlyNew, onlyReachable, showSuppressed, sevFilter, toggleSev, authorFilter, resetFilters]
+    [report, selectedFile, tab, findingQuery, onlyNew, onlyReachable, showSuppressed, sevFilter, toggleSev, authorFilter, chipCounts, resetFilters]
   );
 
   const openFileAt = useCallback((path: string, line: number) => {
@@ -2102,7 +2133,12 @@ function ScoreHero({ score }: { score: SecurityScore }) {
         </svg>
         <div className="score-center">
           <div className="score-grade">{score.grade}</div>
-          <div className="score-num">{Math.round(score.score)}</div>
+          {/* The bare number under the grade read as a stray digit; the scale is
+              what makes "1" mean something. Same text the ring already announces. */}
+          <div className="score-num">
+            {Math.round(score.score)}
+            <span className="score-num-max">/100</span>
+          </div>
         </div>
       </div>
 
@@ -2151,7 +2187,9 @@ function AttackPaths({
   onOpenFinding: (f: Finding) => void;
 }) {
   const t = useT();
-  const paths = useMemo(() => {
+  // Ranked once: the title's count and the list are the same set, so counting
+  // the flows separately could only ever disagree with what is shown.
+  const all = useMemo(() => {
     const sevRank: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
     return report.findings
       .filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed)
@@ -2165,21 +2203,27 @@ function AttackPaths({
           sevRank[a.f.severity] - sevRank[b.f.severity] ||
           Number(b.crosses) - Number(a.crosses) ||
           b.steps - a.steps
-      )
-      .slice(0, 6);
+      );
   }, [report.findings]);
 
-  if (paths.length === 0) return null;
+  const TOP = 6;
+  const [expanded, setExpanded] = useState(false);
+  // The panel headlined "Пути атаки 20" while showing six, with no way to the
+  // rest — the flagship's highest-signal output, unreachable. Expanding scrolls
+  // inside the panel so a flow-heavy project cannot swallow the dashboard.
+  const paths = expanded ? all : all.slice(0, TOP);
+
+  if (all.length === 0) return null;
 
   return (
     <div className="card attack-paths">
       <div className="card-title">
         <Icon name="conversion_path" />
         {t("Пути атаки")}
-        <span className="count">{report.findings.filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed).length}</span>
+        <span className="count">{all.length}</span>
         <span className="ap-sub">{t("прослежено от ввода до опасного вызова")}</span>
       </div>
-      <div className="ap-list">
+      <div className={`ap-list ${expanded ? "expanded" : ""}`}>
         {paths.map(({ f, flow, crosses, steps }) => {
           const sink = flow[flow.length - 1];
           return (
@@ -2206,6 +2250,14 @@ function AttackPaths({
           );
         })}
       </div>
+      {all.length > TOP && (
+        <button className="ap-more" onClick={() => setExpanded((v) => !v)}>
+          <Icon name={expanded ? "expand_less" : "expand_more"} />
+          {expanded
+            ? t("Свернуть список")
+            : t("Показать все пути ({n})", { n: all.length })}
+        </button>
+      )}
     </div>
   );
 }
