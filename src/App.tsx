@@ -346,7 +346,7 @@ export default function App() {
       filters: [{ name: "CSV", extensions: ["csv"] }],
     });
     if (!path) return;
-    await invoke("save_report", { path, json: toCsv(report, t) }).catch((e) =>
+    await invoke("save_report", { path, json: toCsv(report, t, loadStaff1c()) }).catch((e) =>
       setError(String(e))
     );
   };
@@ -723,7 +723,7 @@ export default function App() {
     const base = `vulnscope-${report.targetLabel.replace(/[^\w.-]/g, "_")}-filtered`;
     const cfg = {
       md: { ext: "md", name: "Markdown", body: () => toMarkdown(filteredReport, t, note, loadStaff1c()) },
-      csv: { ext: "csv", name: "CSV", body: () => toCsv(filteredReport, t) },
+      csv: { ext: "csv", name: "CSV", body: () => toCsv(filteredReport, t, loadStaff1c()) },
       html: { ext: "html", name: "HTML", body: () => toHtml(filteredReport, t, note, loadStaff1c()) },
     }[kind];
     const path = await saveDialog({
