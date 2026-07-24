@@ -34,6 +34,11 @@ export interface FindingFilters {
   setQuery: (v: string) => void;
   onlyNew: boolean;
   setOnlyNew: (v: boolean) => void;
+  /** Reachable findings (on a traced data-flow path) in the report, and the
+   *  toggle to show only them — the highest-priority triage view. */
+  reachableCount: number;
+  onlyReachable: boolean;
+  setOnlyReachable: (v: boolean) => void;
   showSuppressed: boolean;
   setShowSuppressed: (v: boolean) => void;
   /** Severity filter set at the top toolbar; shown here so the list explains
@@ -495,6 +500,17 @@ export function FindingList({
               <span className="chip-n">{filters.newCount}</span>
             </button>
           )}
+          {filters.reachableCount > 0 && (
+            <button
+              className={`chip ${filters.onlyReachable ? "on" : ""}`}
+              onClick={() => filters.setOnlyReachable(!filters.onlyReachable)}
+              title={t("Показать только находки, до которых доходит недоверенный ввод")}
+            >
+              <Icon name="my_location" />
+              {t("Только достижимые")}
+              <span className="chip-n">{filters.reachableCount}</span>
+            </button>
+          )}
           {filters.suppressedCount > 0 && (
             <button
               className={`chip ${filters.showSuppressed ? "on" : ""}`}
@@ -516,6 +532,7 @@ export function FindingList({
           !!filters.author ||
           filters.query.trim() !== "" ||
           filters.onlyNew ||
+          filters.onlyReachable ||
           filters.showSuppressed;
         if (!anyActive) return null;
         return (
@@ -558,6 +575,13 @@ export function FindingList({
               <button className="af-chip" onClick={() => filters.setOnlyNew(false)}>
                 <Icon name="fiber_new" />
                 {t("Только новые")}
+                <Icon name="close" />
+              </button>
+            )}
+            {filters.onlyReachable && (
+              <button className="af-chip" onClick={() => filters.setOnlyReachable(false)}>
+                <Icon name="my_location" />
+                {t("Только достижимые")}
                 <Icon name="close" />
               </button>
             )}

@@ -124,6 +124,10 @@ export const EN: Record<string, string> = {
     "The file has neither projects nor staff (expected «Проект» or «Сотрудник» elements).",
   Автор: "Author",
   "Автор строки": "Line author",
+  "Только достижимые": "Reachable only",
+  "Показать только достижимые": "Show reachable only",
+  "Показать только находки, до которых доходит недоверенный ввод":
+    "Show only findings that untrusted input actually reaches",
   "Показать все находки этого автора": "Show all findings by this author",
   "Показать находки всех авторов": "Show findings by all authors",
   Новых: "New",

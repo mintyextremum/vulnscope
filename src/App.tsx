@@ -108,6 +108,9 @@ export default function App() {
   const [sevFilter, setSevFilter] = useState<Set<Severity>>(new Set());
   const [findingQuery, setFindingQuery] = useState("");
   const [onlyNew, setOnlyNew] = useState(false);
+  // Show only findings the taint engine proved reachable — the highest-priority
+  // triage view, matching what the security score weights most.
+  const [onlyReachable, setOnlyReachable] = useState(false);
   const [showSuppressed, setShowSuppressed] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   // Triage by who last touched the line (git blame). Set from the author chip in
@@ -517,6 +520,7 @@ export default function App() {
   const matchesNonSeverity = useCallback(
     (f: Finding) => {
       if (onlyNew && !f.isNew) return false;
+      if (onlyReachable && !f.extra?.onDataPath) return false;
       // Author narrowing keys on the raw git-blame author (what the detail chip
       // shows); findings without blame drop out while an author is selected.
       if (authorFilter && f.extra?.blame?.author !== authorFilter) return false;
@@ -547,7 +551,7 @@ export default function App() {
     },
     // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onlyNew, showSuppressed, findingQuery, authorFilter, lang]
+    [onlyNew, onlyReachable, showSuppressed, findingQuery, authorFilter, lang]
   );
 
   /** Every filter except the file narrowing. */
@@ -583,7 +587,12 @@ export default function App() {
 
   /** True while anything is narrowing the list, so counts can say "N из M". */
   const anyFilterActive =
-    sevFilter.size > 0 || onlyNew || showSuppressed || findingQuery.trim() !== "" || !!authorFilter;
+    sevFilter.size > 0 ||
+    onlyNew ||
+    onlyReachable ||
+    showSuppressed ||
+    findingQuery.trim() !== "" ||
+    !!authorFilter;
 
   const filteredFindings = useMemo(() => {
     if (!report) return [];
@@ -685,6 +694,7 @@ export default function App() {
     setShowSuppressed(false);
     setFindingQuery("");
     setAuthorFilter(null);
+    setOnlyReachable(false);
     // The tree selection narrows the list too, so "reset filters" has to drop it
     // as well — otherwise the list stays a subset after the user asked for all.
     setSelectedFile(null);
@@ -759,11 +769,16 @@ export default function App() {
           }).length
         : 0,
       newCount: report?.delta.newCount ?? 0,
+      reachableCount: report
+        ? report.findings.filter((f) => f.extra?.onDataPath && !f.suppressed && !f.extra?.experimental).length
+        : 0,
       suppressedCount: report?.suppressedCount ?? 0,
       query: findingQuery,
       setQuery: setFindingQuery,
       onlyNew,
       setOnlyNew,
+      onlyReachable,
+      setOnlyReachable,
       showSuppressed,
       setShowSuppressed,
       sevFilter,
@@ -774,7 +789,7 @@ export default function App() {
       clearAuthor: () => setAuthorFilter(null),
       reset: resetFilters,
     }),
-    [report, selectedFile, tab, findingQuery, onlyNew, showSuppressed, sevFilter, toggleSev, authorFilter, resetFilters]
+    [report, selectedFile, tab, findingQuery, onlyNew, onlyReachable, showSuppressed, sevFilter, toggleSev, authorFilter, resetFilters]
   );
 
   const openFileAt = useCallback((path: string, line: number) => {
@@ -1046,6 +1061,15 @@ export default function App() {
         run: () => setOnlyNew((v) => !v),
       },
       {
+        id: "only-reachable",
+        label: onlyReachable ? t("Показать все находки") : t("Показать только достижимые"),
+        icon: "my_location",
+        when:
+          screen === "results" &&
+          (report?.findings.some((f) => f.extra?.onDataPath && !f.suppressed && !f.extra?.experimental) ?? false),
+        run: () => setOnlyReachable((v) => !v),
+      },
+      {
         id: "clear-filters",
         label: t("Сбросить фильтры"),
         icon: "filter_alt_off",
@@ -1066,6 +1090,7 @@ export default function App() {
       report,
       sevFilter,
       onlyNew,
+      onlyReachable,
       showSuppressed,
       findingQuery,
       selectedFile,
