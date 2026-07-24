@@ -1,6 +1,6 @@
 use crate::model::{BlameInfo, Finding};
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -21,13 +21,29 @@ pub fn annotate(root: &Path, findings: &mut [Finding]) {
         return;
     }
 
+    // Only files git actually tracks can be blamed. Asking about the rest —
+    // node_modules, vendor/, build output, anything ignored — spawns a process
+    // per file just to be told "no such path in HEAD". One `git ls-files` costs
+    // about as much as a single blame and removes all of them.
+    //
+    // This is also why it runs *before* the cap: `by_file` iterates a HashMap in
+    // arbitrary order, so on a vendor-inclusive scan the budget could be spent
+    // entirely on untracked files and leave the real sources unattributed.
+    let tracked = tracked_files(root);
+
     // Group finding indices by file; dependency findings (line 0) have no line
     // to blame.
     let mut by_file: HashMap<&str, Vec<usize>> = HashMap::new();
     for (i, f) in findings.iter().enumerate() {
-        if f.line > 0 && !f.file.is_empty() {
-            by_file.entry(f.file.as_str()).or_default().push(i);
+        if f.line == 0 || f.file.is_empty() {
+            continue;
         }
+        if let Some(set) = &tracked {
+            if !set.contains(&normalize_path(&f.file)) {
+                continue;
+            }
+        }
+        by_file.entry(f.file.as_str()).or_default().push(i);
     }
 
     // A bound on subprocess count. Findings concentrate in few files in
@@ -60,6 +76,37 @@ pub fn annotate(root: &Path, findings: &mut [Finding]) {
     }
 }
 
+/// Git speaks forward slashes everywhere; findings carry the platform separator.
+/// Comparing the two forms directly would treat every Windows path as untracked.
+fn normalize_path(p: &str) -> String {
+    p.replace('\\', "/")
+}
+
+/// Every path git tracks under `root`, forward-slashed and relative to it — the
+/// same shape as a finding's path. `None` when the listing fails, which makes
+/// the caller fall back to attempting every file rather than attributing none.
+fn tracked_files(root: &Path) -> Option<HashSet<String>> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        // NUL-separated: a path may legally contain anything but NUL, and
+        // without -z git quotes and escapes non-ASCII names.
+        .args(["ls-files", "-z"])
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&out.stdout)
+            .split('\0')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect(),
+    )
+}
+
 /// True only for a non-shallow work tree — the two conditions under which blame
 /// output can be trusted.
 fn repo_supports_blame(root: &Path) -> bool {
@@ -89,7 +136,7 @@ fn blame_file(root: &Path, file: &str, lines: &[u32]) -> Option<HashMap<u32, Bla
         cmd.arg("-L").arg(format!("{l},{l}"));
     }
     // Git wants forward slashes for pathspecs regardless of platform.
-    cmd.arg("--").arg(file.replace('\\', "/"));
+    cmd.arg("--").arg(normalize_path(file));
     let out = cmd.stdin(Stdio::null()).output().ok()?;
     if !out.status.success() {
         return None;
@@ -206,5 +253,17 @@ filename db.py
     fn tolerates_garbage_input() {
         assert!(parse_line_porcelain("").is_empty());
         assert!(parse_line_porcelain("fatal: no such path 'x' in HEAD").is_empty());
+    }
+
+    /// The tracked-file set comes from git in forward slashes; a finding on
+    /// Windows carries backslashes. Without normalising, every path would miss
+    /// the set and no finding would ever be attributed on Windows.
+    #[test]
+    fn path_normalisation_matches_git_listing() {
+        let tracked: HashSet<String> = ["src/app.rs", "a/b/c.py"].iter().map(|s| s.to_string()).collect();
+        assert!(tracked.contains(&normalize_path(r"src\app.rs")));
+        assert!(tracked.contains(&normalize_path("src/app.rs")));
+        assert!(tracked.contains(&normalize_path(r"a\b\c.py")));
+        assert!(!tracked.contains(&normalize_path(r"other\file.rs")));
     }
 }
