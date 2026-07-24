@@ -690,7 +690,14 @@ const PLACEHOLDERS: &[&str] = &[
     "xxxxx", "aaaaa", "12345", "insert", "replace", "todo", "fixme", "foobar", "<your",
     "here", "myapp", "redacted", "removed", "secret_key_here", "notreal", "fake", "mock",
     "abcdef", "000000", "lorem", "n/a", "none", "null", "undefined", "process.env",
-    "os.environ", "getenv", "${", "{{", "%s", "..." ,
+    "os.environ", "getenv", "${", "{{", "%s", "...",
+    // Template interpolation inside a quoted value — a reference to an env/config
+    // variable, not a literal credential: Ruby `#{...}`, ERB/EJS `<% ... %>`.
+    // Only structurally-impossible-in-a-real-token markers go here: a
+    // prefix-anchored provider token (shpat_/dop_v1_/…) has an arbitrary body,
+    // so word/hex fillers must NOT live in this global list — entropy handles the
+    // generic-key case instead.
+    "#{", "<%",
 ];
 
 /// Shannon entropy in bits per character. Random tokens land around 4-6;
@@ -884,6 +891,15 @@ mod tests {
         assert!(ids("api_key = os.environ[\"REAL_API_KEY_NAME\"]", "c.py").is_empty());
         assert!(ids("apiKey = process.env.SOME_LONG_KEY_NAME", "c.js").is_empty());
     }
+
+    #[test]
+    fn ignores_template_interpolation_in_quoted_values() {
+        // A quoted value that is really an env/config reference, not a literal
+        // credential — the previous list missed Ruby and ERB interpolation.
+        assert!(ids("password = \"#{ENV['DB_PASSWORD_NAME']}\"", "c.rb").is_empty());
+        assert!(ids("api_key = \"<%= ENV['SOME_API_KEY_NAME'] %>\"", "c.erb").is_empty());
+    }
+
 
     #[test]
     fn ignores_low_entropy_generic_values() {
