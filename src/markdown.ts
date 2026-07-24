@@ -1,6 +1,7 @@
 import type { Finding, ScanReport, Severity, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
+import { responsibleBreakdown } from "./responsible.ts";
 
 /**
  * Markdown export.
@@ -83,19 +84,6 @@ export function findingToMarkdown(f: Finding, t: TFn, includeSnippet = false): s
   return out.join("\n");
 }
 
-/** Who is accountable for a finding: the git-blame author, mapped onto a 1C
- *  employee when a staff registry was imported, else the raw git author. */
-function responsibleName(f: Finding, staff: Staff1c[]): string | null {
-  const b = f.extra?.blame;
-  if (!b) return null;
-  const mail = (b.email ?? "").toLowerCase();
-  const name = b.author.toLowerCase();
-  const emp =
-    (mail && staff.find((s) => s.emails.some((e) => e.toLowerCase() === mail))) ||
-    staff.find((s) => s.name.toLowerCase() === name || s.aliases.some((a) => a.toLowerCase() === name));
-  return emp ? emp.name : b.author;
-}
-
 /**
  * `note` is printed as a leading warning. The filtered export passes one: a
  * document holding a subset must say so, or it reads as the whole report.
@@ -133,25 +121,15 @@ export function toMarkdown(report: ScanReport, t: TFn, note?: string, staff: Sta
 
   // Accountability by responsible person, from git blame — only when the scan
   // ran on a git work tree (otherwise no finding carries an author).
-  const confirmed = report.findings.filter((f) => !f.suppressed && !f.extra?.experimental);
-  const byAuthor = new Map<string, { total: number; severe: number; isNew: number }>();
-  for (const f of confirmed) {
-    const who = responsibleName(f, staff);
-    if (!who) continue;
-    const r = byAuthor.get(who) ?? { total: 0, severe: 0, isNew: 0 };
-    r.total += 1;
-    if (f.severity === "critical" || f.severity === "high") r.severe += 1;
-    if (f.isNew) r.isNew += 1;
-    byAuthor.set(who, r);
-  }
-  if (byAuthor.size > 0) {
+  const byAuthor = responsibleBreakdown(report.findings, staff);
+  if (byAuthor.length > 0) {
     out.push(`## ${t("По ответственным")}`, "");
     out.push(
       `| ${t("Ответственный")} | ${t("Находок")} | ${t("Критич. + высокие")} | ${t("Новых")} |`,
       "| --- | ---: | ---: | ---: |"
     );
-    for (const [who, r] of [...byAuthor.entries()].sort((a, b) => b[1].total - a[1].total)) {
-      out.push(`| ${cell(who)} | ${r.total} | ${r.severe || ""} | ${r.isNew || ""} |`);
+    for (const r of byAuthor) {
+      out.push(`| ${cell(r.name)} | ${r.total} | ${r.severe || ""} | ${r.isNew || ""} |`);
     }
     out.push("");
   }

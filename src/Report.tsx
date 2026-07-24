@@ -4,6 +4,7 @@ import type { ScanReport, Finding, Severity, HistoryPoint, Staff1c } from "./typ
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import { Icon, formatNumber, formatDuration } from "./components";
 import { computeScore, type Grade } from "./score";
+import { responsibleBreakdown } from "./responsible.ts";
 import { useT, LangContext } from "./i18n";
 
 /**
@@ -98,41 +99,13 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
 
   // Per-author accountability, from git blame: who owns how much of the
   // problem, and how much of it is new since the previous scan. Only rendered
-  // when the scanned project is a (non-shallow) git work tree.
-  //
-  // With a 1C registry loaded, git identities collapse onto employees: e-mail
-  // match first (the stable key), then author-name/alias match. Several git
-  // accounts of one person become one row, labelled with the 1C name and role;
-  // authors the registry does not know stay under their git name.
-  const byAuthor = useMemo(() => {
-    const staffFor = (author: string, email: string | null | undefined): Staff1c | undefined => {
-      const mail = (email ?? "").toLowerCase();
-      const name = author.toLowerCase();
-      return (
-        (mail && staff1c.find((s) => s.emails.some((e) => e.toLowerCase() === mail))) ||
-        staff1c.find(
-          (s) =>
-            s.name.toLowerCase() === name ||
-            s.aliases.some((a) => a.toLowerCase() === name),
-        ) ||
-        undefined
-      );
-    };
-    const m = new Map<string, { label: string; role: string; total: number; severe: number; isNew: number }>();
-    for (const f of confirmed) {
-      const b = f.extra?.blame;
-      if (!b) continue;
-      const emp = staffFor(b.author, b.email);
-      const key = emp ? `1c:${emp.name}` : `git:${b.author}`;
-      const row =
-        m.get(key) ?? { label: emp?.name ?? b.author, role: emp?.role ?? "", total: 0, severe: 0, isNew: 0 };
-      row.total += 1;
-      if (f.severity === "critical" || f.severity === "high") row.severe += 1;
-      if (f.isNew) row.isNew += 1;
-      m.set(key, row);
-    }
-    return [...m.values()].sort((a, b) => b.total - a.total).slice(0, 12);
-  }, [confirmed, staff1c]);
+  // when the scanned project is a (non-shallow) git work tree. With a 1C
+  // registry loaded, git identities collapse onto employees (e-mail first, then
+  // name/alias) — the same mapping the exports use. Top 12 by finding count.
+  const byAuthor = useMemo(
+    () => responsibleBreakdown(confirmed, staff1c).slice(0, 12),
+    [confirmed, staff1c]
+  );
 
   const tone = score ? GRADE_TONE[score.grade] : "";
   const worst = [...confirmed]
@@ -306,9 +279,9 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
               </thead>
               <tbody>
                 {byAuthor.map((r) => (
-                  <tr key={`${r.label}|${r.role}`}>
+                  <tr key={`${r.name}|${r.role}`}>
                     <td>
-                      {r.label}
+                      {r.name}
                       {r.role && <span className="rep-role"> · {t(r.role)}</span>}
                     </td>
                     <td className="rep-num-col">{r.total}</td>

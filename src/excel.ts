@@ -1,6 +1,7 @@
 import type { ScanReport, Finding, Severity, Staff1c } from "./types";
 import type { TFn } from "./i18n";
 import type { SecurityScore } from "./score";
+import { resolveResponsible, responsibleBreakdown } from "./responsible.ts";
 
 /**
  * Excel export — a real multi-sheet workbook, not CSV.
@@ -12,9 +13,10 @@ import type { SecurityScore } from "./score";
  * ZIP container and no third-party library, which keeps the desktop build lean
  * and the output auditable.
  *
- * Like `xml1c.ts` and `score.ts`, this module has no runtime import (labels are
- * inlined, score/staff arrive as parameters), so the export audit can load it
- * under Node's type stripping without a bundler.
+ * Like `xml1c.ts` and `score.ts`, this module pulls in no runtime *value* from
+ * the app (labels are inlined, score/staff arrive as parameters), so the export
+ * audit loads it under Node's type stripping without a bundler. Its one runtime
+ * import, `./responsible`, is itself value-free and loads the same way.
  */
 
 const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
@@ -49,21 +51,6 @@ function cell(value: string | number, style?: string): string {
 /** A table row from a list of pre-rendered cells. */
 function row(cells: string[]): string {
   return `    <Row>${cells.join("")}</Row>`;
-}
-
-/** Who is accountable for a finding: git-blame author mapped onto a 1C employee
- *  (e-mail first, then name/alias), else the raw git author, else null. */
-function responsibleFor(f: Finding, staff: Staff1c[]): { name: string; role: string } | null {
-  const b = f.extra?.blame;
-  if (!b) return null;
-  const mail = (b.email ?? "").toLowerCase();
-  const name = b.author.toLowerCase();
-  const emp =
-    (mail && staff.find((s) => s.emails.some((e) => e.toLowerCase() === mail))) ||
-    staff.find(
-      (s) => s.name.toLowerCase() === name || s.aliases.some((a) => a.toLowerCase() === name)
-    );
-  return emp ? { name: emp.name, role: emp.role } : { name: b.author, role: "" };
 }
 
 /** A worksheet with a frozen header row and auto-sized-ish columns. */
@@ -142,7 +129,7 @@ export function toExcel(
   const statusOf = (f: Finding) =>
     f.suppressed ? t("Подавлена") : f.isNew ? t("Новая") : t("Присутствует");
   for (const f of confirmed) {
-    const resp = responsibleFor(f, staff);
+    const resp = resolveResponsible(f, staff);
     findings.push(
       row([
         cell(t(SEVERITY_LABEL[f.severity]), `sev-${f.severity}`),
@@ -162,27 +149,13 @@ export function toExcel(
   }
 
   // ---- Sheet 3: By responsible (only with git-blame attribution) ---------
-  const respRows = new Map<
-    string,
-    { name: string; role: string; total: number; severe: number; isNew: number }
-  >();
-  for (const f of confirmed) {
-    if (f.suppressed) continue;
-    const r = responsibleFor(f, staff);
-    if (!r) continue;
-    const acc = respRows.get(r.name) ?? { name: r.name, role: r.role, total: 0, severe: 0, isNew: 0 };
-    acc.total += 1;
-    if (f.severity === "critical" || f.severity === "high") acc.severe += 1;
-    if (f.isNew) acc.isNew += 1;
-    respRows.set(r.name, acc);
-  }
+  const rows = responsibleBreakdown(report.findings, staff);
 
   const worksheets = [
     sheet(t("Сводка"), summary, 2),
     sheet(t("Находки"), findings, 12),
   ];
-  if (respRows.size > 0) {
-    const rows = [...respRows.values()].sort((a, b) => b.total - a.total);
+  if (rows.length > 0) {
     const respSheet: string[] = [
       row([t("Ответственный"), t("Должность"), t("Находок"), t("Критич. + высокие"), t("Новых")].map(th)),
       ...rows.map((r) =>

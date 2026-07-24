@@ -1,6 +1,7 @@
 import type { ScanReport, Severity, Finding, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
+import { responsibleBreakdown } from "./responsible.ts";
 
 /**
  * Self-contained HTML export.
@@ -32,19 +33,6 @@ function esc(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-/** git-blame author of a finding, mapped onto a 1C employee when a registry was
- *  imported, else the raw git author; null when the finding has no blame. */
-function responsibleName(f: Finding, staff: Staff1c[]): string | null {
-  const b = f.extra?.blame;
-  if (!b) return null;
-  const mail = (b.email ?? "").toLowerCase();
-  const name = b.author.toLowerCase();
-  const emp =
-    (mail && staff.find((s) => s.emails.some((e) => e.toLowerCase() === mail))) ||
-    staff.find((s) => s.name.toLowerCase() === name || s.aliases.some((a) => a.toLowerCase() === name));
-  return emp ? emp.name : b.author;
 }
 
 /**
@@ -119,30 +107,19 @@ export function toHtml(report: ScanReport, t: TFn, note?: string, staff: Staff1c
 
   // Accountability by responsible person, from git blame — rendered only when
   // the scan ran on a git work tree (otherwise no finding carries an author).
-  const byAuthor = new Map<string, { total: number; severe: number; isNew: number }>();
-  for (const f of report.findings) {
-    if (f.suppressed || f.extra?.experimental) continue;
-    const who = responsibleName(f, staff);
-    if (!who) continue;
-    const r = byAuthor.get(who) ?? { total: 0, severe: 0, isNew: 0 };
-    r.total += 1;
-    if (f.severity === "critical" || f.severity === "high") r.severe += 1;
-    if (f.isNew) r.isNew += 1;
-    byAuthor.set(who, r);
-  }
+  const byAuthor = responsibleBreakdown(report.findings, staff);
   const authorSection =
-    byAuthor.size > 0
+    byAuthor.length > 0
       ? `<section>
         <h2>${esc(t("По ответственным"))}</h2>
         <table class="resp">
           <thead><tr><th>${esc(t("Ответственный"))}</th><th>${esc(t("Находок"))}</th><th>${esc(
             t("Критич. + высокие")
           )}</th><th>${esc(t("Новых"))}</th></tr></thead>
-          <tbody>${[...byAuthor.entries()]
-            .sort((a, b) => b[1].total - a[1].total)
+          <tbody>${byAuthor
             .map(
-              ([who, r]) =>
-                `<tr><td>${esc(who)}</td><td>${r.total}</td><td>${r.severe || "—"}</td><td>${
+              (r) =>
+                `<tr><td>${esc(r.name)}</td><td>${r.total}</td><td>${r.severe || "—"}</td><td>${
                   r.isNew || "—"
                 }</td></tr>`
             )
