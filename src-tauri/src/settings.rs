@@ -18,17 +18,67 @@ pub struct Settings {
     /// Findings kept per file, so one runaway regex cannot flood the report.
     pub max_findings_per_file: u32,
 
+    // ---- file walk ------------------------------------------------------
+    /// Follow symlinks. Off by default: a link out of the project turns a scan
+    /// of "this folder" into a scan of somewhere else, and loops hang the walk.
+    #[serde(default)]
+    pub follow_symlinks: bool,
+    /// Directory levels below the target; 0 means no limit.
+    #[serde(default)]
+    pub max_depth: u32,
+    /// Extra gitignore-style patterns to skip, one per line (e.g. `docs/**`).
+    #[serde(default)]
+    pub exclude_globs: String,
+
     // ---- defaults for the scan form -------------------------------------
     pub default_respect_gitignore: bool,
     pub default_include_vendor: bool,
     pub default_check_secrets: bool,
     pub default_check_dependencies: bool,
 
+    // ---- engines --------------------------------------------------------
+    /// Attribute findings to whoever last touched the line, via `git blame`.
+    #[serde(default = "default_true")]
+    pub enable_blame: bool,
+    /// Upper bound on blamed files: blame costs one git call per file.
+    #[serde(default = "default_blame_files")]
+    pub blame_max_files: u32,
+    /// No network at all — skips OSV even when the scan asks for dependencies.
+    /// The tool's promise is local analysis; this makes it absolute.
+    #[serde(default)]
+    pub offline: bool,
+    /// Seconds an external tool may run before it is killed.
+    #[serde(default = "default_tool_timeout")]
+    pub external_timeout_secs: u32,
+
     // ---- OSV ------------------------------------------------------------
     /// Days a cached advisory stays fresh.
     pub osv_cache_days: u32,
     /// Parallel advisory fetches.
     pub osv_concurrency: u32,
+
+    // ---- reports --------------------------------------------------------
+    /// Scans kept per project in the trend series.
+    #[serde(default = "default_history_cap")]
+    pub history_cap: u32,
+    /// Organisation printed in the report header and carried into exports.
+    #[serde(default)]
+    pub report_org: String,
+    /// Export format preselected in the menu: "json" | "sarif" | "md" | "csv" |
+    /// "xlsx" | "html" | "pdf" | "xml1c".
+    #[serde(default = "default_export_format")]
+    pub default_export_format: String,
+
+    // ---- code viewer ----------------------------------------------------
+    /// Code font size in px.
+    #[serde(default = "default_code_font")]
+    pub code_font_size: u32,
+    /// Columns a tab occupies in the viewer.
+    #[serde(default = "default_tab_width")]
+    pub tab_width: u32,
+    /// Wrap long lines instead of scrolling sideways.
+    #[serde(default)]
+    pub wrap_code_lines: bool,
 
     // ---- appearance -----------------------------------------------------
     /// UI language: "ru" | "en". The built-in rule catalogue stays in its
@@ -103,6 +153,18 @@ impl Settings {
             ignore_comments: self.ignore_comments,
         }
     }
+
+    /// How many files `git blame` may look at; 0 when attribution is off.
+    ///
+    /// Folded into one number so the switch and the cap cannot disagree, and so
+    /// a re-check carries the same budget as the scan that produced the report.
+    pub fn blame_budget(&self) -> usize {
+        if self.enable_blame {
+            self.blame_max_files as usize
+        } else {
+            0
+        }
+    }
 }
 
 impl Default for Settings {
@@ -111,12 +173,25 @@ impl Default for Settings {
             max_file_size_mb: 2,
             minified_line_len: 2000,
             max_findings_per_file: 200,
+            follow_symlinks: false,
+            max_depth: 0,
+            exclude_globs: String::new(),
             default_respect_gitignore: true,
             default_include_vendor: false,
             default_check_secrets: true,
             default_check_dependencies: true,
+            enable_blame: true,
+            blame_max_files: default_blame_files(),
+            offline: false,
+            external_timeout_secs: default_tool_timeout(),
             osv_cache_days: 7,
             osv_concurrency: 16,
+            history_cap: default_history_cap(),
+            report_org: String::new(),
+            default_export_format: default_export_format(),
+            code_font_size: default_code_font(),
+            tab_width: default_tab_width(),
+            wrap_code_lines: false,
             language: default_language(),
             accent: "#5b8def".to_string(),
             theme_preset: "night".to_string(),
@@ -144,6 +219,34 @@ fn default_ui_scale() -> u32 {
 
 fn default_language() -> String {
     "ru".to_string()
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_blame_files() -> u32 {
+    800
+}
+
+fn default_tool_timeout() -> u32 {
+    300
+}
+
+fn default_history_cap() -> u32 {
+    60
+}
+
+fn default_export_format() -> String {
+    "json".to_string()
+}
+
+fn default_code_font() -> u32 {
+    13
+}
+
+fn default_tab_width() -> u32 {
+    4
 }
 
 /// The shipped bindings. Kept here rather than in the frontend so the settings
@@ -295,6 +398,29 @@ pub fn sanitize(mut s: Settings) -> Settings {
     s.osv_cache_days = s.osv_cache_days.clamp(0, 365);
     s.osv_concurrency = s.osv_concurrency.clamp(1, 64);
     s.max_highlight_lines = s.max_highlight_lines.clamp(0, 200_000);
+    // 0 stays 0 — it means "no limit", not "scan nothing".
+    s.max_depth = s.max_depth.min(64);
+    s.blame_max_files = s.blame_max_files.clamp(0, 100_000);
+    s.external_timeout_secs = s.external_timeout_secs.clamp(10, 3_600);
+    s.history_cap = s.history_cap.clamp(2, 500);
+    s.code_font_size = s.code_font_size.clamp(9, 28);
+    s.tab_width = s.tab_width.clamp(1, 16);
+    // Free text that ends up in a report header; length-capped so a pasted file
+    // cannot turn into the document title.
+    s.report_org = s.report_org.trim().chars().take(120).collect();
+    // One pattern per line, blank lines dropped. Capped for the same reason the
+    // theme is: this file is hand-editable and travels between machines.
+    s.exclude_globs = s
+        .exclude_globs
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .take(200)
+        .collect::<Vec<_>>()
+        .join("\n");
+    if !EXPORT_FORMATS.contains(&s.default_export_format.as_str()) {
+        s.default_export_format = default_export_format();
+    }
     if !matches!(s.density.as_str(), "comfortable" | "compact") {
         s.density = "comfortable".into();
     }
@@ -327,6 +453,10 @@ pub fn sanitize(mut s: Settings) -> Settings {
 /// Generous but finite: the app defines ~60 tokens, and a file claiming
 /// thousands is either broken or hostile.
 const MAX_THEME_TOKENS: usize = 200;
+
+/// Export ids the UI offers. Kept here so a hand-edited settings file cannot
+/// name a format the export menu has no entry for.
+const EXPORT_FORMATS: &[&str] = &["json", "sarif", "md", "csv", "xlsx", "html", "pdf", "xml1c"];
 
 /// Token ids map to CSS custom properties, so keep them to the shape the app
 /// actually uses.

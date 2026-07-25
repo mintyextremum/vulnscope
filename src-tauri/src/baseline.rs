@@ -281,7 +281,9 @@ pub struct HistoryPoint {
     pub reachable: u32,
 }
 
-/// Keep the series bounded: a trend needs recent history, not every scan ever.
+/// The cap now comes from `Settings::history_cap` (default 60); this is the
+/// value the bounding test exercises.
+#[cfg(test)]
 const HISTORY_CAP: usize = 60;
 
 fn series_path(root: &Path) -> Result<PathBuf> {
@@ -301,14 +303,19 @@ pub fn load_history(root: &Path) -> Vec<HistoryPoint> {
         .unwrap_or_default()
 }
 
-/// Appends one point and trims to the last `HISTORY_CAP`. A write failure is not
+/// Appends one point and trims to the last `cap` scans. A write failure is not
 /// fatal to the scan — the trend is a nicety, not the result.
-pub fn append_history(root: &Path, point: HistoryPoint) -> Result<()> {
+///
+/// Lowering the cap prunes on the next scan rather than immediately: history is
+/// only ever rewritten by a scan, so a settings change cannot destroy data the
+/// user is currently looking at.
+pub fn append_history(root: &Path, point: HistoryPoint, cap: usize) -> Result<()> {
+    let cap = cap.max(1);
     let mut series = load_history(root);
     series.push(point);
     let len = series.len();
-    if len > HISTORY_CAP {
-        series.drain(0..len - HISTORY_CAP);
+    if len > cap {
+        series.drain(0..len - cap);
     }
     let path = series_path(root)?;
     std::fs::write(&path, serde_json::to_string(&series)?)?;
@@ -669,7 +676,7 @@ mod tests {
 
         // Write more than the cap; the series keeps only the most recent, in order.
         for i in 1..=(HISTORY_CAP as u32 + 5) {
-            append_history(&root, point(i)).unwrap();
+            append_history(&root, point(i), HISTORY_CAP).unwrap();
         }
         let series = load_history(&root);
         assert_eq!(series.len(), HISTORY_CAP, "series must be bounded to the cap");
