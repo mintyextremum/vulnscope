@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./components";
-import { useT } from "./i18n";
+import { useT, type TFn } from "./i18n";
 import { InstallResult, ToolId, ToolsInfo, ToolStatus } from "./types";
 
 /**
@@ -13,6 +13,25 @@ import { InstallResult, ToolId, ToolsInfo, ToolStatus } from "./types";
  * supply-chain weakness it exists to report. The exact command is always shown
  * before it runs.
  */
+
+/**
+ * "N more scanners", declined.
+ *
+ * This was a bare template literal — `` `Ещё ${n} сканера` `` — which failed
+ * twice over: it never went through the dictionary, so the English UI printed
+ * Russian (and `audit:i18n` could not see it, since it only reads literals
+ * passed to `t()`), and the genitive singular is wrong for every count except
+ * 2–4: "1 сканера", "5 сканера". Russian needs three forms, so all three are
+ * dictionary keys; English collapses them into its two.
+ */
+function moreLabel(n: number, tr: TFn): string {
+  const d10 = n % 10;
+  const d100 = n % 100;
+  if (d10 === 1 && d100 !== 11) return tr("Ещё {n} сканер", { n });
+  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return tr("Ещё {n} сканера", { n });
+  return tr("Ещё {n} сканеров", { n });
+}
+
 export function ToolsCard({
   tools,
   setTools,
@@ -298,7 +317,7 @@ export function ToolsCard({
         <>
           <button className="show-more" onClick={() => setShowAll(!showAll)}>
             <Icon name={showAll ? "expand_less" : "expand_more"} />
-            {showAll ? tr("Скрыть") : `Ещё ${extra.length} сканера`}
+            {showAll ? tr("Скрыть") : moreLabel(extra.length, tr)}
             <span className="tag">{tr("установка есть, разбор вывода — нет")}</span>
           </button>
           {showAll && <div className="tool-list">{extra.map(row)}</div>}
