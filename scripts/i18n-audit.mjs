@@ -7,13 +7,17 @@
  * invisible in review and only surfaces if someone switches the language, which
  * is exactly why it needs a check of its own.
  *
- * Two sources feed the UI, so both are checked:
+ * Several sources feed the UI, so each is checked:
  *
  *  1. Shell strings — literal `t(...)`/`tr(...)` arguments across `src/`.
  *  2. The rule catalogue — title/description/recommendation/category on every
  *     `Rule` in rules.rs and every `SecretRule` in secrets.rs. These are Rust
  *     constants rendered through `t(finding.title)` and friends, so a new rule
  *     without a dictionary entry shows up in Russian for English users.
+ *  3. Backend labels (model.rs) and rebindable actions (settings.rs).
+ *  4. The help screen's `SECTIONS` array — data, not literals at the call site,
+ *     so `t(variable)` hides it from (1). Checking it here retires a manual
+ *     step that drifted every time the help text was edited.
  *
  * Not covered: labels built at runtime (OSV messages with `{}` placeholders) and
  * the assorted `*Label` mappings in the scanner — those are not parseable from a
@@ -31,6 +35,7 @@ const RULES_FILE = join(ROOT, "src-tauri", "src", "rules.rs");
 const SECRETS_FILE = join(ROOT, "src-tauri", "src", "secrets.rs");
 const MODEL_FILE = join(ROOT, "src-tauri", "src", "model.rs");
 const SETTINGS_FILE = join(ROOT, "src-tauri", "src", "settings.rs");
+const HELP_FILE = join(SRC, "Help.tsx");
 
 function walk(dir) {
   const out = [];
@@ -136,6 +141,27 @@ function actionLabelKeys(file) {
 }
 
 /**
+ * Data-driven screen content: the `SECTIONS` array in Help.tsx, whose strings
+ * reach the UI as `t(variable)` and are therefore invisible to `shellKeys`.
+ *
+ * This was a standing manual step ("Help strings — add EN by hand, check with a
+ * throwaway script"), and it drifted every time the help text was touched: the
+ * last pass found seven entries with no translation. Being here means the drift
+ * is caught by CI instead of by whoever happens to look.
+ */
+function helpKeys(file) {
+  const keys = new Map();
+  const src = readFileSync(file, "utf8");
+  const sections = src.slice(src.indexOf("const SECTIONS"));
+  for (const m of sections.matchAll(
+    /(?:title|intro|term|desc):\s*"((?:[^"\\]|\\.)*)"/g
+  )) {
+    add(keys, unesc(m[1]), "Help.tsx");
+  }
+  return keys;
+}
+
+/**
  * Re-escapes a runtime string into the form it is written as inside a source
  * literal delimited by `q`, so it can be matched against the dictionary text.
  * Without this a key containing a newline is searched for as a real line break
@@ -196,6 +222,10 @@ const groups = [
   {
     name: "Действия горячих клавиш (settings.rs)",
     keys: actionLabelKeys(SETTINGS_FILE),
+  },
+  {
+    name: "Справка (SECTIONS в Help.tsx)",
+    keys: helpKeys(HELP_FILE),
   },
 ];
 
