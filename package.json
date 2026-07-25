@@ -13,7 +13,8 @@
     "audit:sarif": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/sarif-audit.mjs",
     "audit:score": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/score-audit.mjs",
     "audit:xml1c": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/xml1c-audit.mjs",
-    "audit:excel": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/excel-audit.mjs"
+    "audit:excel": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/excel-audit.mjs",
+    "audit:cssvars": "node scripts/cssvars-audit.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
