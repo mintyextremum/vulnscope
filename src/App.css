@@ -336,6 +336,108 @@ kbd,
 .import-1c-item:hover { background: var(--s-3); }
 .import-1c-item .material-symbols-outlined { font-size: 17px; color: var(--t-4); }
 
+/* ------------------------------------------------- recent projects (launcher) */
+
+.recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* The row is a button plus a separate "forget" button — nesting the second
+   inside the first would be invalid and unclickable, so they sit side by side
+   and the wrapper carries the hover surface. */
+.recent-item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--r-2);
+  background: var(--s-1);
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.recent-item:hover { background: var(--s-2); box-shadow: inset 0 0 0 1px var(--line); }
+
+.recent-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+  border: none;
+  background: none;
+  border-radius: var(--r-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.recent-icon { font-size: 18px !important; color: var(--t-4); flex: none; }
+.recent-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.recent-name {
+  color: var(--t-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-med);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-meta { color: var(--t-4); font-size: var(--fs-xs); }
+
+/* Last grade, in the same colour family the score hero uses. */
+.recent-grade {
+  flex: none;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+}
+.recent-grade.tone-ok { background: var(--ok-bg); color: var(--ok-hi); }
+.recent-grade.tone-med { background: var(--med-bg); color: var(--med-hi); }
+.recent-grade.tone-high { background: var(--high-bg); color: var(--high-hi); }
+.recent-grade.tone-crit { background: var(--crit-bg); color: var(--crit-hi); }
+
+.recent-forget {
+  flex: none;
+  width: 30px;
+  border: none;
+  background: none;
+  color: var(--t-4);
+  cursor: pointer;
+  border-radius: 0 var(--r-2) var(--r-2) 0;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.recent-item:hover .recent-forget { opacity: 1; }
+.recent-forget:hover { color: var(--crit); }
+.recent-forget:focus-visible { opacity: 1; }
+.recent-forget .material-symbols-outlined { font-size: 16px; }
+
+/* ------------------------------------------------------- folder drag & drop */
+
+.drop-overlay {
+  position: absolute;
+  inset: var(--sp-3);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border: 2px dashed var(--a);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--a) 10%, var(--bg));
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+.drop-overlay .material-symbols-outlined { font-size: 40px; color: var(--a); }
+.drop-title { color: var(--t-1); font-size: var(--fs-md); font-weight: var(--fw-med); }
+
 .i1c-name { font-weight: var(--fw-med); color: var(--t-1); white-space: nowrap; }
 
 .i1c-target {
@@ -447,6 +549,8 @@ kbd,
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Containing block for the drag-drop overlay, which covers this screen. */
+  position: relative;
 }
 
 /* min-height: 0 is load-bearing for any flex item that scrolls: the automatic
@@ -1226,6 +1330,17 @@ kbd,
   font-weight: var(--fw-semi);
   font-variant-numeric: tabular-nums;
 }
+
+/* The severe counter: same shape as its neighbours, but it earns a tint —
+   this is the one number on the screen that changes what you do next. */
+.pstat-alarm .pstat-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--crit);
+}
+.pstat-alarm .pstat-val .material-symbols-outlined { font-size: 18px; }
+.pstat-alarm .pstat-key { color: var(--crit-hi); }
 
 .pstat-key {
   font-size: var(--fs-xs);
@@ -3221,6 +3336,81 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 }
 .ap-more:hover { background: var(--s-2); color: var(--t-1); }
 .ap-more .material-symbols-outlined { font-size: 16px; }
+
+/* ------------------------------------------------ riskiest files ("start here") */
+
+.rf-list { display: flex; flex-direction: column; gap: 2px; margin-top: var(--sp-2); }
+
+/* The risk bar is a background layer, not a column: the row stays readable and
+   the weight of the file is felt rather than read off a number. */
+.rf-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  background: none;
+  border-radius: var(--r-1);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  font: inherit;
+}
+.rf-row:hover { background: var(--s-2); }
+
+.rf-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  opacity: 0.13;
+  pointer-events: none;
+  border-radius: var(--r-1);
+}
+.rf-bar.sev-critical { background: var(--crit); }
+.rf-bar.sev-high { background: var(--high); }
+.rf-bar.sev-medium { background: var(--med); }
+.rf-bar.sev-low { background: var(--low); }
+.rf-bar.sev-info { background: var(--info); }
+
+.rf-name {
+  position: relative;
+  color: var(--t-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-med);
+  white-space: nowrap;
+}
+.rf-path {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  color: var(--t-4);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* keep the tail (the file) visible when the path is long */
+  text-align: left;
+}
+.rf-reach {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--crit);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.rf-reach .material-symbols-outlined { font-size: 14px; }
+.rf-count {
+  position: relative;
+  color: var(--t-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 .ap-row {
   display: flex;

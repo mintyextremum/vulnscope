@@ -785,6 +785,8 @@ struct Progress {
     processed: AtomicU32,
     total: AtomicU32,
     findings: AtomicU32,
+    /// Critical+high among them — the number that changes what the user does.
+    severe: AtomicU32,
     last_emit_ms: AtomicU64,
 }
 
@@ -825,6 +827,7 @@ impl Progress {
                 processed,
                 total,
                 findings_so_far: self.findings.load(Ordering::Relaxed),
+                severe_so_far: self.severe.load(Ordering::Relaxed),
                 elapsed_ms,
                 eta_ms,
                 files_per_sec,
@@ -857,6 +860,7 @@ pub async fn run_scan(
         processed: AtomicU32::new(0),
         total: AtomicU32::new(0),
         findings: AtomicU32::new(0),
+        severe: AtomicU32::new(0),
         last_emit_ms: AtomicU64::new(0),
     };
 
@@ -999,6 +1003,20 @@ pub async fn run_scan(
                             progress
                                 .findings
                                 .fetch_add(findings.len() as u32, Ordering::Relaxed);
+                            // Severe hits are counted separately so the progress
+                            // screen can say *what* is turning up, not just how
+                            // much: "already 3 critical" is the number a person
+                            // reacts to while the scan is still running.
+                            let severe = findings
+                                .iter()
+                                .filter(|f| {
+                                    matches!(f.severity, Severity::Critical | Severity::High)
+                                        && !f.extra.as_ref().map(|e| e.experimental).unwrap_or(false)
+                                })
+                                .count() as u32;
+                            if severe > 0 {
+                                progress.severe.fetch_add(severe, Ordering::Relaxed);
+                            }
                             lines_total.fetch_add(lines as u64, Ordering::Relaxed);
                             bytes_total.fetch_add(size, Ordering::Relaxed);
                             progress.emit(ScanPhase::ScanningCode, &c.rel_path, false);
@@ -1701,6 +1719,7 @@ pub fn emit_failed(app: &AppHandle, scan_id: &str) {
             processed: 0,
             total: 0,
             findings_so_far: 0,
+            severe_so_far: 0,
             elapsed_ms: 0,
             eta_ms: None,
             files_per_sec: 0.0,

@@ -125,6 +125,15 @@ export const EN: Record<string, string> = {
   Автор: "Author",
   "Автор строки": "Line author",
   "Только достижимые": "Reachable only",
+  "Недавние проекты": "Recent projects",
+  "С чего начать": "Start here",
+  "файлы с наибольшим риском": "files carrying the most risk",
+  "Убрать из списка": "Remove from the list",
+  "находок: {n}": "{n} findings",
+  сегодня: "today",
+  вчера: "yesterday",
+  "{n} дн. назад": "{n} days ago",
+  "Отпустите, чтобы проверить эту папку": "Drop to scan this folder",
   // «Свернуть» без уточнения уже занято кнопкой окна (Minimize) — здесь нужен
   // свой ключ, иначе список путей просил бы «свернуть окно».
   "Показать все пути ({n})": "Show all paths ({n})",

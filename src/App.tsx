@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState, type Rea
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 import {
@@ -17,6 +18,7 @@ import {
   SEVERITY_ORDER,
   severityCounted,
   SEVERITY_SYMBOL,
+  RecentTarget,
   Staff1c,
   ToolId,
   ToolsInfo,
@@ -38,7 +40,7 @@ import {
 } from "./components";
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
-import { computeScore, type SecurityScore, type Grade } from "./score";
+import { computeScore, findingRisk, type SecurityScore, type Grade } from "./score";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
 import { toExcel } from "./excel";
@@ -126,6 +128,15 @@ export default function App() {
   // gets clipped away. Positioning it `fixed` from the button's rect escapes it.
   const [exportPos, setExportPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const [projects1c, setProjects1c] = useState<Project1c[]>([]);
+  // Projects scanned before, newest first — the setup screen offers them back
+  // with their last grade so a re-scan is one click instead of a retyped path.
+  const [recent, setRecent] = useState<RecentTarget[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("vs.recent") ?? "[]");
+    } catch {
+      return [];
+    }
+  });
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<number | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -224,6 +235,50 @@ export default function App() {
     if (typeof picked === "string") setLocalPath(picked);
   };
 
+  /**
+   * Drop a folder on the window to aim the scan at it.
+   *
+   * The webview's own drag events never see a real path (the browser sandbox
+   * hides it), so this goes through Tauri's native drag-drop event, which
+   * carries the OS path. A dropped *file* aims at its folder rather than being
+   * rejected — dragging a file out of the project one wants to scan is the
+   * obvious mistake, and the intent is unambiguous.
+   */
+  const [dropActive, setDropActive] = useState(false);
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    getCurrentWebview()
+      .onDragDropEvent((e) => {
+        if (e.payload.type === "over") setDropActive(true);
+        else if (e.payload.type === "leave") setDropActive(false);
+        else if (e.payload.type === "drop") {
+          setDropActive(false);
+          const first = e.payload.paths?.[0];
+          if (!first) return;
+          // A path with an extension in its last segment is a file: scan the
+          // directory that holds it.
+          const leaf = first.split(/[\\/]/).pop() ?? "";
+          const dir = /\.[A-Za-z0-9]{1,8}$/.test(leaf)
+            ? first.slice(0, first.length - leaf.length - 1)
+            : first;
+          setMode("local");
+          setLocalPath(dir);
+          setScreen("setup");
+        }
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
   const target = mode === "local" ? localPath : repoUrl;
   const canScan = target.trim().length > 0;
 
@@ -232,6 +287,48 @@ export default function App() {
   // to the local lang rather than read from context.
   const lang: Lang = settings?.language === "en" ? "en" : "ru";
   const t: TFn = (str, vars) => translate(lang, str, vars);
+
+  /**
+   * Records a finished scan in the recent list: same target scanned twice moves
+   * to the top rather than piling up, and the list is capped so the setup screen
+   * stays a launcher and not an archive.
+   */
+  const rememberTarget = (scanTarget: string, isRepo: boolean, r: ScanReport) => {
+    const score = computeScore(r);
+    const entry: RecentTarget = {
+      mode: isRepo ? "repo" : "local",
+      target: scanTarget,
+      label: r.targetLabel,
+      at: r.finishedAt || new Date().toISOString(),
+      grade: score?.grade,
+      score: score ? Math.round(score.score) : undefined,
+      total: r.findings.filter((f) => !f.extra?.experimental && !f.suppressed).length,
+    };
+    setRecent((prev) => {
+      const next = [entry, ...prev.filter((x) => x.target !== entry.target)].slice(0, 6);
+      localStorage.setItem("vs.recent", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  /** Fills the target from a recent project (does not scan — the user confirms). */
+  const pickRecent = (r: RecentTarget) => {
+    if (r.mode === "repo") {
+      setMode("repo");
+      setRepoUrl(r.target);
+    } else {
+      setMode("local");
+      setLocalPath(r.target);
+    }
+  };
+
+  const forgetRecent = (target: string) => {
+    setRecent((prev) => {
+      const next = prev.filter((x) => x.target !== target);
+      localStorage.setItem("vs.recent", JSON.stringify(next));
+      return next;
+    });
+  };
 
   /** Runs a scan against an explicit target, so a re-scan can reuse the last one. */
   const runScan = async (scanTarget: string, isRepo: boolean) => {
@@ -259,6 +356,7 @@ export default function App() {
       setSelectedFile(r.findings[0]?.file ?? null);
       setTab("overview");
       setScreen("results");
+      rememberTarget(scanTarget.trim(), isRepo, r);
     } catch (e) {
       setError(String(e));
       setScreen("setup");
@@ -1418,6 +1516,10 @@ export default function App() {
           import1c={import1c}
           projects1c={projects1c}
           pick1cProject={pick1cProject}
+          recent={recent}
+          pickRecent={pickRecent}
+          forgetRecent={forgetRecent}
+          dropActive={dropActive}
         />
       )}
 
@@ -1558,6 +1660,11 @@ export default function App() {
                 setTab("findings");
               }}
               onOpenReport={() => goto("report")}
+              onOpenFile={(path) => {
+                setSelectedFile(path);
+                setSelectedFinding(null);
+                setTab("findings");
+              }}
             />
           )}
 
@@ -1682,12 +1789,36 @@ interface SetupProps {
   import1c: () => void;
   projects1c: Project1c[];
   pick1cProject: (pr: Project1c) => void;
+  recent: RecentTarget[];
+  pickRecent: (r: RecentTarget) => void;
+  forgetRecent: (target: string) => void;
+  /** True while a folder is dragged over the window. */
+  dropActive: boolean;
 }
 
 function SetupScreen(p: SetupProps) {
   const t = useT();
+  const lang = useContext(LangContext);
+  /** "сегодня" / "вчера" / a date — a full timestamp on a launcher card is noise. */
+  const whenLabel = (iso: string): string => {
+    const d = new Date(iso);
+    const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+    if (days <= 0) return t("сегодня");
+    if (days === 1) return t("вчера");
+    if (days < 7) return t("{n} дн. назад", { n: days });
+    return d.toLocaleDateString(lang === "en" ? "en-US" : "ru-RU");
+  };
+
   return (
-    <div className="setup">
+    <div className={`setup ${p.dropActive ? "drop-active" : ""}`}>
+      {/* Shown only while something is dragged over the window: a drop target
+          nobody can see is a feature nobody finds. */}
+      {p.dropActive && (
+        <div className="drop-overlay">
+          <Icon name="download" />
+          <div className="drop-title">{t("Отпустите, чтобы проверить эту папку")}</div>
+        </div>
+      )}
       <div className="setup-scroll">
       <div className="setup-inner">
         <div className="hero">
@@ -1791,6 +1922,47 @@ function SetupScreen(p: SetupProps) {
             )}
           </div>
         </div>
+
+        {/* Projects scanned before: the grade from last time makes the list a
+            status board, not just a history — you see at a glance which project
+            you left in bad shape. Click aims the scan; ✕ forgets the entry. */}
+        {p.recent.length > 0 && (
+          <div className="card recent-card">
+            <div className="card-title">
+              <Icon name="history" />
+              {t("Недавние проекты")}
+            </div>
+            <div className="recent-grid">
+              {p.recent.map((r) => (
+                <div key={r.target} className="recent-item">
+                  <button className="recent-main" onClick={() => p.pickRecent(r)} title={r.target}>
+                    <Icon name={r.mode === "repo" ? "cloud_download" : "folder"} className="recent-icon" />
+                    <span className="recent-text">
+                      <span className="recent-name">{r.label}</span>
+                      <span className="recent-meta">
+                        {whenLabel(r.at)}
+                        {r.total != null && ` · ${t("находок: {n}", { n: r.total })}`}
+                      </span>
+                    </span>
+                    {r.grade && (
+                      <span className={`recent-grade tone-${GRADE_TONE[r.grade as Grade] ?? "med"}`}>
+                        {r.grade}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    className="recent-forget"
+                    onClick={() => p.forgetRecent(r.target)}
+                    title={t("Убрать из списка")}
+                    aria-label={t("Убрать из списка")}
+                  >
+                    <Icon name="close" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="card">
           <div className="card-title">
@@ -2045,6 +2217,18 @@ function ScanningScreen({ progress, plan }: { progress: ScanProgress | null; pla
           </div>
           <div className="pstat-key">{t("Находок")}</div>
         </div>
+        {/* Volume alone reads as "работает"; severity is what makes someone stop
+            and watch. Shown only once something severe has actually turned up,
+            so a clean scan stays calm. */}
+        {(progress?.severeSoFar ?? 0) > 0 && (
+          <div className="pstat pstat-alarm">
+            <div className="pstat-val">
+              <Icon name="priority_high" />
+              {formatNumber(progress?.severeSoFar ?? 0)}
+            </div>
+            <div className="pstat-key">{t("Критич. + высокие")}</div>
+          </div>
+        )}
         <div className="pstat">
           <div className="pstat-val">{Math.round(progress?.filesPerSec ?? 0)}</div>
           <div className="pstat-key">{t("Файлов/с")}</div>
@@ -2275,6 +2459,73 @@ function AttackPaths({
 }
 
 /**
+ * "Where to start" — the files carrying the most risk, ranked by the same
+ * weights the security score uses (severity, doubled-ish when the engine proved
+ * the finding reachable). A dashboard that only totals findings tells you the
+ * project is bad; this tells you which five files to open first. Clicking a row
+ * opens the findings list narrowed to that file.
+ */
+function RiskyFiles({
+  report,
+  onOpenFile,
+}: {
+  report: ScanReport;
+  onOpenFile: (path: string) => void;
+}) {
+  const t = useT();
+  const rows = useMemo(() => {
+    const by = new Map<
+      string,
+      { risk: number; total: number; reachable: number; worst: Severity }
+    >();
+    for (const f of report.findings) {
+      if (f.suppressed || f.extra?.experimental || !f.file) continue;
+      const r = by.get(f.file) ?? { risk: 0, total: 0, reachable: 0, worst: "info" as Severity };
+      r.risk += findingRisk(f);
+      r.total += 1;
+      if (f.extra?.onDataPath) r.reachable += 1;
+      if (SEVERITY_ORDER.indexOf(f.severity) < SEVERITY_ORDER.indexOf(r.worst)) r.worst = f.severity;
+      by.set(f.file, r);
+    }
+    return [...by.entries()]
+      .map(([file, r]) => ({ file, ...r }))
+      .sort((a, b) => b.risk - a.risk)
+      .slice(0, 5);
+  }, [report.findings]);
+
+  if (rows.length < 2) return null;
+  const max = rows[0].risk || 1;
+
+  return (
+    <div className="card risky-files">
+      <div className="card-title">
+        <Icon name="priority_high" />
+        {t("С чего начать")}
+        <span className="ap-sub">{t("файлы с наибольшим риском")}</span>
+      </div>
+      <div className="rf-list">
+        {rows.map((r) => (
+          <button key={r.file} className="rf-row" onClick={() => onOpenFile(r.file)}>
+            <span className={`rf-bar sev-${r.worst}`} style={{ width: `${(r.risk / max) * 100}%` }} />
+            <span className="rf-name" title={r.file}>
+              {r.file.split(/[\\/]/).pop()}
+            </span>
+            <span className="rf-path">{r.file}</span>
+            {r.reachable > 0 && (
+              <span className="rf-reach" title={t("Достижимо по данным")}>
+                <Icon name="my_location" />
+                {r.reachable}
+              </span>
+            )}
+            <span className="rf-count">{t("находок: {n}", { n: r.total })}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * A compact trend of total findings over the last several scans, shown on the
  * dashboard — the screen people actually look at after every run. The full
  * multi-series chart lives in the report; this is the at-a-glance sparkline that
@@ -2339,10 +2590,12 @@ function Overview({
   report,
   onOpenFinding,
   onOpenReport,
+  onOpenFile,
 }: {
   report: ScanReport;
   onOpenFinding: (f: Finding) => void;
   onOpenReport: () => void;
+  onOpenFile: (path: string) => void;
 }) {
   const t = useT();
   const lang = useContext(LangContext);
@@ -2385,6 +2638,7 @@ function Overview({
       <Announce message={summary} />
       {score && <ScoreHero score={score} />}
       {!report.cancelled && <AttackPaths report={report} onOpenFinding={onOpenFinding} />}
+      {!report.cancelled && <RiskyFiles report={report} onOpenFile={onOpenFile} />}
       {!report.cancelled && report.delta.previousScanAt && (
         <div className="delta-bar">
           <div className={`delta-stat ${report.delta.newCount > 0 ? "bad" : ""}`}>

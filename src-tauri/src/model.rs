@@ -634,6 +634,9 @@ pub struct ScanProgress {
     pub processed: u32,
     pub total: u32,
     pub findings_so_far: u32,
+    /// Critical + high among them: "how many" is progress, "how bad" is news.
+    #[serde(default)]
+    pub severe_so_far: u32,
     pub elapsed_ms: u64,
     /// `None` until we have enough samples to extrapolate honestly.
     pub eta_ms: Option<u64>,

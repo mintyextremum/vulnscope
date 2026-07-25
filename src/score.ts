@@ -32,6 +32,16 @@ const SEVERITY_WEIGHT: Record<Severity, number> = {
  *  "present" is one thing, "an attacker can reach it" is another. */
 const REACHABLE_MULTIPLIER = 1.8;
 
+/**
+ * The risk one finding contributes, on the same scale the score is built from.
+ * Exported so anything that ranks findings — the dashboard's riskiest-files
+ * panel, for one — orders them exactly the way the headline score weighs them,
+ * instead of inventing a second, quietly different opinion of "worse".
+ */
+export function findingRisk(f: Finding): number {
+  return SEVERITY_WEIGHT[f.severity] * (f.extra?.onDataPath ? REACHABLE_MULTIPLIER : 1);
+}
+
 /** Higher spreads the curve — a larger project needs a bigger risk load to sink
  *  the score. Tuned so a handful of criticals lands mid-range, not instantly F. */
 const SCALE = 24;
@@ -97,7 +107,7 @@ export function computeScore(report: ScanReport): SecurityScore | null {
     if (group.length === 0) continue;
     let penalty = 0;
     for (const f of group) {
-      const w = SEVERITY_WEIGHT[sev] * (f.extra?.onDataPath ? REACHABLE_MULTIPLIER : 1);
+      const w = findingRisk(f);
       penalty += w;
       if (f.extra?.onDataPath) reachable++;
     }
