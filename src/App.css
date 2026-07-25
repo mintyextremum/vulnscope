@@ -3152,6 +3152,23 @@ kbd,
 .rep-cat-fill { background: var(--a); }
 .rep-cat-label { width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Reporting-period picker, sitting in the section heading. */
+.rep-periods { display: inline-flex; gap: 4px; margin-left: var(--sp-3); }
+.rep-period {
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--t-3);
+  border-radius: var(--r-full);
+  padding: 2px var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-normal);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.rep-period:hover { color: var(--t-1); border-color: var(--line-strong); }
+.rep-period.on { background: var(--a); border-color: var(--a); color: var(--on-a); }
+.rep-period-line { color: var(--t-2); font-size: var(--fs-sm); margin: 0 0 var(--sp-2); }
+
 /* Trend chart — total / critical+high / reachable over the last N scans. */
 .rep-trend {
   border: 1px solid var(--line);

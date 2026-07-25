@@ -28,6 +28,21 @@ function pct(n: number, d: number): string {
   return `${Math.round((n / d) * 100)}%`;
 }
 
+/** Reporting periods offered for the trend. `null` means "everything kept". */
+type PeriodId = "month" | "quarter" | "year" | "all";
+const PERIOD_DAYS: Record<PeriodId, number | null> = {
+  month: 30,
+  quarter: 92,
+  year: 365,
+  all: null,
+};
+const PERIOD_LABEL: Record<PeriodId, string> = {
+  month: "Месяц",
+  quarter: "Квартал",
+  year: "Год",
+  all: "Всё время",
+};
+
 export function ReportScreen({ report, onClose }: { report: ScanReport; onClose: () => void }) {
   const t = useT();
   const lang = useContext(LangContext);
@@ -79,6 +94,22 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
           : d.fixedCount > d.newCount
             ? t("Есть прогресс: устранено больше, чем появилось.")
             : t("Без заметных сдвигов с прошлого скана.");
+
+  /**
+   * Reporting period for the trend. A security report is usually written for a
+   * period — a month, a quarter — not for "the last few scans", so the chart and
+   * its verdict scope to one. Kept in localStorage: whoever reports quarterly
+   * does it every quarter.
+   */
+  const [period, setPeriod] = useState<PeriodId>(
+    () => (localStorage.getItem("vs.reportPeriod") as PeriodId) ?? "all"
+  );
+  const periodHistory = useMemo(() => {
+    const days = PERIOD_DAYS[period];
+    if (!days) return history;
+    const from = Date.now() - days * 86_400_000;
+    return history.filter((p) => new Date(p.scannedAt).getTime() >= from);
+  }, [history, period]);
 
   // Top categories, so the report says *what kind* of problems dominate.
   const byCategory = useMemo(() => {
@@ -205,11 +236,49 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
           <p className="rep-verdict">{trend}</p>
         </div>
 
-        {/* Trend over recent scans */}
+        {/* Trend over the chosen reporting period */}
         {history.length >= 2 && (
           <>
-            <h2 className="rep-h2">{t("Динамика за последние сканы")}</h2>
-            <TrendChart history={history} lang={lang} t={t} />
+            <h2 className="rep-h2">
+              {t("Динамика за период")}
+              {/* Screen-only: on paper the chosen period is stated in the line
+                  below, and a row of buttons would just be ink. */}
+              <span className="rep-periods no-print">
+                {(Object.keys(PERIOD_DAYS) as PeriodId[]).map((id) => (
+                  <button
+                    key={id}
+                    className={`rep-period ${period === id ? "on" : ""}`}
+                    onClick={() => {
+                      setPeriod(id);
+                      localStorage.setItem("vs.reportPeriod", id);
+                    }}
+                  >
+                    {t(PERIOD_LABEL[id])}
+                  </button>
+                ))}
+              </span>
+            </h2>
+            {periodHistory.length >= 2 ? (
+              <>
+                <p className="rep-period-line">
+                  {t("Период: {label}. Было {from}, стало {to} ({delta}).", {
+                    label: t(PERIOD_LABEL[period]).toLowerCase(),
+                    from: periodHistory[0].total,
+                    to: periodHistory[periodHistory.length - 1].total,
+                    delta: (() => {
+                      const d = periodHistory[periodHistory.length - 1].total - periodHistory[0].total;
+                      return d > 0 ? `+${d}` : String(d);
+                    })(),
+                  })}
+                </p>
+                <TrendChart history={periodHistory} lang={lang} t={t} />
+              </>
+            ) : (
+              // Drawing a "trend" through one point is not a trend; say so.
+              <p className="rep-period-line">
+                {t("За выбранный период меньше двух сканов — сравнивать не с чем.")}
+              </p>
+            )}
           </>
         )}
 
