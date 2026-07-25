@@ -30,6 +30,7 @@ export function Resizer({
   max?: number;
   storageKey: string;
 }) {
+  const t = useT();
   const [dragging, setDragging] = useState(false);
   const startX = useRef(0);
   const startW = useRef(0);
@@ -92,7 +93,7 @@ export function Resizer({
       aria-valuemin={min}
       aria-valuemax={max}
       tabIndex={0}
-      title="Потяните, чтобы изменить ширину"
+      title={t("Потяните, чтобы изменить ширину")}
     >
       <div className="resizer-grip" />
     </div>
@@ -307,7 +308,7 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("Команда или действие…")}
-            aria-label="Поиск команды"
+            aria-label={t("Поиск команды")}
           />
           <kbd>Esc</kbd>
         </div>

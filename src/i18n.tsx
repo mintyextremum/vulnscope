@@ -188,6 +188,8 @@ export const EN: Record<string, string> = {
   Свернуть: "Minimize",
   Развернуть: "Maximize",
   "Свернуть в окно": "Restore",
+  "Потяните, чтобы изменить ширину": "Drag to resize",
+  "Поиск команды": "Search commands",
   Закрыть: "Close",
   Назад: "Back",
   Отмена: "Cancel",

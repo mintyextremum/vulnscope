@@ -80,8 +80,8 @@ export function Titlebar({ children }: { children?: React.ReactNode }) {
         <button
           className="tb-btn"
           onClick={() => win.toggleMaximize()}
-          aria-label={maximized ? "Свернуть в окно" : "Развернуть"}
-          title={maximized ? "Свернуть в окно" : "Развернуть"}
+          aria-label={maximized ? t("Свернуть в окно") : t("Развернуть")}
+          title={maximized ? t("Свернуть в окно") : t("Развернуть")}
         >
           {maximized ? (
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
