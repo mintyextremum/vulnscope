@@ -86,6 +86,15 @@ export const EN: Record<string, string> = {
   "Путей атаки": "Attack paths",
   "Динамика с прошлого скана": "Change since last scan",
   "Динамика за последние сканы": "Trend over recent scans",
+  "Динамика за период": "Trend over the period",
+  Месяц: "Month",
+  Квартал: "Quarter",
+  Год: "Year",
+  "Всё время": "All time",
+  "Период: {label}. Было {from}, стало {to} ({delta}).":
+    "Period: {label}. Was {from}, now {to} ({delta}).",
+  "За выбранный период меньше двух сканов — сравнивать не с чем.":
+    "Fewer than two scans in the chosen period — nothing to compare.",
   "Динамика": "Trend",
   "находок за {n} сканов": "findings over {n} scans",
   "Открыть отчёт с полным графиком динамики": "Open the report with the full trend chart",
