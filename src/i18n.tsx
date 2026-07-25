@@ -251,7 +251,10 @@ export const EN: Record<string, string> = {
   Установлено: "Installed",
   "Не удалось": "Failed",
   "Официальная страница проекта": "Project home page",
+  // Русскому нужны три формы, английскому — две.
+  "Ещё {n} сканер": "{n} more scanner",
   "Ещё {n} сканера": "{n} more scanners",
+  "Ещё {n} сканеров": "{n} more scanners",
   "установка есть, разбор вывода — нет": "installable, output not parsed",
   Скрыть: "Hide",
 
