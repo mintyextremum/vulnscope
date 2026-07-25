@@ -112,6 +112,10 @@ pub struct WalkOptions {
     pub follow_symlinks: bool,
     pub max_file_size: u64,
     pub minified_line_len: usize,
+    /// Directory levels below the root, `None` for no limit.
+    pub max_depth: Option<usize>,
+    /// Extra gitignore-style patterns the user wants skipped, e.g. `docs/**`.
+    pub exclude_globs: Vec<String>,
 }
 
 impl Default for WalkOptions {
@@ -122,6 +126,8 @@ impl Default for WalkOptions {
             follow_symlinks: false,
             max_file_size: MAX_FILE_SIZE,
             minified_line_len: MINIFIED_LINE_LEN,
+            max_depth: None,
+            exclude_globs: Vec::new(),
         }
     }
 }
@@ -217,7 +223,23 @@ pub fn discover(root: &Path, opts: &WalkOptions) -> Discovery {
         .git_exclude(opts.respect_gitignore)
         .ignore(opts.respect_gitignore)
         .follow_links(opts.follow_symlinks)
+        .max_depth(opts.max_depth)
         .parents(false);
+
+    // Every pattern is added negated, so the override stays a pure exclusion
+    // list: a single non-negated glob would flip `ignore` into whitelist mode
+    // and quietly drop everything the user did *not* name.
+    if !opts.exclude_globs.is_empty() {
+        let mut ob = ignore::overrides::OverrideBuilder::new(root);
+        for g in &opts.exclude_globs {
+            // A bad glob must not take the scan down with it; the pattern is the
+            // user's free text, and the rest of the list is still valid.
+            let _ = ob.add(&format!("!{g}"));
+        }
+        if let Ok(ov) = ob.build() {
+            builder.overrides(ov);
+        }
+    }
 
     if !opts.include_vendor {
         let vendor = VENDOR_DIRS.to_vec();
@@ -304,6 +326,65 @@ pub fn discover(root: &Path, opts: &WalkOptions) -> Discovery {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// root/a.py, root/sub/b.py, root/sub/deep/c.py — under the OS temp dir, not
+    /// a path from the author's machine.
+    fn tree(name: &str) -> PathBuf {
+        let r = std::env::temp_dir().join(format!("vulnscope-walk-{name}"));
+        let _ = std::fs::remove_dir_all(&r);
+        std::fs::create_dir_all(r.join("sub/deep")).unwrap();
+        std::fs::write(r.join("a.py"), "x = 1\n").unwrap();
+        std::fs::write(r.join("sub/b.py"), "x = 2\n").unwrap();
+        std::fs::write(r.join("sub/deep/c.py"), "x = 3\n").unwrap();
+        r
+    }
+
+    fn found(root: &Path, opts: WalkOptions) -> Vec<String> {
+        let mut v: Vec<String> = discover(root, &opts)
+            .candidates
+            .into_iter()
+            .map(|c| c.rel_path)
+            .collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn max_depth_limits_how_far_the_walk_descends() {
+        let r = tree("depth");
+        assert_eq!(found(&r, WalkOptions::default()).len(), 3);
+        // Depth 1 is the root's own entries only.
+        assert_eq!(
+            found(&r, WalkOptions { max_depth: Some(1), ..Default::default() }),
+            ["a.py"]
+        );
+        assert_eq!(
+            found(&r, WalkOptions { max_depth: Some(2), ..Default::default() }),
+            ["a.py", "sub/b.py"]
+        );
+        let _ = std::fs::remove_dir_all(&r);
+    }
+
+    #[test]
+    fn exclude_globs_drop_matching_paths_and_nothing_else() {
+        let r = tree("globs");
+        assert_eq!(
+            found(&r, WalkOptions { exclude_globs: vec!["sub/**".into()], ..Default::default() }),
+            ["a.py"]
+        );
+
+        // A pattern that matches nothing must not flip the override into
+        // whitelist mode and swallow the whole tree.
+        assert_eq!(
+            found(
+                &r,
+                WalkOptions { exclude_globs: vec!["nothing/here/**".into()], ..Default::default() }
+            )
+            .len(),
+            3
+        );
+        let _ = std::fs::remove_dir_all(&r);
+    }
 
     #[test]
     fn detects_nul_bytes_as_binary() {

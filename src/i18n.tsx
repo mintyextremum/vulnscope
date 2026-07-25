@@ -2457,4 +2457,91 @@ export const EN: Record<string, string> = {
   Язык: "Language",
   Русский: "Русский",
   "English (английский)": "English",
+
+  // -- settings: categories, search, and the controls added with them
+  "Поиск по настройкам": "Search settings",
+  Движки: "Engines",
+  Отчёты: "Reports",
+  Пределы: "Limits",
+  "Обход файлов": "File walk",
+  "Глубина вложенности": "Directory depth",
+  уровней: "levels",
+  "Насколько глубоко заходить от корня проекта. 0 — без ограничения.":
+    "How far below the project root to descend. 0 means no limit.",
+  "Идти по символическим ссылкам": "Follow symlinks",
+  "По умолчанию выключено: ссылка наружу превращает скан «этой папки» в скан чужой, а кольцо ссылок подвешивает обход.":
+    "Off by default: a link out of the project turns a scan of “this folder” into a scan of somewhere else, and a loop of links hangs the walk.",
+  "Не сканировать пути": "Skip these paths",
+  "По шаблону, как в .gitignore, по одному в строке. Например: docs/**":
+    "Gitignore-style patterns, one per line. For example: docs/**",
+  Сеть: "Network",
+  "Офлайн-режим": "Offline mode",
+  "Совсем без сети: зависимости всё равно разбираются и считаются, но CVE не запрашиваются. Единственное, что VulnScope отправляет наружу, — имена и версии пакетов в OSV.dev.":
+    "No network at all: dependencies are still parsed and counted, but CVEs are not requested. Package names and versions sent to OSV.dev are the only thing VulnScope ever transmits.",
+  "Ответственные (git blame)": "Attribution (git blame)",
+  "Определять автора строки": "Identify the line's author",
+  "git blame: приписывает находку тому, кто последним менял строку. Стоит одного вызова git на файл.":
+    "git blame: attributes a finding to whoever last changed the line. Costs one git call per file.",
+  // Not shown on its own — a search key, so "zoom" finds the scale slider.
+  "Увеличивает весь интерфейс": "Zooms the whole interface",
+  "Файлов под blame": "Files to blame",
+  "Потолок числа вызовов git, чтобы хвост скана не встал на большом проекте.":
+    "A ceiling on git calls, so the tail of a scan does not stall on a large project.",
+  "Внешние инструменты": "External tools",
+  "Таймаут инструмента": "Tool timeout",
+  сек: "sec",
+  "На каждый инструмент отдельно: semgrep на большом репозитории законно работает минутами.":
+    "Per tool, not per batch: semgrep on a large repository legitimately takes minutes.",
+  Организация: "Organisation",
+  "Печатается в шапке отчёта. Это же поле можно править прямо в отчёте.":
+    "Printed in the report header. The same field can be edited in the report itself.",
+  "ООО «Ромашка»": "Acme Ltd.",
+  "Формат экспорта по умолчанию": "Default export format",
+  "Что запишет Ctrl+S без открытия меню. В меню этот формат помечен.":
+    "What Ctrl+S writes without opening the menu. The menu marks this format.",
+  "Хранить сканов в истории": "Scans kept in history",
+  "шт.": "max",
+  "Глубина графика динамики. Лишнее отсекается при следующем скане, а не сразу.":
+    "How far the trend chart reaches back. The excess is trimmed on the next scan, not immediately.",
+  "Язык интерфейса": "Interface language",
+  "Схема, тема, оформление": "Scheme, theme, appearance",
+  "Просмотр кода": "Code viewer",
+  "Кегль кода": "Code font size",
+  "Размер шрифта в просмотрщике и сниппетах. Высота строки пересчитывается вместе с ним.":
+    "Font size in the viewer and in snippets. Row height is recomputed with it.",
+  "Ширина табуляции": "Tab width",
+  "симв.": "chars",
+  "Во сколько пробелов разворачивается табуляция.": "How many spaces a tab expands to.",
+  "Переносить длинные строки": "Wrap long lines",
+  "Вместо прокрутки вбок. На файлах длиннее 4000 строк не действует: там просмотрщик рисует строки по арифметике.":
+    "Instead of scrolling sideways. Does not apply above 4000 lines: the viewer places rows by arithmetic there.",
+  "по умолчанию": "default",
+
+  // -- export formats (passed through t() as a variable, so audit:i18n cannot see them)
+  "XML для 1С": "XML for 1C",
+
+  // -- theme shelves and the schemes added with them (same: dynamic t() argument)
+  "Тёмные": "Dark",
+  "Светлые": "Light",
+  "Повышенный контраст": "High contrast",
+  Закат: "Sunset",
+  "Тёплая тёмная: сливово-коричневые поверхности, янтарный акцент":
+    "Warm dark: plum-brown surfaces, amber accent",
+  Арктика: "Arctic",
+  "Приглушённый сине-серый сланец, морозный акцент": "Muted blue-grey slate, frosty accent",
+  Сепия: "Sepia",
+  "Тёмная охра и табак, оливковый акцент": "Dark ochre and tobacco, olive accent",
+  Неон: "Neon",
+  "Глубокий индиго, пурпурный и бирюзовый неон": "Deep indigo, magenta and cyan neon",
+  Лаванда: "Lavender",
+  "Светлая с фиолетовым подтоном, индиговый акцент": "Light with a violet cast, indigo accent",
+  Персик: "Peach",
+  "Светлая тёплая: персиковый подтон, терракотовый акцент":
+    "Warm light: peach cast, terracotta accent",
+  "Графит светлый": "Graphite light",
+  "Светлая нейтральная: серый без синевы, сдержанный акцент":
+    "Neutral light: grey without a blue cast, restrained accent",
+  "Контраст светлый": "Contrast light",
+  "Чистый белый фон, чёрный текст, насыщенные уровни":
+    "Pure white background, black text, saturated severity colours",
 };

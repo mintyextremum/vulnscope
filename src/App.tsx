@@ -220,6 +220,21 @@ export default function App() {
     // which is exactly what WCAG 1.4.4 asks for. An older build without the
     // field sends undefined; fall back rather than zooming to NaN.
     root.style.zoom = String((settings.a11yUiScale ?? 100) / 100);
+
+    // Code viewer: numbers go out as tokens the stylesheet reads, the boolean as
+    // a data attribute — same split as everything above, so no component has to
+    // know a setting exists.
+    const codeSize = settings.codeFontSize ?? 13;
+    root.style.setProperty("--code-size", `${codeSize}px`);
+    root.style.setProperty("--code-tab", String(settings.tabWidth ?? 4));
+    // The file viewer is virtualised: it places rows by arithmetic, so the row
+    // height has to be one number shared by the stylesheet and the maths.
+    // Computed here rather than guessed on both sides — 1.65 is the viewer's
+    // line-height, and a font size that disagrees with the row height shows up
+    // as text drifting out of its row further down the file.
+    root.style.setProperty("--code-row-h", `${Math.round(codeSize * 1.65)}px`);
+    root.dataset.wrapCode = settings.wrapCodeLines ? "1" : "0";
+
     setFormatLang(settings.language === "en" ? "en" : "ru");
   }, [settings]);
 
@@ -609,6 +624,23 @@ export default function App() {
     await invoke("save_report", { path, json: toHtml(report, t, undefined, loadStaff1c()) }).catch((e) =>
       setError(String(e))
     );
+  };
+
+  /**
+   * Format id → the exporter it names.
+   *
+   * One table so the menu, the shortcut and `defaultExportFormat` cannot drift:
+   * the ids are the same ones `settings::EXPORT_FORMATS` validates.
+   */
+  const EXPORTERS: Record<string, () => void> = {
+    json: exportReport,
+    sarif: exportSarif,
+    md: exportMarkdown,
+    csv: exportCsv,
+    xlsx: exportExcel,
+    html: exportHtml,
+    pdf: () => goto("report"),
+    xml1c: exportXml1C,
   };
 
   /**
@@ -1302,7 +1334,9 @@ export default function App() {
     on("export", "mod+s", (e) => {
       if (screen === "results" && report) {
         e.preventDefault();
-        exportReport();
+        // The shortcut used to always write JSON; it now honours the format the
+        // user picked, which is the only thing that makes that setting real.
+        (EXPORTERS[settings?.defaultExportFormat ?? "json"] ?? exportReport)();
       }
     });
     on("tabOverview", "1", () => screen === "results" && setTab("overview"));
@@ -1417,17 +1451,17 @@ export default function App() {
                     >
                       {(
                         [
-                          ["summarize", t("Отчёт — печать в PDF"), () => goto("report")],
-                          ["data_object", t("JSON — полные данные"), exportReport],
-                          ["security", t("SARIF — для CI и code scanning"), exportSarif],
-                          ["description", t("Markdown — для тикета или чата"), exportMarkdown],
-                          ["table_chart", t("CSV — открыть в Excel"), exportCsv],
-                          ["table_view", t("Excel — книга с листами и разбивкой"), exportExcel],
-                          ["print", t("HTML — открыть и печатать в PDF"), exportHtml],
-                          ["account_balance", t("XML для 1С — загрузка в отчётность"), exportXml1C],
-                          ["content_copy", t("Скопировать Markdown"), copyMarkdown],
+                          ["pdf", "summarize", t("Отчёт — печать в PDF"), () => goto("report")],
+                          ["json", "data_object", t("JSON — полные данные"), exportReport],
+                          ["sarif", "security", t("SARIF — для CI и code scanning"), exportSarif],
+                          ["md", "description", t("Markdown — для тикета или чата"), exportMarkdown],
+                          ["csv", "table_chart", t("CSV — открыть в Excel"), exportCsv],
+                          ["xlsx", "table_view", t("Excel — книга с листами и разбивкой"), exportExcel],
+                          ["html", "print", t("HTML — открыть и печатать в PDF"), exportHtml],
+                          ["xml1c", "account_balance", t("XML для 1С — загрузка в отчётность"), exportXml1C],
+                          ["", "content_copy", t("Скопировать Markdown"), copyMarkdown],
                         ] as const
-                      ).map(([icon, label, fn]) => (
+                      ).map(([id, icon, label, fn]) => (
                         <button
                           key={label}
                           className="export-item"
@@ -1439,6 +1473,11 @@ export default function App() {
                         >
                           <Icon name={icon} />
                           {label}
+                          {/* Marks what Ctrl+S will write, so the shortcut is
+                              never a guess. */}
+                          {id && id === (settings?.defaultExportFormat ?? "json") && (
+                            <span className="export-default">{t("по умолчанию")}</span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -1531,7 +1570,19 @@ export default function App() {
       {screen === "help" && <HelpScreen onClose={() => setScreen(prevScreen)} />}
 
       {screen === "report" && report && (
-        <ReportScreen report={report} onClose={() => setScreen(prevScreen)} />
+        <ReportScreen
+          report={report}
+          onClose={() => setScreen(prevScreen)}
+          org={settings?.reportOrg ?? ""}
+          // Typed in the report, stored in settings: the next report opens with
+          // it already filled in, and the settings screen shows the same value.
+          onOrgChange={(v) => {
+            if (!settings) return;
+            const next = { ...settings, reportOrg: v };
+            setSettings(next);
+            invoke("save_settings", { settings: next }).catch(() => {});
+          }}
+        />
       )}
 
       {screen === "rules" && <RulesScreen onClose={() => setScreen(prevScreen)} />}

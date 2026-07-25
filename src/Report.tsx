@@ -43,13 +43,25 @@ const PERIOD_LABEL: Record<PeriodId, string> = {
   all: "Всё время",
 };
 
-export function ReportScreen({ report, onClose }: { report: ScanReport; onClose: () => void }) {
+export function ReportScreen({
+  report,
+  onClose,
+  org: orgSetting,
+  onOrgChange,
+}: {
+  report: ScanReport;
+  onClose: () => void;
+  /** From settings; the field below still edits it in place. */
+  org: string;
+  onOrgChange: (v: string) => void;
+}) {
   const t = useT();
   const lang = useContext(LangContext);
   const score = computeScore(report);
   // The organisation for the report header — accountability wants a "who is this
-  // for". Kept in localStorage; the field shows on screen and prints as text.
-  const [org, setOrg] = useState(() => localStorage.getItem("vs.org") ?? "");
+  // for". It lives in settings now; the localStorage key is only read once, so
+  // a value typed before this moved is not lost.
+  const [org, setOrg] = useState(() => orgSetting || localStorage.getItem("vs.org") || "");
 
   // The scan-history series, for the trend chart. Loaded lazily: an empty or
   // single-point series simply hides the chart.
@@ -179,7 +191,7 @@ export function ReportScreen({ report, onClose }: { report: ScanReport; onClose:
               value={org}
               onChange={(e) => {
                 setOrg(e.target.value);
-                localStorage.setItem("vs.org", e.target.value);
+                onOrgChange(e.target.value);
               }}
             />
             <div className="rep-kicker">{t("Отчёт о безопасности")}</div>

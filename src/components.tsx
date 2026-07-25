@@ -15,9 +15,50 @@ import {
   CONFIDENCE_LABEL,
 } from "./types";
 
-/** Row height in the code viewer. Must match .vline in App.css: the virtual
- * window positions rows by arithmetic, so a mismatch shows up as drift. */
-const VIEWER_ROW_H = 21;
+/**
+ * Live row height in the code viewer, in CSS px.
+ *
+ * The virtual window positions rows by arithmetic, so this must equal what a
+ * row actually renders as. It used to be the constant 21, which was only
+ * correct while the code font size was fixed too: raise the size and every row
+ * past the first drifts out of place. App writes `--code-row-h` from the
+ * setting, and this reads it back — one number, one owner.
+ */
+function useViewerRowH(): number {
+  const [h, setH] = useState(21);
+  useEffect(() => {
+    const read = () => {
+      const px = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--code-row-h")
+      );
+      setH(px > 0 ? px : 21);
+    };
+    read();
+    // The property is an inline style on :root, so an attribute observer is what
+    // notices a settings change while the viewer is open.
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    return () => mo.disconnect();
+  }, []);
+  return h;
+}
+
+/** Above this, wrapping would mean mounting tens of thousands of rows at once,
+ *  so the viewer keeps its virtual window and lines scroll sideways instead. */
+const WRAP_MAX_LINES = 4000;
+
+/** Whether the code viewer should wrap long lines, from settings. */
+function useWrapCode(): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const read = () => setOn(document.documentElement.dataset.wrapCode === "1");
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-wrap-code"] });
+    return () => mo.disconnect();
+  }, []);
+  return on;
+}
 
 /** Row height in the findings list, including its gap. The virtual window
  * positions rows by arithmetic, so this must match what .finding-item renders. */
@@ -912,7 +953,14 @@ export function CodeViewer({
     return m;
   }, [findings]);
 
-  const win = useVirtual(bodyRef, lines.length, VIEWER_ROW_H);
+  const rowH = useViewerRowH();
+  // Wrapping and the virtual window are mutually exclusive: the window places
+  // rows by multiplying an index by a fixed height, and a wrapped row is taller
+  // than that. So wrapping renders the file whole — bounded by WRAP_MAX_LINES,
+  // past which the viewer keeps virtualising and the setting is announced as
+  // not applying rather than silently ignored.
+  const wrapping = useWrapCode() && lines.length <= WRAP_MAX_LINES;
+  const win = useVirtual(bodyRef, wrapping ? 0 : lines.length, rowH);
 
   // With virtualisation the target row may not exist in the DOM yet, so scroll
   // by arithmetic instead of querying for it.
@@ -920,7 +968,7 @@ export function CodeViewer({
     if (focusLine === null || content === null || editing) return;
     const el = bodyRef.current;
     if (!el) return;
-    const target = (focusLine - 1) * VIEWER_ROW_H - el.clientHeight / 2;
+    const target = (focusLine - 1) * rowH - el.clientHeight / 2;
     el.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
   }, [focusLine, content, editing]);
 
@@ -1081,17 +1129,23 @@ export function CodeViewer({
         </div>
       ) : (
         <div className="viewer-body" ref={bodyRef}>
-          <div style={{ height: win.totalHeight, position: "relative" }}>
-            <div style={{ transform: `translateY(${win.offsetY}px)` }}>
-              {lines.slice(win.start, win.end).map((html, i) => {
-                const lineNo = win.start + i + 1;
+          <div
+            style={wrapping ? undefined : { height: win.totalHeight, position: "relative" }}
+          >
+            <div style={wrapping ? undefined : { transform: `translateY(${win.offsetY}px)` }}>
+              {(wrapping ? lines : lines.slice(win.start, win.end)).map((html, i) => {
+                const lineNo = (wrapping ? 0 : win.start) + i + 1;
                 const hit = hits.get(lineNo);
                 return (
                   <div
                     key={lineNo}
                     data-line={lineNo}
-                    className={`vline ${hit ? "hit" : ""} ${focusLine === lineNo ? "focus" : ""}`}
-                    style={{ height: VIEWER_ROW_H }}
+                    className={`vline ${wrapping ? "wrap" : ""} ${hit ? "hit" : ""} ${
+                      focusLine === lineNo ? "focus" : ""
+                    }`}
+                    // Wrapped rows size themselves; a fixed height would clip
+                    // everything past the first visual line.
+                    style={wrapping ? undefined : { height: rowH }}
                   >
                     <span className="ln">{lineNo}</span>
                     <span className="lc" dangerouslySetInnerHTML={{ __html: html }} />

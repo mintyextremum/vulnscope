@@ -166,11 +166,14 @@ fn recheck_file(
         &root,
         &target,
         &relative,
-        check_secrets,
-        experimental,
-        dataflow,
-        cfg.max_findings_per_file as usize,
-        cfg.rule_behavior(),
+        scanner::RecheckOpts {
+            check_secrets,
+            experimental,
+            dataflow,
+            max_findings: cfg.max_findings_per_file as usize,
+            behavior: cfg.rule_behavior(),
+            blame_budget: cfg.blame_budget(),
+        },
     ))
 }
 

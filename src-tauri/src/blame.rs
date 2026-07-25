@@ -16,8 +16,8 @@ use std::process::{Command, Stdio};
 ///
 /// A blame failure on one file (renamed, outside the repo, .gitignored) simply
 /// leaves those findings unattributed — never fails the scan.
-pub fn annotate(root: &Path, findings: &mut [Finding]) {
-    if !repo_supports_blame(root) {
+pub fn annotate(root: &Path, findings: &mut [Finding], max_files: usize) {
+    if max_files == 0 || !repo_supports_blame(root) {
         return;
     }
 
@@ -46,13 +46,12 @@ pub fn annotate(root: &Path, findings: &mut [Finding]) {
         by_file.entry(f.file.as_str()).or_default().push(i);
     }
 
-    // A bound on subprocess count. Findings concentrate in few files in
-    // practice; a pathological project stops attributing rather than stalling
-    // the scan tail on thousands of git spawns.
-    const MAX_FILES: usize = 800;
+    // A bound on subprocess count, from settings. Findings concentrate in few
+    // files in practice; a pathological project stops attributing rather than
+    // stalling the scan tail on thousands of git spawns.
     let files: Vec<(&str, Vec<u32>)> = by_file
         .iter()
-        .take(MAX_FILES)
+        .take(max_files)
         .map(|(file, idxs)| {
             let mut lines: Vec<u32> = idxs.iter().map(|&i| findings[i].line).collect();
             lines.sort_unstable();

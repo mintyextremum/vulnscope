@@ -1838,19 +1838,36 @@ pub struct ExternalResult {
 /// relative to `root`. A Rust crate frequently sits in a subdirectory of a
 /// polyglot repository, so looking only at the root would silently skip
 /// cargo-audit on exactly the projects that need it.
+/// Manifest paths (relative to the scan root) the tool run needs to target.
+///
+/// Grouped rather than passed loose: three same-typed slices in a row is an
+/// argument order nobody can check at the call site.
+#[derive(Clone, Copy)]
+pub struct Manifests<'a> {
+    pub cargo_lockfiles: &'a [String],
+    pub dockerfiles: &'a [String],
+    pub npm_lockfiles: &'a [String],
+}
+
 pub async fn run_available(
     root: &Path,
     statuses: &[ToolStatus],
     enabled: &[Tool],
-    cargo_lockfiles: &[String],
-    dockerfiles: &[String],
-    npm_lockfiles: &[String],
+    manifests: &Manifests<'_>,
     cancel: &AtomicBool,
+    timeout_secs: u32,
 ) -> ExternalResult {
+    let Manifests {
+        cargo_lockfiles,
+        dockerfiles,
+        npm_lockfiles,
+    } = *manifests;
     let mut findings = Vec::new();
     let mut warnings = Vec::new();
     let mut engines = Vec::new();
-    let timeout = Duration::from_secs(300);
+    // Per tool, not for the whole batch: semgrep on a large repo legitimately
+    // takes minutes, and killing the batch would lose the tools that finished.
+    let timeout = Duration::from_secs(u64::from(timeout_secs));
 
     for status in statuses {
         if !status.available || !enabled.contains(&status.tool) {

@@ -2466,7 +2466,10 @@ kbd,
 .code-lines {
   overflow-x: auto;
   font-family: var(--mono);
-  font-size: var(--fs-sm);
+  /* Both set from settings; the fallbacks keep the viewer readable if the app
+     shell has not written them yet. */
+  font-size: var(--code-size, var(--fs-sm));
+  tab-size: var(--code-tab, 4);
   line-height: 1.65;
   padding: var(--sp-2) 0;
   user-select: text;
@@ -2477,6 +2480,29 @@ kbd,
   min-width: min-content;
   white-space: pre;
 }
+
+/* The virtualised file viewer wraps only when it has dropped the virtual window
+   (see WRAP_MAX_LINES): the gutter stays put, the code beside it flows. */
+.vline.wrap {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.vline.wrap .ln { align-self: flex-start; }
+
+/* Wrapping trades sideways scrolling for taller rows. The row must stop being
+   `min-width: min-content` or it just grows instead of wrapping, and the
+   gutter has to stay put while the code beside it flows. */
+:root[data-wrap-code="1"] .code-lines { overflow-x: hidden; }
+
+:root[data-wrap-code="1"] .code-line {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+:root[data-wrap-code="1"] .code-line .ln { align-self: flex-start; }
 
 .code-line .ln {
   flex-shrink: 0;
@@ -2622,7 +2648,10 @@ kbd,
   flex: 1;
   overflow: auto;
   font-family: var(--mono);
-  font-size: var(--fs-sm);
+  /* Both from settings. The 1.65 here is the number App multiplies to get
+     --code-row-h; change one and the virtual window drifts. */
+  font-size: var(--code-size, var(--fs-sm));
+  tab-size: var(--code-tab, 4);
   line-height: 1.65;
   padding: var(--sp-2) 0 var(--sp-12);
   user-select: text;
@@ -5472,4 +5501,87 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   font-variant-numeric: tabular-nums;
   color: var(--t-1);
   font-weight: var(--fw-med);
+}
+
+/* ------------------------------------------------- settings: tabs and search */
+
+/* Six tabs with icons no longer fit the plain segmented control: let them wrap
+   rather than push the search box off the bar. */
+.set-tabs {
+  flex-wrap: wrap;
+  row-gap: var(--sp-1);
+}
+
+.set-tabs .seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.set-tabs .seg-btn .material-symbols-outlined { font-size: 15px; }
+
+.set-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--s-2);
+}
+
+.set-search .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--t-3);
+}
+
+/* The input owns the box's border, not its own. */
+.set-search .input {
+  width: 190px;
+  border: none;
+  background: none;
+  padding-left: 0;
+}
+
+.set-search .input:focus { outline: none; }
+
+.set-search:focus-within { border-color: var(--a-ring); }
+
+/* Presets are shelved by kind — dark / light / high-contrast. */
+.preset-group { margin-top: var(--sp-3); }
+
+.preset-group:first-of-type { margin-top: var(--sp-2); }
+
+.preset-group-title {
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--t-3);
+  margin-bottom: var(--sp-2);
+}
+
+.set-area {
+  width: 320px;
+  max-width: 100%;
+  resize: vertical;
+  line-height: 1.5;
+  padding: var(--sp-2);
+}
+
+.pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+/* Marks the format Ctrl+S writes, inside the export menu. */
+.export-default {
+  margin-left: auto;
+  padding: 1px var(--sp-1);
+  border-radius: var(--r-1);
+  background: var(--a-ghost);
+  color: var(--a);
+  font-size: 10px;
+  white-space: nowrap;
 }

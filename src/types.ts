@@ -30,6 +30,32 @@ export interface AppSettings {
   maxHighlightLines: number;
   skipNoisyInTests: boolean;
   ignoreComments: boolean;
+
+  // ---- file walk ----
+  followSymlinks: boolean;
+  /** Directory levels below the target; 0 means no limit. */
+  maxDepth: number;
+  /** Gitignore-style patterns to skip, one per line. */
+  excludeGlobs: string;
+
+  // ---- engines ----
+  enableBlame: boolean;
+  blameMaxFiles: number;
+  /** No network at all — dependencies are parsed but never sent to OSV. */
+  offline: boolean;
+  externalTimeoutSecs: number;
+
+  // ---- reports ----
+  historyCap: number;
+  reportOrg: string;
+  /** One of the ids in EXPORT_CHOICES; what Ctrl+S writes. */
+  defaultExportFormat: string;
+
+  // ---- code viewer ----
+  codeFontSize: number;
+  tabWidth: number;
+  wrapCodeLines: boolean;
+
   /** Editor command with {file}/{line} placeholders; empty disables the button. */
   editorCommand: string;
   /** Action id -> key combo, e.g. "palette" -> "mod+k". */

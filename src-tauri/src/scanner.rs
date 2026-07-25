@@ -595,16 +595,27 @@ fn scan_one_file(
 /// the same order, so the two paths are comparable: anything that differs
 /// between them would surface to the user as a phantom fix or a phantom new
 /// problem on a file they did not touch.
-pub fn recheck_file(
-    root: &Path,
-    abs: &Path,
-    rel: &str,
-    check_secrets: bool,
-    experimental: bool,
-    dataflow: bool,
-    max_findings: usize,
-    behavior: rules::RuleBehavior,
-) -> Vec<Finding> {
+/// How a single-file re-check should behave — the same knobs the full scan
+/// reads, gathered so the two cannot be handed different values by accident.
+#[derive(Clone, Copy)]
+pub struct RecheckOpts {
+    pub check_secrets: bool,
+    pub experimental: bool,
+    pub dataflow: bool,
+    pub max_findings: usize,
+    pub behavior: rules::RuleBehavior,
+    pub blame_budget: usize,
+}
+
+pub fn recheck_file(root: &Path, abs: &Path, rel: &str, opts: RecheckOpts) -> Vec<Finding> {
+    let RecheckOpts {
+        check_secrets,
+        experimental,
+        dataflow,
+        max_findings,
+        behavior,
+        blame_budget,
+    } = opts;
     let lang = Language::from_path(abs);
     let compiled_user = match userrules::load() {
         Ok(rules) => userrules::compile(&rules).0,
@@ -638,7 +649,7 @@ pub fn recheck_file(
     // Attribution too, so a re-check does not silently strip the author chip
     // from findings that survive. Freshly edited (unsaved-to-git) lines simply
     // come back unattributed.
-    blame::annotate(root, &mut findings);
+    blame::annotate(root, &mut findings, blame_budget);
 
     for f in &mut findings {
         f.fingerprint = baseline::fingerprint(f);
@@ -907,10 +918,19 @@ pub async fn run_scan(
     let walk_opts = WalkOptions {
         respect_gitignore: opts.respect_gitignore,
         include_vendor: opts.include_vendor,
-        follow_symlinks: false,
+        follow_symlinks: cfg.follow_symlinks,
         // Sanitised on save, so these are safe to trust here.
         max_file_size: cfg.max_file_size_mb as u64 * 1024 * 1024,
         minified_line_len: cfg.minified_line_len as usize,
+        // 0 is the settings screen's "no limit"; `ignore` spells that as None.
+        max_depth: (cfg.max_depth > 0).then_some(cfg.max_depth as usize),
+        exclude_globs: cfg
+            .exclude_globs
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
+            .collect(),
     };
     let discovery = {
         let root = root.clone();
@@ -1086,7 +1106,16 @@ pub async fn run_scan(
         let all_deps = deps::dedupe(all_deps);
         dependencies_checked = all_deps.len() as u32;
 
-        if !all_deps.is_empty() && !cancel.load(Ordering::Relaxed) {
+        // Offline is a promise, not a preference: dependencies are still parsed
+        // and counted, but nothing about them leaves the machine. Said out loud
+        // in the warnings, because a silently empty CVE section reads as "clean".
+        if cfg.offline && !all_deps.is_empty() {
+            warnings.push(format!(
+                "Офлайн-режим: {dependencies_checked} зависимостей разобрано, но CVE не проверялись — запросы к OSV.dev отключены в настройках."
+            ));
+        }
+
+        if !cfg.offline && !all_deps.is_empty() && !cancel.load(Ordering::Relaxed) {
             progress.emit(ScanPhase::QueryingOsv, "", true);
             let client = OsvClient::new(cfg.osv_cache_days, cfg.osv_concurrency as usize);
             match client.query(&all_deps).await {
@@ -1139,10 +1168,13 @@ pub async fn run_scan(
             &root,
             &tool_statuses,
             &opts.external_tools,
-            &cargo_lockfiles,
-            &dockerfiles,
-            &npm_lockfiles,
+            &external::Manifests {
+                cargo_lockfiles: &cargo_lockfiles,
+                dockerfiles: &dockerfiles,
+                npm_lockfiles: &npm_lockfiles,
+            },
             &cancel,
+            cfg.external_timeout_secs,
         )
         .await;
         findings.append(&mut ext.findings);
@@ -1178,8 +1210,12 @@ pub async fn run_scan(
 
     // Attribute each finding line to its author via git blame — accountability
     // for the report. Runs after the merges so every surviving finding gets one.
-    progress.emit(ScanPhase::Finalizing, "git blame", false);
-    blame::annotate(&root, &mut findings);
+    // Off means off: the phase event is skipped too, so the progress line does
+    // not announce work that is not happening.
+    if cfg.blame_budget() > 0 {
+        progress.emit(ScanPhase::Finalizing, "git blame", false);
+        blame::annotate(&root, &mut findings, cfg.blame_budget());
+    }
 
     // Fingerprint first: suppression and comparison both key off it.
     for f in &mut findings {
@@ -1271,7 +1307,7 @@ pub async fn run_scan(
         info: counts.info,
         reachable,
     };
-    if let Err(e) = baseline::append_history(&root, point) {
+    if let Err(e) = baseline::append_history(&root, point, cfg.history_cap as usize) {
         warnings.push(format!("не удалось обновить историю трендов: {e}"));
     }
 

@@ -115,10 +115,28 @@ export const ALL_TOKENS: TokenDef[] = TOKEN_GROUPS.flatMap((g) => g.tokens);
 
 export type Theme = Record<string, string>;
 
+/**
+ * Which shelf a preset sits on in the picker.
+ *
+ * With eighteen schemes an undivided row is a wall of swatches; the split is
+ * also the one thing a user actually filters by — "something light", "something
+ * I can read". `contrast` is deliberately separate from plain dark/light: those
+ * are accessibility choices, not tastes, and burying them among the moods is how
+ * they stop being found.
+ */
+export type PresetKind = "dark" | "light" | "contrast";
+
+export const PRESET_KIND_LABEL: Record<PresetKind, string> = {
+  dark: "Тёмные",
+  light: "Светлые",
+  contrast: "Повышенный контраст",
+};
+
 export interface Preset {
   id: string;
   label: string;
   hint: string;
+  kind: PresetKind;
   /** Only the tokens that differ from the stylesheet defaults. */
   theme: Theme;
 }
@@ -180,12 +198,14 @@ export const PRESETS: Preset[] = [
     id: "night",
     label: "Ночь",
     hint: "Как задумано: тёмно-синие поверхности, синий акцент",
+    kind: "dark",
     theme: {},
   },
   {
     id: "midnight",
     label: "Полночь",
     hint: "Почти чёрный, для OLED и тёмной комнаты",
+    kind: "dark",
     theme: {
       "s-0": "#000000",
       "s-1": "#06070a",
@@ -201,6 +221,7 @@ export const PRESETS: Preset[] = [
     id: "day",
     label: "День",
     hint: "Светлая схема целиком, включая подсветку кода",
+    kind: "light",
     theme: {
       ...LIGHT_BASE,
       "s-0": "#e7eaf0",
@@ -225,6 +246,7 @@ export const PRESETS: Preset[] = [
     id: "contrast",
     label: "Контраст",
     hint: "Максимальная разница: чистый чёрный фон, яркий текст",
+    kind: "contrast",
     theme: {
       "s-0": "#000000",
       "s-1": "#000000",
@@ -252,6 +274,7 @@ export const PRESETS: Preset[] = [
     id: "forest",
     label: "Тайга",
     hint: "Тёмная зелень, мягкий изумрудный акцент",
+    kind: "dark",
     theme: {
       "s-0": "#060b09",
       "s-1": "#0a1210",
@@ -275,6 +298,7 @@ export const PRESETS: Preset[] = [
     id: "ocean",
     label: "Океан",
     hint: "Глубокая бирюза, холодный бирюзовый акцент",
+    kind: "dark",
     theme: {
       "s-0": "#04090f",
       "s-1": "#071219",
@@ -298,6 +322,7 @@ export const PRESETS: Preset[] = [
     id: "amethyst",
     label: "Аметист",
     hint: "Фиолетовые поверхности, сиреневый акцент",
+    kind: "dark",
     theme: {
       "s-0": "#08060e",
       "s-1": "#0e0b18",
@@ -321,6 +346,7 @@ export const PRESETS: Preset[] = [
     id: "graphite",
     label: "Графит",
     hint: "Нейтральный серый без синевы, спокойный акцент",
+    kind: "dark",
     theme: {
       "s-0": "#0b0b0c",
       "s-1": "#111112",
@@ -348,6 +374,7 @@ export const PRESETS: Preset[] = [
     id: "paper",
     label: "Бумага",
     hint: "Тёплая светлая: кремовые поверхности, мягкий контраст",
+    kind: "light",
     theme: {
       ...LIGHT_BASE,
       "s-0": "#e6e0d3",
@@ -379,6 +406,7 @@ export const PRESETS: Preset[] = [
     id: "mist",
     label: "Дымка",
     hint: "Светлая холодная: серо-голубые поверхности",
+    kind: "light",
     theme: {
       ...LIGHT_BASE,
       "s-0": "#dde3ea",
@@ -399,6 +427,245 @@ export const PRESETS: Preset[] = [
       "a2-ghost": "rgba(67, 56, 202, 0.12)",
       // Same reason as "Бумага": the surface is not pure white.
       "syn-comment": "#67707a",
+    },
+  },
+  {
+    id: "sunset",
+    label: "Закат",
+    hint: "Тёплая тёмная: сливово-коричневые поверхности, янтарный акцент",
+    kind: "dark",
+    theme: {
+      "s-0": "#0d0806",
+      "s-1": "#150d0a",
+      "s-2": "#1d1310",
+      "s-3": "#261a15",
+      "s-4": "#33241d",
+      "s-5": "#45322a",
+      line: "#241812",
+      "line-strong": "#4a3529",
+      a: "#f59e0b",
+      "a-hi": "#fbbf24",
+      "a-lo": "#92400e",
+      "a-ghost": "rgba(245, 158, 11, 0.12)",
+      "a-ring": "rgba(245, 158, 11, 0.32)",
+      a2: "#fb7185",
+      "a2-hi": "#fda4af",
+      "a2-ghost": "rgba(251, 113, 133, 0.14)",
+    },
+  },
+  {
+    id: "arctic",
+    label: "Арктика",
+    hint: "Приглушённый сине-серый сланец, морозный акцент",
+    kind: "dark",
+    theme: {
+      "s-0": "#191d24",
+      "s-1": "#20252e",
+      "s-2": "#2a303b",
+      "s-3": "#333a47",
+      "s-4": "#3d4553",
+      "s-5": "#4a5364",
+      line: "#2f3641",
+      "line-strong": "#4e5768",
+      "t-1": "#eceff4",
+      "t-2": "#d8dee9",
+      "t-3": "#a9b3c4",
+      "t-4": "#7b869a",
+      a: "#88c0d0",
+      "a-hi": "#a9d4e0",
+      "a-lo": "#4a7f8f",
+      "a-ghost": "rgba(136, 192, 208, 0.14)",
+      "a-ring": "rgba(136, 192, 208, 0.34)",
+      a2: "#b48ead",
+      "a2-hi": "#cba6c4",
+      "a2-ghost": "rgba(180, 142, 173, 0.16)",
+      // Arctic panels are the lightest of the dark schemes, so the shared dark
+      // comment grey lands at 4.31:1 — a notch brighter restores AA.
+      "syn-comment": "#9aa5b5",
+    },
+  },
+  {
+    id: "sepia",
+    label: "Сепия",
+    hint: "Тёмная охра и табак, оливковый акцент",
+    kind: "dark",
+    theme: {
+      "s-0": "#100d09",
+      "s-1": "#1a150f",
+      "s-2": "#241d15",
+      "s-3": "#2e251b",
+      "s-4": "#3b3022",
+      "s-5": "#4d3f2e",
+      line: "#2b2219",
+      "line-strong": "#524331",
+      "t-1": "#f3ecdf",
+      "t-2": "#d5c8b2",
+      "t-3": "#a89a83",
+      "t-4": "#7b6f5d",
+      a: "#a3b12a",
+      "a-hi": "#c3d148",
+      "a-lo": "#5f6a14",
+      "a-ghost": "rgba(163, 177, 42, 0.14)",
+      "a-ring": "rgba(163, 177, 42, 0.34)",
+      a2: "#d98c4a",
+      "a2-hi": "#eaa96d",
+      "a2-ghost": "rgba(217, 140, 74, 0.16)",
+    },
+  },
+  {
+    id: "neon",
+    label: "Неон",
+    hint: "Глубокий индиго, пурпурный и бирюзовый неон",
+    kind: "dark",
+    theme: {
+      "s-0": "#070516",
+      "s-1": "#0c0a20",
+      "s-2": "#12102c",
+      "s-3": "#191638",
+      "s-4": "#221e49",
+      "s-5": "#302a63",
+      line: "#1a1738",
+      "line-strong": "#3a3273",
+      a: "#e879f9",
+      "a-hi": "#f0abfc",
+      "a-lo": "#86198f",
+      "a-ghost": "rgba(232, 121, 249, 0.14)",
+      "a-ring": "rgba(232, 121, 249, 0.34)",
+      a2: "#22d3ee",
+      "a2-hi": "#67e8f9",
+      "a2-ghost": "rgba(34, 211, 238, 0.16)",
+    },
+  },
+  {
+    id: "lavender",
+    label: "Лаванда",
+    hint: "Светлая с фиолетовым подтоном, индиговый акцент",
+    kind: "light",
+    theme: {
+      ...LIGHT_BASE,
+      "s-0": "#ded9ec",
+      "s-1": "#f2effa",
+      "s-2": "#fdfcff",
+      "s-3": "#f7f4fd",
+      "s-4": "#ece7f7",
+      "s-5": "#e0d9f1",
+      line: "#e2ddf0",
+      "line-strong": "#c5bce0",
+      a: "#5b21b6",
+      "a-hi": "#4c1d95",
+      "a-lo": "#c4b5fd",
+      "a-ghost": "rgba(91, 33, 182, 0.1)",
+      "a-ring": "rgba(91, 33, 182, 0.3)",
+      a2: "#be185d",
+      "a2-hi": "#9d174d",
+      "a2-ghost": "rgba(190, 24, 93, 0.12)",
+      // Same reason as "Бумага": the panel is a shade off pure white.
+      "syn-comment": "#67707a",
+    },
+  },
+  {
+    id: "peach",
+    label: "Персик",
+    hint: "Светлая тёплая: персиковый подтон, терракотовый акцент",
+    kind: "light",
+    theme: {
+      ...LIGHT_BASE,
+      "s-0": "#eddbd0",
+      "s-1": "#fbf1ea",
+      "s-2": "#fffcfa",
+      "s-3": "#fdf5f0",
+      "s-4": "#f7e9e0",
+      "s-5": "#efdbd0",
+      line: "#f0e0d6",
+      "line-strong": "#d8bda9",
+      "t-1": "#1f1613",
+      "t-2": "#4c3d36",
+      "t-3": "#6d5b52",
+      "t-4": "#9d8b81",
+      a: "#b4451f",
+      "a-hi": "#8c3316",
+      "a-lo": "#e8a98e",
+      "a-ghost": "rgba(180, 69, 31, 0.1)",
+      "a-ring": "rgba(180, 69, 31, 0.3)",
+      a2: "#0e7490",
+      "a2-hi": "#0b5771",
+      "a2-ghost": "rgba(14, 116, 144, 0.12)",
+      "syn-comment": "#67707a",
+    },
+  },
+  {
+    id: "graphiteLight",
+    label: "Графит светлый",
+    hint: "Светлая нейтральная: серый без синевы, сдержанный акцент",
+    kind: "light",
+    theme: {
+      ...LIGHT_BASE,
+      "s-0": "#dcdcdd",
+      "s-1": "#f0f0f1",
+      "s-2": "#fbfbfb",
+      "s-3": "#f5f5f6",
+      "s-4": "#eaeaeb",
+      "s-5": "#dedee0",
+      line: "#e3e3e5",
+      "line-strong": "#c2c2c5",
+      "t-1": "#17171a",
+      "t-2": "#45454b",
+      "t-3": "#62626a",
+      "t-4": "#97979e",
+      a: "#37547d",
+      "a-hi": "#26405f",
+      "a-lo": "#a8b9cf",
+      "a-ghost": "rgba(55, 84, 125, 0.1)",
+      "a-ring": "rgba(55, 84, 125, 0.3)",
+      a2: "#6b4d8a",
+      "a2-hi": "#523a6b",
+      "a2-ghost": "rgba(107, 77, 138, 0.12)",
+      "syn-comment": "#67707a",
+    },
+  },
+  {
+    id: "contrastLight",
+    label: "Контраст светлый",
+    hint: "Чистый белый фон, чёрный текст, насыщенные уровни",
+    kind: "contrast",
+    theme: {
+      ...LIGHT_BASE,
+      "s-0": "#d9d9d9",
+      "s-1": "#ffffff",
+      "s-2": "#ffffff",
+      "s-3": "#f5f5f5",
+      "s-4": "#ebebeb",
+      "s-5": "#dcdcdc",
+      line: "#9a9a9a",
+      "line-strong": "#5c5c5c",
+      "t-1": "#000000",
+      "t-2": "#1c1c1c",
+      "t-3": "#3a3a3a",
+      "t-4": "#5c5c5c",
+      a: "#0b3fa8",
+      "a-hi": "#062a75",
+      "a-lo": "#9db6e6",
+      "a-ghost": "rgba(11, 63, 168, 0.1)",
+      "a-ring": "rgba(11, 63, 168, 0.4)",
+      a2: "#6b21a8",
+      "a2-hi": "#4c1580",
+      "a2-ghost": "rgba(107, 33, 168, 0.12)",
+      // Darker than the shared light palette: this scheme exists for people who
+      // need the maximum, so every level clears AAA against white rather than AA.
+      crit: "#a10832",
+      "crit-hi": "#7a0625",
+      // High and medium are both brown once red or green perception is gone, so
+      // they are pulled apart by *lightness* rather than hue: at #8a3b00 and
+      // #6b5200 the audit put them 3 apart under deuteranopia.
+      high: "#b34700",
+      "high-hi": "#8a3600",
+      med: "#4a3a00",
+      low: "#004f78",
+      info: "#3a4250",
+      ok: "#0a5c34",
+      "ok-hi": "#074325",
+      danger: "#9c1c20",
+      "syn-comment": "#4a5058",
     },
   },
 ];

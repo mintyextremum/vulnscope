@@ -1,10 +1,91 @@
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { Icon } from "./components";
 import { AppSettings, KeybindAction, KeybindConflict } from "./types";
-import { ALL_TOKENS, defaultToken, isColor, PRESETS, TOKEN_GROUPS } from "./theme-tokens";
+import {
+  ALL_TOKENS,
+  defaultToken,
+  isColor,
+  PRESET_KIND_LABEL,
+  PresetKind,
+  PRESETS,
+  TOKEN_GROUPS,
+} from "./theme-tokens";
 import { useT } from "./i18n";
+
+/**
+ * The live search query, shared with every control on the screen.
+ *
+ * A context rather than a prop chain: with six tabs and ~40 controls, threading
+ * the query would mean touching every call site, and any control someone forgot
+ * would silently stay visible in a filtered list — which reads as "no match" for
+ * everything else.
+ */
+const SearchCtx = createContext("");
+
+/** Whether a control survives the current query. Empty query shows everything. */
+function useMatches(...text: (string | undefined)[]): boolean {
+  const q = useContext(SearchCtx).trim().toLowerCase();
+  if (!q) return true;
+  return text.filter(Boolean).join(" ").toLowerCase().includes(q);
+}
+
+/**
+ * A settings group header.
+ *
+ * While searching, headers step aside: results come from every tab at once, so
+ * a header would either sit above someone else's matches or head an empty
+ * group. Matching a group by name still works — the header itself is a match.
+ */
+function Section({ title }: { title: string }) {
+  const q = useContext(SearchCtx).trim();
+  if (q && !title.toLowerCase().includes(q.toLowerCase())) return null;
+  return <div className="set-section">{title}</div>;
+}
+
+/** Wraps content that is not a plain control (theme picker, key list) so it can
+ *  still be found by name. */
+function Findable({ name, children }: { name: string; children: React.ReactNode }) {
+  return useMatches(name) ? <>{children}</> : null;
+}
+
+/** One shortcut row, filterable by the action's own name. */
+function KeyRow({ label, children }: { label: string; children: React.ReactNode }) {
+  if (!useMatches(label)) return null;
+  return (
+    <div className="key-row">
+      <span className="key-label">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** Export ids paired with what they are called. Mirrors `EXPORT_FORMATS` in
+ *  settings.rs — the backend rejects anything not on that list. */
+const EXPORT_CHOICES: [string, string][] = [
+  ["json", "JSON"],
+  ["sarif", "SARIF"],
+  ["md", "Markdown"],
+  ["csv", "CSV"],
+  ["xlsx", "Excel"],
+  ["html", "HTML"],
+  ["pdf", "Отчёт (PDF)"],
+  ["xml1c", "XML для 1С"],
+];
+
+type TabId = "scan" | "engines" | "report" | "look" | "keys" | "a11y";
+
+/** Tab order and labels. Six categories rather than four: the screen grew past
+ *  the point where "Сканирование" meant anything specific. */
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: "scan", label: "Сканирование", icon: "radar" },
+  { id: "engines", label: "Движки", icon: "manufacturing" },
+  { id: "report", label: "Отчёты", icon: "summarize" },
+  { id: "look", label: "Вид", icon: "palette" },
+  { id: "keys", label: "Клавиши", icon: "keyboard" },
+  { id: "a11y", label: "Доступность", icon: "accessibility_new" },
+];
 
 /** Turns a KeyboardEvent into the same combo string the hotkey layer parses. */
 function comboFrom(e: React.KeyboardEvent): string | null {
@@ -57,7 +138,12 @@ export function SettingsScreen({
   const [conflicts, setConflicts] = useState<KeybindConflict[]>([]);
   const [path, setPath] = useState("");
   const [toast, setToast] = useState<string | null>(null);
-  const [tab, setTab] = useState<"scan" | "keys" | "look" | "a11y">("scan");
+  const [tab, setTab] = useState<TabId>("scan");
+  const [query, setQuery] = useState("");
+  // A query searches every category, not the open one: someone looking for
+  // "blame" should not have to know it lives under "Движки".
+  const searching = query.trim().length > 0;
+  const shows = (id: TabId) => searching || tab === id;
 
   useEffect(() => {
     invoke<AppSettings>("get_settings").then(setS).catch(() => {});
@@ -79,10 +165,22 @@ export function SettingsScreen({
     setTimeout(() => setToast(null), 1800);
   };
 
-  const apply = async (next: AppSettings) => {
-    // The backend clamps; take back what it actually stored so the UI never
-    // shows a value the scanner will not honour.
+  // The freshest settings, readable outside a render. Two rows edited in quick
+  // succession both build their payload from the `s` of *their* render, so
+  // without this the second save reverts the first — blurring one number field
+  // by clicking into the next is enough to hit it.
+  const latest = useRef<AppSettings | null>(null);
+  latest.current = s;
+
+  /** Saves a patch. The backend clamps; take back what it actually stored so
+   *  the UI never shows a value the scanner will not honour. */
+  const apply = async (patch: Partial<AppSettings>) => {
+    const base = latest.current;
+    if (!base) return;
+    const next = { ...base, ...patch };
+    latest.current = next;
     const stored = await invoke<AppSettings>("save_settings", { settings: next });
+    latest.current = stored;
     setS(stored);
     onApplied(stored);
   };
@@ -102,13 +200,13 @@ export function SettingsScreen({
       return;
     }
     if (e.key === "Backspace" || e.key === "Delete") {
-      if (s) apply({ ...s, keybinds: { ...s.keybinds, [action]: "" } });
+      if (s) apply({ keybinds: { ...s.keybinds, [action]: "" } });
       setCapturing(null);
       return;
     }
     const combo = comboFrom(e);
     if (!combo || !s) return;
-    apply({ ...s, keybinds: { ...s.keybinds, [action]: combo } });
+    apply({ keybinds: { ...s.keybinds, [action]: combo } });
     setCapturing(null);
   };
 
@@ -138,21 +236,39 @@ export function SettingsScreen({
           <Icon name="tune" />
           {t("Настройки")}
         </div>
-        <div className="seg" style={{ marginLeft: 12 }}>
-          <button className={`seg-btn ${tab === "scan" ? "active" : ""}`} onClick={() => setTab("scan")}>
-            {t("Сканирование")}
-          </button>
-          <button className={`seg-btn ${tab === "keys" ? "active" : ""}`} onClick={() => setTab("keys")}>
-            {t("Клавиши")}
-          </button>
-          <button className={`seg-btn ${tab === "look" ? "active" : ""}`} onClick={() => setTab("look")}>
-            {t("Вид")}
-          </button>
-          <button className={`seg-btn ${tab === "a11y" ? "active" : ""}`} onClick={() => setTab("a11y")}>
-            {t("Доступность")}
-          </button>
+        <div className="seg set-tabs" style={{ marginLeft: 12 }}>
+          {TABS.map((tb) => (
+            <button
+              key={tb.id}
+              className={`seg-btn ${!searching && tab === tb.id ? "active" : ""}`}
+              // Picking a tab while filtering means "show me this one" — the
+              // query is what is hiding the rest, so it has to go.
+              onClick={() => {
+                setQuery("");
+                setTab(tb.id);
+              }}
+            >
+              <Icon name={tb.icon} />
+              {t(tb.label)}
+            </button>
+          ))}
         </div>
         <div style={{ flex: 1 }} />
+        <div className="set-search">
+          <Icon name="search" />
+          <input
+            className="input"
+            placeholder={t("Поиск по настройкам")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={t("Поиск по настройкам")}
+          />
+          {searching && (
+            <button className="icon-btn" onClick={() => setQuery("")} aria-label={t("Очистить поиск")}>
+              <Icon name="close" />
+            </button>
+          )}
+        </div>
         <button className="btn btn-ghost btn-sm" onClick={reset}>
           <Icon name="restart_alt" />
           {t("Сбросить всё")}
@@ -166,9 +282,11 @@ export function SettingsScreen({
         </div>
       )}
 
+      <SearchCtx.Provider value={query}>
       <div className="rules-body">
-        {tab === "scan" && (
+        {shows("scan") && (
           <div className="set-grid">
+            <Section title={t("Пределы")} />
             <Num
               label={t("Максимальный размер файла")}
               unit={t("МБ")}
@@ -176,7 +294,7 @@ export function SettingsScreen({
               value={s.maxFileSizeMb}
               min={1}
               max={64}
-              onChange={(v) => apply({ ...s, maxFileSizeMb: v })}
+              onChange={(v) => apply({ maxFileSizeMb: v })}
             />
             <Num
               label={t("Порог длины строки")}
@@ -185,7 +303,7 @@ export function SettingsScreen({
               value={s.minifiedLineLen}
               min={200}
               max={100000}
-              onChange={(v) => apply({ ...s, minifiedLineLen: v })}
+              onChange={(v) => apply({ minifiedLineLen: v })}
             />
             <Num
               label={t("Находок на файл")}
@@ -194,7 +312,79 @@ export function SettingsScreen({
               value={s.maxFindingsPerFile}
               min={10}
               max={5000}
-              onChange={(v) => apply({ ...s, maxFindingsPerFile: v })}
+              onChange={(v) => apply({ maxFindingsPerFile: v })}
+            />
+
+            <Section title={t("Обход файлов")} />
+            <Num
+              label={t("Глубина вложенности")}
+              unit={t("уровней")}
+              hint={t("Насколько глубоко заходить от корня проекта. 0 — без ограничения.")}
+              value={s.maxDepth}
+              min={0}
+              max={64}
+              onChange={(v) => apply({ maxDepth: v })}
+            />
+            <Toggle
+              label={t("Идти по символическим ссылкам")}
+              hint={t("По умолчанию выключено: ссылка наружу превращает скан «этой папки» в скан чужой, а кольцо ссылок подвешивает обход.")}
+              on={s.followSymlinks}
+              onChange={(v) => apply({ followSymlinks: v })}
+            />
+            <Area
+              label={t("Не сканировать пути")}
+              hint={t("По шаблону, как в .gitignore, по одному в строке. Например: docs/**")}
+              placeholder={"docs/**\nmigrations/**"}
+              value={s.excludeGlobs}
+              onChange={(v) => apply({ excludeGlobs: v })}
+            />
+
+            <Section title={t("Поведение правил")} />
+            <Toggle
+              label={t("Пропускать шумные правила в тестах")}
+              hint={t("Math.random и подобные в тестовых файлах — не проблема.")}
+              on={s.skipNoisyInTests}
+              onChange={(v) => apply({ skipNoisyInTests: v })}
+            />
+            <Toggle
+              label={t("Игнорировать комментарии")}
+              hint={t("Закомментированный код не считается уязвимостью.")}
+              on={s.ignoreComments}
+              onChange={(v) => apply({ ignoreComments: v })}
+            />
+
+            <Section title={t("Что включено по умолчанию")} />
+            <Toggle
+              label={t("Секреты в коде")}
+              on={s.defaultCheckSecrets}
+              onChange={(v) => apply({ defaultCheckSecrets: v })}
+            />
+            <Toggle
+              label={t("CVE в зависимостях")}
+              on={s.defaultCheckDependencies}
+              onChange={(v) => apply({ defaultCheckDependencies: v })}
+            />
+            <Toggle
+              label={t("Учитывать .gitignore")}
+              on={s.defaultRespectGitignore}
+              onChange={(v) => apply({ defaultRespectGitignore: v })}
+            />
+            <Toggle
+              label={t("Включая зависимости (node_modules и т.п.)")}
+              on={s.defaultIncludeVendor}
+              onChange={(v) => apply({ defaultIncludeVendor: v })}
+            />
+          </div>
+        )}
+
+        {shows("engines") && (
+          <div className="set-grid">
+            <Section title={t("Сеть")} />
+            <Toggle
+              label={t("Офлайн-режим")}
+              hint={t("Совсем без сети: зависимости всё равно разбираются и считаются, но CVE не запрашиваются. Единственное, что VulnScope отправляет наружу, — имена и версии пакетов в OSV.dev.")}
+              on={s.offline}
+              onChange={(v) => apply({ offline: v })}
             />
             <Num
               label={t("Кэш OSV")}
@@ -203,7 +393,7 @@ export function SettingsScreen({
               value={s.osvCacheDays}
               min={0}
               max={365}
-              onChange={(v) => apply({ ...s, osvCacheDays: v })}
+              onChange={(v) => apply({ osvCacheDays: v })}
             />
             <Num
               label={t("Параллельных запросов к OSV")}
@@ -212,62 +402,84 @@ export function SettingsScreen({
               value={s.osvConcurrency}
               min={1}
               max={64}
-              onChange={(v) => apply({ ...s, osvConcurrency: v })}
+              onChange={(v) => apply({ osvConcurrency: v })}
             />
 
-            <div className="set-section">{t("Поведение правил")}</div>
+            <Section title={t("Ответственные (git blame)")} />
             <Toggle
-              label={t("Пропускать шумные правила в тестах")}
-              hint={t("Math.random и подобные в тестовых файлах — не проблема.")}
-              on={s.skipNoisyInTests}
-              onChange={(v) => apply({ ...s, skipNoisyInTests: v })}
+              label={t("Определять автора строки")}
+              hint={t("git blame: приписывает находку тому, кто последним менял строку. Стоит одного вызова git на файл.")}
+              on={s.enableBlame}
+              onChange={(v) => apply({ enableBlame: v })}
             />
-            <Toggle
-              label={t("Игнорировать комментарии")}
-              hint={t("Закомментированный код не считается уязвимостью.")}
-              on={s.ignoreComments}
-              onChange={(v) => apply({ ...s, ignoreComments: v })}
+            <Num
+              label={t("Файлов под blame")}
+              unit={t("макс.")}
+              hint={t("Потолок числа вызовов git, чтобы хвост скана не встал на большом проекте.")}
+              value={s.blameMaxFiles}
+              min={0}
+              max={100000}
+              onChange={(v) => apply({ blameMaxFiles: v })}
             />
 
-            <div className="set-section">{t("Редактор")}</div>
+            <Section title={t("Внешние инструменты")} />
+            <Num
+              label={t("Таймаут инструмента")}
+              unit={t("сек")}
+              hint={t("На каждый инструмент отдельно: semgrep на большом репозитории законно работает минутами.")}
+              value={s.externalTimeoutSecs}
+              min={10}
+              max={3600}
+              onChange={(v) => apply({ externalTimeoutSecs: v })}
+            />
+
+            <Section title={t("Редактор")} />
             <Txt
               label={t("Команда открытия находки")}
               hint={t("{file} и {line} подставляются. Пусто — кнопка скрыта. Например: code -g {file}:{line}")}
               placeholder="code -g {file}:{line}"
               value={s.editorCommand}
-              onChange={(v) => apply({ ...s, editorCommand: v })}
-            />
-
-            <div className="set-section">{t("Что включено по умолчанию")}</div>
-            <Toggle
-              label={t("Секреты в коде")}
-              on={s.defaultCheckSecrets}
-              onChange={(v) => apply({ ...s, defaultCheckSecrets: v })}
-            />
-            <Toggle
-              label={t("CVE в зависимостях")}
-              on={s.defaultCheckDependencies}
-              onChange={(v) => apply({ ...s, defaultCheckDependencies: v })}
-            />
-            <Toggle
-              label={t("Учитывать .gitignore")}
-              on={s.defaultRespectGitignore}
-              onChange={(v) => apply({ ...s, defaultRespectGitignore: v })}
-            />
-            <Toggle
-              label={t("Включая зависимости (node_modules и т.п.)")}
-              on={s.defaultIncludeVendor}
-              onChange={(v) => apply({ ...s, defaultIncludeVendor: v })}
+              onChange={(v) => apply({ editorCommand: v })}
             />
           </div>
         )}
 
-        {tab === "keys" && (
+        {shows("report") && (
           <div className="set-grid">
-            <div className="tools-note">
-              <Icon name="info" />
-              {t("Нажмите на сочетание и введите новое. Backspace — очистить, Esc — отмена.")}
-            </div>
+            <Txt
+              label={t("Организация")}
+              hint={t("Печатается в шапке отчёта. Это же поле можно править прямо в отчёте.")}
+              placeholder={t("ООО «Ромашка»")}
+              value={s.reportOrg}
+              onChange={(v) => apply({ reportOrg: v })}
+            />
+            <Pick
+              label={t("Формат экспорта по умолчанию")}
+              hint={t("Что запишет Ctrl+S без открытия меню. В меню этот формат помечен.")}
+              value={s.defaultExportFormat}
+              options={EXPORT_CHOICES}
+              onChange={(v) => apply({ defaultExportFormat: v })}
+            />
+            <Num
+              label={t("Хранить сканов в истории")}
+              unit={t("шт.")}
+              hint={t("Глубина графика динамики. Лишнее отсекается при следующем скане, а не сразу.")}
+              value={s.historyCap}
+              min={2}
+              max={500}
+              onChange={(v) => apply({ historyCap: v })}
+            />
+          </div>
+        )}
+
+        {shows("keys") && (
+          <div className="set-grid">
+            <Findable name={t("Клавиши")}>
+              <div className="tools-note">
+                <Icon name="info" />
+                {t("Нажмите на сочетание и введите новое. Backspace — очистить, Esc — отмена.")}
+              </div>
+            </Findable>
 
             {conflicts.length > 0 && (
               <div className="error-banner">
@@ -280,13 +492,12 @@ export function SettingsScreen({
               <div key={group}>
                 {/* Both come from the backend as Russian strings, so they need
                     the same t() as the rest of the catalogue content. */}
-                <div className="set-section">{t(group)}</div>
+                <Section title={t(group)} />
                 {items.map((a) => {
                   const combo = s.keybinds[a.id] ?? "";
                   const clash = conflictFor(a.id);
                   return (
-                    <div key={a.id} className="key-row">
-                      <span className="key-label">{t(a.label)}</span>
+                    <KeyRow key={a.id} label={t(a.label)}>
                       {clash && (
                         <span className="tag cve" title={t("Конфликт сочетаний")}>
                           {t("конфликт")}
@@ -301,7 +512,7 @@ export function SettingsScreen({
                       >
                         {capturing === a.id ? t("Нажмите клавиши…") : prettyCombo(combo)}
                       </button>
-                    </div>
+                    </KeyRow>
                   );
                 })}
               </div>
@@ -309,8 +520,9 @@ export function SettingsScreen({
           </div>
         )}
 
-        {tab === "look" && (
+        {shows("look") && (
           <div className="set-grid">
+            <Findable name={t("Язык интерфейса")}>
             <div className="field">
               <div className="field-label">{t("Язык")}</div>
               <div className="seg" style={{ maxWidth: 320 }}>
@@ -318,18 +530,23 @@ export function SettingsScreen({
                   <button
                     key={code}
                     className={`seg-btn ${(s.language ?? "ru") === code ? "active" : ""}`}
-                    onClick={() => apply({ ...s, language: code })}
+                    onClick={() => apply({ language: code })}
                   >
                     {code === "ru" ? t("Русский") : "English"}
                   </button>
                 ))}
               </div>
             </div>
+            </Findable>
 
+            <Findable name={t("Схема, тема, оформление")}>
             <div className="field set-wide">
               <div className="field-label">{t("Схема")}</div>
+              {(["dark", "light", "contrast"] as PresetKind[]).map((kind) => (
+              <div key={kind} className="preset-group">
+              <div className="preset-group-title">{t(PRESET_KIND_LABEL[kind])}</div>
               <div className="preset-row">
-                {PRESETS.map((p) => (
+                {PRESETS.filter((p) => p.kind === kind).map((p) => (
                   <button
                     key={p.id}
                     className={`preset ${s.themePreset === p.id ? "active" : ""}`}
@@ -337,7 +554,7 @@ export function SettingsScreen({
                       // Switching preset drops the old tweaks: they were picked
                       // against different surfaces, and keeping them is how you
                       // get unreadable text on a scheme you never chose.
-                      apply({ ...s, themePreset: p.id, theme: {} })
+                      apply({ themePreset: p.id, theme: {} })
                     }
                     title={t(p.hint)}
                   >
@@ -358,8 +575,12 @@ export function SettingsScreen({
                   </button>
                 ))}
               </div>
+              </div>
+              ))}
             </div>
+            </Findable>
 
+            <Findable name={t("Акцентный цвет")}>
             <div className="field">
               <div className="field-label">{t("Акцентный цвет")}</div>
               <div className="swatches">
@@ -370,13 +591,15 @@ export function SettingsScreen({
                     style={{ background: c }}
                     // `accent` is the old name for the `a` token; both are
                     // written so neither can drift out of step.
-                    onClick={() => apply({ ...s, accent: c, theme: { ...s.theme, a: c } })}
+                    onClick={() => apply({ accent: c, theme: { ...s.theme, a: c } })}
                     aria-label={t("Акцент {c}", { c })}
                   />
                 ))}
               </div>
             </div>
+            </Findable>
 
+            <Findable name={t("Плотность")}>
             <div className="field">
               <div className="field-label">{t("Плотность")}</div>
               <div className="seg" style={{ maxWidth: 320 }}>
@@ -384,18 +607,45 @@ export function SettingsScreen({
                   <button
                     key={d}
                     className={`seg-btn ${s.density === d ? "active" : ""}`}
-                    onClick={() => apply({ ...s, density: d })}
+                    onClick={() => apply({ density: d })}
                   >
                     {d === "comfortable" ? t("Просторно") : t("Плотно")}
                   </button>
                 ))}
               </div>
             </div>
+            </Findable>
+
+            <Section title={t("Просмотр кода")} />
+            <Num
+              label={t("Кегль кода")}
+              unit={t("px")}
+              hint={t("Размер шрифта в просмотрщике и сниппетах. Высота строки пересчитывается вместе с ним.")}
+              value={s.codeFontSize}
+              min={9}
+              max={28}
+              onChange={(v) => apply({ codeFontSize: v })}
+            />
+            <Num
+              label={t("Ширина табуляции")}
+              unit={t("симв.")}
+              hint={t("Во сколько пробелов разворачивается табуляция.")}
+              value={s.tabWidth}
+              min={1}
+              max={16}
+              onChange={(v) => apply({ tabWidth: v })}
+            />
+            <Toggle
+              label={t("Переносить длинные строки")}
+              hint={t("Вместо прокрутки вбок. На файлах длиннее 4000 строк не действует: там просмотрщик рисует строки по арифметике.")}
+              on={s.wrapCodeLines}
+              onChange={(v) => apply({ wrapCodeLines: v })}
+            />
 
             {/* Its own section: a boxed Num card sitting in the third column
                 next to two plain fields read as an orphan. A header spans the
                 grid, so the card starts a fresh row and says why it is here. */}
-            <div className="set-section">{t("Производительность")}</div>
+            <Section title={t("Производительность")} />
 
             <Num
               label={t("Подсветка синтаксиса до")}
@@ -404,7 +654,7 @@ export function SettingsScreen({
               value={s.maxHighlightLines}
               min={0}
               max={200000}
-              onChange={(v) => apply({ ...s, maxHighlightLines: v })}
+              onChange={(v) => apply({ maxHighlightLines: v })}
             />
 
             <ThemeEditor settings={s} apply={apply} />
@@ -418,8 +668,9 @@ export function SettingsScreen({
           </div>
         )}
 
-        {tab === "a11y" && <A11yTab s={s} apply={apply} path={path} />}
+        {shows("a11y") && <A11yTab s={s} apply={apply} path={path} />}
       </div>
+      </SearchCtx.Provider>
     </div>
   );
 }
@@ -435,13 +686,15 @@ function A11yTab({
   path,
 }: {
   s: AppSettings;
-  apply: (s: AppSettings) => void;
+  apply: (patch: Partial<AppSettings>) => void;
   path: string;
 }) {
   const t = useT();
   const scale = s.a11yUiScale ?? 100;
+  const showScale = useMatches(t("Масштаб интерфейса"), t("Увеличивает весь интерфейс"));
   return (
     <div className="set-grid">
+      {showScale && (
       <div className="field">
         <div className="field-label">{t("Масштаб интерфейса")}</div>
         <p className="field-note">
@@ -450,7 +703,7 @@ function A11yTab({
         <div className="scale-row">
           <button
             className="btn btn-ghost btn-sm"
-            onClick={() => apply({ ...s, a11yUiScale: Math.max(80, scale - 10) })}
+            onClick={() => apply({ a11yUiScale: Math.max(80, scale - 10) })}
             aria-label={t("Меньше")}
           >
             <Icon name="remove" />
@@ -461,71 +714,74 @@ function A11yTab({
             max={250}
             step={10}
             value={scale}
-            onChange={(e) => apply({ ...s, a11yUiScale: Number(e.target.value) })}
+            onChange={(e) => apply({ a11yUiScale: Number(e.target.value) })}
             aria-label={t("Масштаб интерфейса, проценты")}
           />
           <button
             className="btn btn-ghost btn-sm"
-            onClick={() => apply({ ...s, a11yUiScale: Math.min(250, scale + 10) })}
+            onClick={() => apply({ a11yUiScale: Math.min(250, scale + 10) })}
             aria-label={t("Больше")}
           >
             <Icon name="add" />
           </button>
           <span className="scale-val">{scale}%</span>
           {scale !== 100 && (
-            <button className="btn btn-ghost btn-sm" onClick={() => apply({ ...s, a11yUiScale: 100 })}>
+            <button className="btn btn-ghost btn-sm" onClick={() => apply({ a11yUiScale: 100 })}>
               {t("Сброс")}
             </button>
           )}
         </div>
       </div>
+      )}
 
       <Toggle
         label={t("Уменьшить анимацию")}
         hint={t("Отключает переходы и фоновое движение. Системная настройка учитывается и без этого.")}
         on={s.reduceMotion}
-        onChange={(v) => apply({ ...s, reduceMotion: v })}
+        onChange={(v) => apply({ reduceMotion: v })}
       />
       <Toggle
         label={t("Не показывать фоновое свечение")}
         hint={t("Убирает плавно движущиеся пятна за интерфейсом.")}
         on={s.a11yNoAmbient}
-        onChange={(v) => apply({ ...s, a11yNoAmbient: v })}
+        onChange={(v) => apply({ a11yNoAmbient: v })}
       />
       <Toggle
         label={t("Всегда показывать фокус")}
         hint={t("Рамка фокуса видна и после клика мышью, не только при навигации с клавиатуры.")}
         on={s.a11yAlwaysFocus}
-        onChange={(v) => apply({ ...s, a11yAlwaysFocus: v })}
+        onChange={(v) => apply({ a11yAlwaysFocus: v })}
       />
       <Toggle
         label={t("Подписывать уровень опасности")}
         hint={t("Добавляет слово («Крит», «Выс»…) рядом со счётчиками — на случай, когда цвета трудно различить (WCAG 1.4.1).")}
         on={s.a11ySeverityText}
-        onChange={(v) => apply({ ...s, a11ySeverityText: v })}
+        onChange={(v) => apply({ a11ySeverityText: v })}
       />
       <Toggle
         label={t("Подчёркивать ссылки")}
         hint={t("Ссылки отличаются не только цветом.")}
         on={s.a11yUnderlineLinks}
-        onChange={(v) => apply({ ...s, a11yUnderlineLinks: v })}
+        onChange={(v) => apply({ a11yUnderlineLinks: v })}
       />
       <Toggle
         label={t("Крупные области нажатия")}
         hint={t("Кнопки и переключатели не меньше 24×24 px (WCAG 2.5.8).")}
         on={s.a11yBigTargets}
-        onChange={(v) => apply({ ...s, a11yBigTargets: v })}
+        onChange={(v) => apply({ a11yBigTargets: v })}
       />
 
-      <p className="field-note">
+      <Findable name={t("Доступность")}>
+        <p className="field-note">
 {t("Смысловые цвета (уровни опасности) проверены на контраст WCAG 2.2 AA и на три типа дальтонизма во всех схемах. У каждого уровня есть свой значок, так что цвет никогда не единственный признак.")}
-      </p>
-
-      {path && (
-        <p className="hint-path">
-          {t("Файл настроек:")} <code>{path}</code>
         </p>
-      )}
+
+        {path && (
+          <p className="hint-path">
+            {t("Файл настроек:")} <code>{path}</code>
+          </p>
+        )}
+      </Findable>
     </div>
   );
 }
@@ -542,7 +798,7 @@ function ThemeEditor({
   apply,
 }: {
   settings: AppSettings;
-  apply: (s: AppSettings) => void;
+  apply: (patch: Partial<AppSettings>) => void;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -603,6 +859,9 @@ function ThemeEditor({
 
   const changed = Object.keys(theme).length;
 
+  // Without this the whole token editor sits under every search result, which
+  // reads as "these are matches too".
+  if (!useMatches(t("Токены темы"), t("Схема, тема, оформление"))) return null;
   return (
     <div className="field set-wide">
       <div className="field-label">
@@ -715,6 +974,7 @@ function Num({
 }) {
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);
+  const shown = useMatches(label, hint, unit);
 
   const commit = () => {
     const n = parseInt(text, 10);
@@ -727,6 +987,7 @@ function Num({
     onChange(Math.min(max, Math.max(min, n)));
   };
 
+  if (!shown) return null;
   return (
     <div className="set-row">
       <div className="set-info">
@@ -766,9 +1027,11 @@ function Txt({
 }) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
+  const shown = useMatches(label, hint, placeholder);
   const commit = () => {
     if (text.trim() !== value) onChange(text.trim());
   };
+  if (!shown) return null;
   return (
     // Full width: a command line next to a long hint is unreadable squeezed
     // into a single column of the settings grid.
@@ -793,6 +1056,85 @@ function Txt({
   );
 }
 
+/** Multi-line free text: one pattern per line. */
+function Area({
+  label,
+  hint,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const shown = useMatches(label, hint);
+  if (!shown) return null;
+  return (
+    <div className="set-row set-wide">
+      <div className="set-info">
+        <div className="set-label">{label}</div>
+        {hint && <div className="field-note">{hint}</div>}
+      </div>
+      <div className="set-control">
+        <textarea
+          className="input mono set-area"
+          rows={4}
+          value={text}
+          placeholder={placeholder}
+          onChange={(e) => setText(e.target.value)}
+          // On blur, not per keystroke: every change is a round-trip to disk,
+          // and a half-typed glob would be saved and then scanned against.
+          onBlur={() => text !== value && onChange(text)}
+          aria-label={label}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** A short list of mutually exclusive choices. */
+function Pick({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  options: [string, string][];
+  onChange: (v: string) => void;
+}) {
+  const t = useT();
+  if (!useMatches(label, hint, ...options.map(([, l]) => l))) return null;
+  return (
+    <div className="set-row set-wide">
+      <div className="set-info">
+        <div className="set-label">{label}</div>
+        {hint && <div className="field-note">{hint}</div>}
+      </div>
+      <div className="set-control pick-row">
+        {options.map(([id, l]) => (
+          <button
+            key={id}
+            className={`chip ${value === id ? "active" : ""}`}
+            onClick={() => onChange(id)}
+            aria-pressed={value === id}
+          >
+            {t(l)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Toggle({
   label,
   hint,
@@ -804,6 +1146,7 @@ function Toggle({
   on: boolean;
   onChange: (v: boolean) => void;
 }) {
+  if (!useMatches(label, hint)) return null;
   return (
     <div className="set-row">
       <div className="set-info">
