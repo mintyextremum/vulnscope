@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Icon } from "./components";
 import { useT } from "./i18n";
@@ -31,7 +31,23 @@ export function ToolsCard({
   const [rechecking, setRechecking] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
-  const integrated = useMemo(() => tools.tools.filter((t) => t.integrated), [tools]);
+  /**
+   * Installed scanners first, catalogue order preserved inside each group.
+   *
+   * The list mixed "ready to switch on" with "would need installing", so the
+   * actionable half was scattered through the other. A stable sort by
+   * availability puts everything you can actually use at the top and turns the
+   * rest into a clearly separate "could add" tail.
+   */
+  const integrated = useMemo(
+    () =>
+      tools.tools
+        .filter((t) => t.integrated)
+        .map((t, i) => ({ t, i }))
+        .sort((a, b) => Number(b.t.available) - Number(a.t.available) || a.i - b.i)
+        .map(({ t }) => t),
+    [tools]
+  );
   const extra = useMemo(() => tools.tools.filter((t) => !t.integrated), [tools]);
   const ready = integrated.filter((t) => t.available).length;
 
@@ -265,7 +281,18 @@ export function ToolsCard({
         </div>
       )}
 
-      <div className="tool-list">{integrated.map(row)}</div>
+      {/* A caption before the first not-installed row: the sort already groups
+          them, this says what the boundary means. */}
+      <div className="tool-list">
+        {integrated.map((t, i) => (
+          <Fragment key={t.tool}>
+            {!t.available && integrated[i - 1]?.available && (
+              <div className="tool-divider">{tr("Можно добавить")}</div>
+            )}
+            {row(t)}
+          </Fragment>
+        ))}
+      </div>
 
       {extra.length > 0 && (
         <>
