@@ -276,6 +276,24 @@ export interface ScanReport {
   warnings: string[];
 }
 
+/**
+ * A project scanned before, kept so the setup screen can offer it back with its
+ * last verdict instead of making the user retype a path. Lives in localStorage
+ * (`vs.recent`) — it is a convenience, not scan data.
+ */
+export interface RecentTarget {
+  mode: "local" | "repo";
+  /** The path or URL to scan — exactly what goes back into the target field. */
+  target: string;
+  label: string;
+  /** ISO timestamp of the last scan of this target. */
+  at: string;
+  grade?: string;
+  score?: number;
+  /** Confirmed (non-BETA, non-suppressed) findings at that scan. */
+  total?: number;
+}
+
 /** An employee from a 1C staff registry (`СписокСотрудников`), used to map git
  * blame authors onto the people 1C holds responsible. Kept in localStorage
  * (`vs.staff1c`) so the mapping survives restarts. */
@@ -322,6 +340,9 @@ export interface ScanProgress {
   processed: number;
   total: number;
   findingsSoFar: number;
+  /** Critical + high among them, so the progress screen can show severity, not
+   *  just volume. Older backends omit it — treat as 0. */
+  severeSoFar?: number;
   elapsedMs: number;
   etaMs: number | null;
   filesPerSec: number;
