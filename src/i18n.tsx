@@ -135,6 +135,7 @@ export const EN: Record<string, string> = {
   вчера: "yesterday",
   "{n} дн. назад": "{n} days ago",
   "Отпустите, чтобы проверить эту папку": "Drop to scan this folder",
+  "Или перетащите папку прямо в окно.": "Or drag a folder straight into the window.",
   // «Свернуть» без уточнения уже занято кнопкой окна (Minimize) — здесь нужен
   // свой ключ, иначе список путей просил бы «свернуть окно».
   "Показать все пути ({n})": "Show all paths ({n})",
@@ -337,11 +338,15 @@ export const EN: Record<string, string> = {
   "Достижимость": "Reachability",
   "Находка, до которой реально доходит пользовательский ввод, помечена «Достижимо» и весит в оценке больше — «присутствует» не то же, что «эксплуатируемо».":
     "A finding that user input actually reaches is marked \"Reachable\" and weighs more in the score — \"present\" is not \"exploitable\".",
-  "На дашборде — сами маршруты «точка входа → опасный вызов», отсортированные по опасности. Клик открывает находку.":
-    "On the dashboard: the routes themselves, \"entry point → dangerous call\", sorted by severity. Click one to open the finding.",
+  "На дашборде — сами маршруты «точка входа → опасный вызов», отсортированные по опасности. Клик открывает находку, «Показать все пути» раскрывает список целиком.":
+    "On the dashboard: the routes themselves, \"entry point → dangerous call\", sorted by severity. Click one to open the finding; \"Show all paths\" expands the whole list.",
+  "Пять файлов с наибольшим риском — ранжированы теми же весами, что и оценка. Клик открывает список находок этого файла.":
+    "The five files carrying the most risk, ranked by the same weights the score uses. Click one to open its findings.",
+  "Полоса на дашборде показывает, растёт или падает число находок за последние сканы; клик открывает отчёт с полным графиком.":
+    "A strip on the dashboard shows whether the finding count is rising or falling over recent scans; click it to open the report with the full chart.",
   "Точка входа": "Entry point",
-  "Движок определяет, откуда входит ввод: HTTP-запрос, аргумент командной строки, переменная окружения или стандартный ввод.":
-    "The engine classifies where input enters: HTTP request, command-line argument, environment variable or standard input.",
+  "Движок определяет, откуда входит ввод: HTTP-запрос, аргумент командной строки, переменная окружения, стандартный ввод или адрес страницы (DOM).":
+    "The engine classifies where input enters: HTTP request, command-line argument, environment variable, standard input, or the page URL (DOM).",
   "Анализ потока данных подробно": "Data-flow analysis in detail",
   "Межпроцедурный": "Interprocedural",
   "Поток прослеживается через вызовы функций-хелперов, а не только внутри одной функции.":
@@ -368,8 +373,11 @@ export const EN: Record<string, string> = {
     "Was not in the previous scan of this target.",
   "Работа с находками": "Working with findings",
   "Фильтры": "Filters",
-  "По важности, файлу, поиску и «только новые». Активные фильтры показаны строкой, каждый снимается одним кликом; счётчики следуют за фильтром.":
-    "By severity, file, search and \"new only\". Active filters are shown as a strip, each removed in one click; the counts follow the filter.",
+  "По важности, файлу, поиску, «только новые» и «только достижимые». Активные фильтры показаны строкой, каждый снимается одним кликом; счётчики следуют за фильтром и показывают, что даст его нажатие.":
+    "By severity, file, search, \"new only\" and \"reachable only\". Active filters are shown as a strip, each removed in one click; the counts follow the filter and show what clicking it would leave.",
+  "Триаж по автору": "Triage by author",
+  "«Автор строки» в карточке — кнопка: сужает список до всего, чего последним касался этот человек.":
+    "\"Line author\" in the finding card is a button: it narrows the list to everything this person last touched.",
   "Дерево файлов": "File tree",
   "Слева — файлы с находками; выбор файла сужает список и счётчики к нему.":
     "On the left, files with findings; picking a file narrows the list and the counts to it.",

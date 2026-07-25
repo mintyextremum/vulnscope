@@ -1879,6 +1879,13 @@ function SetupScreen(p: SetupProps) {
                   {t("Выбрать")}
                 </button>
               </div>
+              {/* Drag-and-drop has no affordance of its own — the drop overlay
+                  only appears once something is already being dragged, which is
+                  too late to discover it. One line makes the feature exist. */}
+              <div className="field-hint">
+                <Icon name="download" />
+                {t("Или перетащите папку прямо в окно.")}
+              </div>
               <div className="field-hint">
                 <Icon name="lock" />
                 {t("Файлы читаются только на этом компьютере и никуда не отправляются.")}
