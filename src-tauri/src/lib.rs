@@ -170,6 +170,7 @@ fn recheck_file(
         experimental,
         dataflow,
         cfg.max_findings_per_file as usize,
+        cfg.rule_behavior(),
     ))
 }
 

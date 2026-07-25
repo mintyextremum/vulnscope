@@ -410,7 +410,10 @@ pub static RULES: &[Rule] = &[
         cwe: &["CWE-94"],
         owasp: Some(OWASP_INJECTION),
         references: &["https://cwe.mitre.org/data/definitions/94.html"],
-        skip_in_tests: false,
+        // Same call as eval/exec (VS-PY-001/002), and test suites exercise it the
+        // same way: on Flask itself this rule alone produced 16 of the 19
+        // criticals, every one of them in tests/.
+        skip_in_tests: true,
     },
     Rule {
         id: "VS-PY-024",
@@ -4997,8 +5000,36 @@ fn line_is_comment(line: &str, lang: Language) -> bool {
     }
 }
 
+/// Which "probably does not ship" suppressions the rule pass applies.
+///
+/// Both are user settings. They used to be hardcoded here, which meant the two
+/// switches in the settings screen were saved, drawn and read by nobody — the
+/// scanner always behaved as if both were on.
+#[derive(Clone, Copy, Debug)]
+pub struct RuleBehavior {
+    /// Honour each rule's `skip_in_tests` inside test paths.
+    pub skip_noisy_in_tests: bool,
+    /// Drop hits on lines that are entirely a comment.
+    pub ignore_comments: bool,
+}
+
+impl Default for RuleBehavior {
+    /// Matches `settings::Settings::default()` — both suppressions on.
+    fn default() -> Self {
+        Self {
+            skip_noisy_in_tests: true,
+            ignore_comments: true,
+        }
+    }
+}
+
 /// Runs every rule registered for `lang` against `content`.
-pub fn scan_content(content: &str, lang: Language, rel_path: &str) -> Vec<RuleHit> {
+pub fn scan_content(
+    content: &str,
+    lang: Language,
+    rel_path: &str,
+    behavior: RuleBehavior,
+) -> Vec<RuleHit> {
     let Some(bundle) = BUNDLES.get(&lang) else {
         return Vec::new();
     };
@@ -5008,7 +5039,7 @@ pub fn scan_content(content: &str, lang: Language, rel_path: &str) -> Vec<RuleHi
         return Vec::new();
     }
 
-    let in_tests = is_test_path(rel_path);
+    let in_tests = behavior.skip_noisy_in_tests && is_test_path(rel_path);
     let mut hits = Vec::new();
 
     for local_idx in matched {
@@ -5042,7 +5073,7 @@ pub fn scan_content(content: &str, lang: Language, rel_path: &str) -> Vec<RuleHi
                 }
             }
 
-            if line_is_comment(line, lang) {
+            if behavior.ignore_comments && line_is_comment(line, lang) {
                 continue;
             }
 
@@ -5061,8 +5092,35 @@ pub fn scan_content(content: &str, lang: Language, rel_path: &str) -> Vec<RuleHi
 mod tests {
     use super::*;
 
+    /// Both suppressions off — what the settings screen promises when the user
+    /// unticks them.
+    fn ids_raw(code: &str, lang: Language, path: &str) -> Vec<&'static str> {
+        let behavior = RuleBehavior {
+            skip_noisy_in_tests: false,
+            ignore_comments: false,
+        };
+        scan_content(code, lang, path, behavior)
+            .iter()
+            .map(|h| h.rule.id)
+            .collect()
+    }
+
+    #[test]
+    fn behaviour_switches_actually_reach_the_rule_pass() {
+        // Noisy-rule suppression: eval() carries skip_in_tests.
+        let code = "eval(user_input)\n";
+        assert!(!hit_ids(code, Language::Python, "tests/test_eval.py").contains(&"VS-PY-001"));
+        assert!(ids_raw(code, Language::Python, "tests/test_eval.py").contains(&"VS-PY-001"));
+
+        // Comment suppression, checked on a non-test path so the two switches
+        // cannot cover for each other.
+        let commented = "# eval(user_input)\n";
+        assert!(hit_ids(commented, Language::Python, "app.py").is_empty());
+        assert!(ids_raw(commented, Language::Python, "app.py").contains(&"VS-PY-001"));
+    }
+
     fn hit_ids(code: &str, lang: Language, path: &str) -> Vec<&'static str> {
-        let mut ids: Vec<&str> = scan_content(code, lang, path)
+        let mut ids: Vec<&str> = scan_content(code, lang, path, RuleBehavior::default())
             .iter()
             .map(|h| h.rule.id)
             .collect();
@@ -5319,6 +5377,9 @@ mod tests {
     fn finds_python_ssti() {
         let code = "return render_template_string(\"Hello \" + name)\n";
         assert!(hit_ids(code, Language::Python, "views.py").contains(&"VS-PY-023"));
+        // A template suite renders strings on purpose; on Flask itself this rule
+        // alone accounted for 16 of 19 criticals, all of them under tests/.
+        assert!(!hit_ids(code, Language::Python, "tests/test_templating.py").contains(&"VS-PY-023"));
     }
 
     #[test]

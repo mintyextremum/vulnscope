@@ -145,12 +145,13 @@ fn scan_user_rules(
     rel: &str,
     lang: Language,
     user_rules: &[userrules::CompiledUserRule],
+    behavior: rules::RuleBehavior,
 ) -> Vec<Finding> {
     if user_rules.is_empty() {
         return Vec::new();
     }
 
-    let in_tests = rules::path_is_test(rel);
+    let in_tests = behavior.skip_noisy_in_tests && rules::path_is_test(rel);
     let mut out = Vec::new();
 
     for cr in user_rules {
@@ -178,7 +179,7 @@ fn scan_user_rules(
                 }
             }
 
-            if rules::is_comment_line(line_text, lang) {
+            if behavior.ignore_comments && rules::is_comment_line(line_text, lang) {
                 continue;
             }
 
@@ -229,6 +230,7 @@ fn scan_one_file(
     user_rules: &[userrules::CompiledUserRule],
     max_findings: usize,
     externals: &std::collections::HashMap<String, taint::Summary>,
+    behavior: rules::RuleBehavior,
 ) -> Option<(Vec<Finding>, u32, u64)> {
     let bytes = std::fs::read(abs).ok()?;
     let size = bytes.len() as u64;
@@ -239,7 +241,7 @@ fn scan_one_file(
 
     let mut findings = Vec::new();
 
-    for hit in rules::scan_content(&content, lang, rel) {
+    for hit in rules::scan_content(&content, lang, rel, behavior) {
         let (line, column) = index.locate(hit.start);
         let (end_line, end_column) = index.locate(hit.end);
         let (snippet, snippet_start_line) = index.snippet(line);
@@ -336,7 +338,9 @@ fn scan_one_file(
         }
     }
 
-    findings.extend(scan_user_rules(&content, &index, rel, lang, user_rules));
+    findings.extend(scan_user_rules(
+        &content, &index, rel, lang, user_rules, behavior,
+    ));
 
     // Experimental (BETA) heuristic pass. Fires only on lines the precise rules
     // and secrets left untouched, so it adds *suspected* issues rather than
@@ -599,6 +603,7 @@ pub fn recheck_file(
     experimental: bool,
     dataflow: bool,
     max_findings: usize,
+    behavior: rules::RuleBehavior,
 ) -> Vec<Finding> {
     let lang = Language::from_path(abs);
     let compiled_user = match userrules::load() {
@@ -617,6 +622,7 @@ pub fn recheck_file(
         // A single-file re-check has no project-wide export map, so cross-file
         // flows are not re-derived here; the intra-file result still matches.
         &Default::default(),
+        behavior,
     ) {
         Some((f, _, _)) => f,
         None => Vec::new(),
@@ -972,6 +978,7 @@ pub async fn run_scan(
     };
 
     let max_findings = cfg.max_findings_per_file as usize;
+    let behavior = cfg.rule_behavior();
     let scan_results: Vec<(String, Language, Vec<Finding>, u32, u64)> = {
         let candidates = &discovery.candidates;
         let cancel = cancel.clone();
@@ -995,6 +1002,7 @@ pub async fn run_scan(
                         &compiled_user,
                         max_findings,
                         externals,
+                        behavior,
                     );
 
                     progress.processed.fetch_add(1, Ordering::Relaxed);
@@ -1080,7 +1088,7 @@ pub async fn run_scan(
 
         if !all_deps.is_empty() && !cancel.load(Ordering::Relaxed) {
             progress.emit(ScanPhase::QueryingOsv, "", true);
-            let client = OsvClient::new();
+            let client = OsvClient::new(cfg.osv_cache_days, cfg.osv_concurrency as usize);
             match client.query(&all_deps).await {
                 Ok(results) => {
                     engines.push("OSV.dev".to_string());
@@ -1835,7 +1843,7 @@ mod tests {
         )
         .unwrap();
 
-        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, false, false, &[], 200, &Default::default()).unwrap();
+        let (findings, _, _) = scan_one_file(&path, "config.py", Language::Python, true, false, false, &[], 200, &Default::default(), Default::default()).unwrap();
         let secret_findings: Vec<_> = findings
             .iter()
             .filter(|f| f.source == FindingSource::Secrets)
@@ -2007,7 +2015,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/app.py")
             .unwrap();
-        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, false, false, &[], 200, &Default::default()).unwrap();
+        let (findings, lines, size) = scan_one_file(&app.abs_path, &app.rel_path, app.language, true, false, false, &[], 200, &Default::default(), Default::default()).unwrap();
 
         assert!(lines >= 5);
         assert!(size > 0);
@@ -2027,7 +2035,7 @@ mod tests {
             .iter()
             .find(|c| c.rel_path == "src/safe.py")
             .unwrap();
-        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, false, false, &[], 200, &Default::default()).unwrap();
+        let (clean, _, _) = scan_one_file(&safe.abs_path, &safe.rel_path, safe.language, true, false, false, &[], 200, &Default::default(), Default::default()).unwrap();
         assert!(clean.is_empty(), "clean file produced findings: {clean:?}");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -2304,7 +2312,7 @@ mod tests {
         assert!(warns.is_empty());
 
         let (findings, _, _) =
-            scan_one_file(&path, "app.py", Language::Python, false, false, false, &compiled, 200, &Default::default()).unwrap();
+            scan_one_file(&path, "app.py", Language::Python, false, false, false, &compiled, 200, &Default::default(), Default::default()).unwrap();
 
         let mine: Vec<_> = findings
             .iter()
@@ -2330,13 +2338,13 @@ mod tests {
         let py = dir.join("a.py");
         std::fs::write(&py, "# banned_call(1)\n").unwrap();
         let (compiled, _) = userrules::compile(&[user_rule("MY-001", r"banned_call\s*\(", &["python"])]);
-        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, false, false, &compiled, 200, &Default::default()).unwrap();
+        let (findings, _, _) = scan_one_file(&py, "a.py", Language::Python, false, false, false, &compiled, 200, &Default::default(), Default::default()).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         // A python-scoped rule must not fire on Rust.
         let rs = dir.join("b.rs");
         std::fs::write(&rs, "fn f() { banned_call(1); }\n").unwrap();
-        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, false, &compiled, 200, &Default::default()).unwrap();
+        let (findings, _, _) = scan_one_file(&rs, "b.rs", Language::Rust, false, false, false, &compiled, 200, &Default::default(), Default::default()).unwrap();
         assert!(findings.iter().all(|f| f.source != FindingSource::Custom));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -2358,7 +2366,7 @@ mod tests {
         .unwrap();
 
         let (findings, _, _) =
-            scan_one_file(&path, "chain.py", Language::Python, false, true, false, &[], 200, &Default::default()).unwrap();
+            scan_one_file(&path, "chain.py", Language::Python, false, true, false, &[], 200, &Default::default(), Default::default()).unwrap();
         let combo = findings
             .iter()
             .find(|f| f.rule_id == "VS-EXP-COMBO")
@@ -2380,7 +2388,7 @@ mod tests {
 
         // With the experimental pass off, no combination is emitted.
         let (plain, _, _) =
-            scan_one_file(&path, "chain.py", Language::Python, false, false, false, &[], 200, &Default::default()).unwrap();
+            scan_one_file(&path, "chain.py", Language::Python, false, false, false, &[], 200, &Default::default(), Default::default()).unwrap();
         assert!(!plain.iter().any(|f| f.rule_id == "VS-EXP-COMBO"));
 
         let _ = std::fs::remove_dir_all(&dir);

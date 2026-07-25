@@ -13,13 +13,10 @@ const OSV_VULN: &str = "https://api.osv.dev/v1/vulns";
 /// retry cost sane without meaningfully slowing things down.
 const BATCH_SIZE: usize = 200;
 
-/// Parallel advisory fetches. High enough to hide round-trip latency, low
-/// enough to stay a polite client of a free public API.
-const FETCH_CONCURRENCY: usize = 16;
-
-/// Cached advisories older than this are re-fetched. A week is a reasonable
-/// trade between freshness and hammering the API on every scan.
-const CACHE_TTL_SECS: u64 = 7 * 24 * 60 * 60;
+// Parallel advisory fetches and cache lifetime used to live here as constants.
+// They are user settings now (`osv_concurrency`, `osv_cache_days`), clamped in
+// `settings::sanitize` to 1..64 and 0..365 so this stays a polite client of a
+// free public API whatever the user types.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Advisory {
@@ -307,6 +304,8 @@ struct CacheEntry {
 
 pub struct Cache {
     dir: PathBuf,
+    /// Entries older than this are re-fetched.
+    ttl_secs: u64,
 }
 
 fn now_secs() -> u64 {
@@ -317,13 +316,13 @@ fn now_secs() -> u64 {
 }
 
 impl Cache {
-    pub fn new() -> Result<Cache> {
+    pub fn new(ttl_secs: u64) -> Result<Cache> {
         let dir = dirs::cache_dir()
             .context("не удалось определить каталог кэша")?
             .join("vulnscope")
             .join("osv");
         std::fs::create_dir_all(&dir)?;
-        Ok(Cache { dir })
+        Ok(Cache { dir, ttl_secs })
     }
 
     fn path_for(&self, id: &str) -> PathBuf {
@@ -339,7 +338,7 @@ impl Cache {
     pub fn get(&self, id: &str) -> Option<Advisory> {
         let raw = std::fs::read_to_string(self.path_for(id)).ok()?;
         let entry: CacheEntry = serde_json::from_str(&raw).ok()?;
-        if now_secs().saturating_sub(entry.fetched_at) > CACHE_TTL_SECS {
+        if now_secs().saturating_sub(entry.fetched_at) > self.ttl_secs {
             return None;
         }
         Some(entry.advisory)
@@ -361,6 +360,8 @@ impl Cache {
 pub struct OsvClient {
     http: reqwest::Client,
     cache: Option<Cache>,
+    /// How many advisory GETs run at once.
+    fetch_concurrency: usize,
 }
 
 /// Advisories found for one dependency.
@@ -370,7 +371,10 @@ pub struct DependencyAdvisories {
 }
 
 impl OsvClient {
-    pub fn new() -> OsvClient {
+    /// `cache_days` and `fetch_concurrency` come from the user's settings; both
+    /// were fixed constants until the two controls in the settings screen turned
+    /// out to be saved and then ignored.
+    pub fn new(cache_days: u32, fetch_concurrency: usize) -> OsvClient {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .user_agent("VulnScope/0.1 (local security scanner)")
@@ -378,7 +382,9 @@ impl OsvClient {
             .unwrap_or_default();
         OsvClient {
             http,
-            cache: Cache::new().ok(),
+            cache: Cache::new(u64::from(cache_days) * 24 * 60 * 60).ok(),
+            // Zero would silently fetch nothing: `chunks(0)` panics.
+            fetch_concurrency: fetch_concurrency.max(1),
         }
     }
 
@@ -450,7 +456,7 @@ impl OsvClient {
         // Advisories are independent GETs, so fetching them one at a time makes
         // the scan latency-bound: a project with 100 advisories would spend
         // minutes waiting on round-trips. Fetch in bounded-concurrency waves.
-        for chunk in to_fetch.chunks(FETCH_CONCURRENCY) {
+        for chunk in to_fetch.chunks(self.fetch_concurrency) {
             let mut set = tokio::task::JoinSet::new();
             for id in chunk {
                 let http = self.http.clone();
@@ -502,6 +508,15 @@ impl OsvClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_reach_the_client_and_zero_concurrency_cannot_panic() {
+        let c = OsvClient::new(30, 4);
+        assert_eq!(c.fetch_concurrency, 4);
+        // `chunks(0)` panics, so a zero must never reach the fetch loop even if
+        // it slips past `settings::sanitize`.
+        assert_eq!(OsvClient::new(7, 0).fetch_concurrency, 1);
+    }
 
     #[test]
     fn computes_cvss_v3_base_score() {

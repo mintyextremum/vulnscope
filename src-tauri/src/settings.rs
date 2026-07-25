@@ -91,6 +91,20 @@ pub struct Settings {
     pub keybinds: std::collections::BTreeMap<String, String>,
 }
 
+impl Settings {
+    /// The rule-pass suppressions these settings ask for.
+    ///
+    /// Single source of truth on purpose: a full scan and a single-file re-check
+    /// must apply the same suppressions, or an untouched file comes back with
+    /// findings that "appeared" only because the two paths disagreed.
+    pub fn rule_behavior(&self) -> crate::rules::RuleBehavior {
+        crate::rules::RuleBehavior {
+            skip_noisy_in_tests: self.skip_noisy_in_tests,
+            ignore_comments: self.ignore_comments,
+        }
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
