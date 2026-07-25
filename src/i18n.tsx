@@ -126,6 +126,7 @@ export const EN: Record<string, string> = {
   "Автор строки": "Line author",
   "Только достижимые": "Reachable only",
   "Недавние проекты": "Recent projects",
+  "Можно добавить": "Could add",
   "С чего начать": "Start here",
   "файлы с наибольшим риском": "files carrying the most risk",
   "Убрать из списка": "Remove from the list",
