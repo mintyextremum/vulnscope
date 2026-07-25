@@ -162,6 +162,41 @@ function helpKeys(file) {
 }
 
 /**
+ * User-visible JSX attributes holding a raw Cyrillic literal — text that never
+ * reaches `t()` at all.
+ *
+ * A missing dictionary entry is one failure mode; bypassing the dictionary is
+ * the other, and it is worse: the string cannot be translated *and* nothing
+ * above can see it, because every check here reads literals given to `t()`.
+ * Found in the wild on the maximize button, the resizer tooltip and the command
+ * palette's search label — all of them accessibility text, all Russian in the
+ * English UI. One of them even had a dictionary entry that no code ever used.
+ *
+ * Deliberately narrow: only these four attributes, only a bare string literal.
+ * A wider "any Cyrillic literal" sweep flags XML tag names and dictionary-key
+ * constants — 167 candidates for 4 real ones — and a check that noisy gets
+ * ignored, which is worse than no check.
+ */
+const VISIBLE_ATTRS = ["title", "aria-label", "placeholder", "alt"];
+function untranslatedAttrs(files) {
+  const found = [];
+  const re = new RegExp(`\\b(${VISIBLE_ATTRS.join("|")})=("([^"]*)"|'([^']*)')`, "g");
+  for (const f of files) {
+    const src = readFileSync(f, "utf8");
+    for (const m of src.matchAll(re)) {
+      const value = m[3] ?? m[4] ?? "";
+      if (!needsTranslation(value)) continue;
+      found.push({
+        where: `${f.slice(SRC.length + 1)}:${src.slice(0, m.index).split("\n").length}`,
+        attr: m[1],
+        value,
+      });
+    }
+  }
+  return found;
+}
+
+/**
  * Re-escapes a runtime string into the form it is written as inside a source
  * literal delimited by `q`, so it can be matched against the dictionary text.
  * Without this a key containing a newline is searched for as a real line break
@@ -246,9 +281,27 @@ for (const g of groups) {
   failed += missing.length;
 }
 
-if (failed === 0) {
+// Strings that never reach t() at all — a different failure from a missing key,
+// and one no check above can see.
+const bypassed = untranslatedAttrs(walk(SRC));
+if (bypassed.length === 0) {
+  console.log("✓ Видимые атрибуты идут через t(...)");
+} else {
+  console.log(`✗ Мимо словаря (атрибуты ${VISIBLE_ATTRS.join("/")}): ${bypassed.length}`);
+  for (const b of bypassed) {
+    console.log(`    ${b.attr}="${b.value.length > 60 ? b.value.slice(0, 60) + "…" : b.value}"`);
+    console.log(`        ${b.where}`);
+  }
+}
+
+if (failed === 0 && bypassed.length === 0) {
   console.log("\nВсе строки есть в словаре EN — фоллбэков на русский нет.");
   process.exit(0);
 }
-console.log(`\nБез перевода: ${failed}. В EN-режиме покажутся по-русски — добавьте в словарь EN (src/i18n.tsx).`);
+if (failed > 0) {
+  console.log(`\nБез перевода: ${failed}. В EN-режиме покажутся по-русски — добавьте в словарь EN (src/i18n.tsx).`);
+}
+if (bypassed.length > 0) {
+  console.log(`\nЭти строки нельзя перевести, и их не видит ни одна проверка выше: оберните в t("…").`);
+}
 process.exit(1);
