@@ -3208,17 +3208,64 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 .rep-more { color: var(--t-4); font-size: var(--fs-xs); margin-top: var(--sp-2); }
 .rep-foot { margin-top: var(--sp-6); padding-top: var(--sp-3); border-top: 1px solid var(--line); color: var(--t-4); font-size: var(--fs-xs); text-align: center; }
 
-/* Print to PDF: only the report page, on white, colours kept. */
+/* Print to PDF: only the report page, on white, colours kept.
+ *
+ * The report must stay in NORMAL FLOW to paginate. The obvious
+ * "visibility: hidden on everything + position: absolute on the report" trick
+ * prints exactly one page and silently drops the rest: an absolutely positioned
+ * box does not break across pages, so a multi-page report came out truncated at
+ * the first sheet. Instead every ancestor is flattened — the app shell is a
+ * fixed-height flex column with its own scrollers, which on paper means "one
+ * screenful and nothing else" — and the chrome is removed rather than merely
+ * made invisible (invisible elements still occupy space and shift the layout).
+ */
 @media print {
   @page { size: A4; margin: 14mm; }
-  body * { visibility: hidden; }
-  .report-page, .report-page * { visibility: visible; }
+
+  html,
+  body,
+  #root,
+  .app,
+  .view,
+  .report-screen {
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    background: #fff !important;
+  }
+
+  /* Chrome that must not reach paper: the window titlebar, the ambient
+     backdrop, and anything the report itself marks as screen-only. */
+  .titlebar,
+  .ambient,
   .no-print { display: none !important; }
-  .report-screen { position: static; background: #fff; }
+
+  /* Paper palette for the whole report subtree.
+   *
+   * The app's tokens are tuned for a dark canvas: pale text, near-black panel
+   * fills, hairlines that only read against dark. Printed as-is that gives
+   * washed-out labels and *black* bar tracks on white. Re-pointing the tokens
+   * here recolours every component at once — bars, tables, borders, captions —
+   * instead of patching each one and missing the next. Severity colours are
+   * deliberately left alone: they carry meaning and read fine on paper. */
   .report-page {
-    position: absolute;
-    left: 0;
-    top: 0;
+    --s-0: #ffffff;
+    --s-1: #fafafa;
+    --s-2: #f1f2f4;
+    --s-3: #e9ebee;
+    --s-4: #e2e5e9;
+    --s-5: #d8dce2;
+    --line: #dcdfe4;
+    --line-strong: #b9bec7;
+    --t-1: #14181f;
+    --t-2: #3a4250;
+    --t-3: #5a6472;
+    --t-4: #7b8593;
+    --a: #2f5bb0;
+
     max-width: none;
     padding: 0;
     overflow: visible;
@@ -3226,18 +3273,25 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .report-page .rep-title,
-  .report-page .rep-tile-val,
-  .report-page .rep-dyn-cell b { color: #111; }
-  .rep-tile, .rep-dyn { background: #fafafa; box-shadow: inset 0 0 0 1px #ddd; }
   /* The org header prints as plain text; if left blank, it is dropped. */
   .rep-org { border: none; color: #111; }
   .rep-org:placeholder-shown { display: none; }
+
+  /* Pagination: never strand a heading at the foot of a page, never split a
+     table row or a block a reader takes in as one unit. The findings table
+     itself must stay splittable — it is longer than a page by design. */
   .rep-h2 { break-after: avoid; }
-  .rep-table, .rep-tiles, .rep-dyn, .rep-bars, .rep-trend { break-inside: avoid; }
+  .rep-tiles, .rep-dyn, .rep-bars, .rep-trend { break-inside: avoid; }
   .rep-table tr { break-inside: avoid; }
-  .rep-trend { background: #fafafa; box-shadow: inset 0 0 0 1px #ddd; border: none; }
-  .rep-trend-total, circle.rep-trend-total { stroke: #555; fill: #555; }
+  .rep-table thead { display: table-header-group; } /* repeat header per page */
+
+  /* The "total" series in a neutral ink tone. Stroke and fill are set on
+     separate selectors on purpose: `fill` on the polyline overrides its
+     fill="none" attribute (CSS beats presentation attributes) and floods the
+     area under the line with solid grey — only the end dot may be filled. */
+  .rep-trend-total { stroke: #555; }
+  circle.rep-trend-total { fill: #555; stroke: none; }
+  .rep-trend-area { fill: #9aa3b0; opacity: 0.16; }
 }
 
 /* ==================================================================== help */
