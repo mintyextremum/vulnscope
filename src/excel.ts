@@ -2,6 +2,7 @@ import type { ScanReport, Finding, Severity, Staff1c } from "./types";
 import type { TFn } from "./i18n";
 import type { SecurityScore } from "./score";
 import { resolveResponsible, responsibleBreakdown } from "./responsible.ts";
+import { formatStamp } from "./datetime.ts";
 
 /**
  * Excel export — a real multi-sheet workbook, not CSV.
@@ -87,7 +88,7 @@ export function toExcel(
   const kv = (k: string, v: string | number) => row([cell(k, "key"), cell(v)]);
   summary.push(row([th(t("Показатель")), th(t("Значение"))]));
   summary.push(kv(t("Проект"), report.targetLabel));
-  summary.push(kv(t("Дата"), report.finishedAt || report.startedAt));
+  summary.push(kv(t("Дата"), formatStamp(report.finishedAt || report.startedAt)));
   if (score) {
     summary.push(kv(t("Оценка защищённости"), Math.round(score.score)));
     summary.push(kv(t("Класс"), score.grade));

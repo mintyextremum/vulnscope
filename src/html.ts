@@ -2,6 +2,7 @@ import type { ScanReport, Severity, Finding, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
 import { responsibleBreakdown } from "./responsible.ts";
+import { formatStamp } from "./datetime.ts";
 
 /**
  * Self-contained HTML export.
@@ -203,7 +204,7 @@ export function toHtml(report: ScanReport, t: TFn, note?: string, staff: Staff1c
   ${authorSection}
   ${sections}
   ${suppressedSection}
-  <footer>${esc(t("Сгенерировано VulnScope"))} · ${esc(report.finishedAt)}</footer>
+  <footer>${esc(t("Сгенерировано VulnScope"))} · ${esc(formatStamp(report.finishedAt))}</footer>
 </main>
 </html>
 `;
