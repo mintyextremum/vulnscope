@@ -294,6 +294,11 @@ export default function App() {
    * stays a launcher and not an archive.
    */
   const rememberTarget = (scanTarget: string, isRepo: boolean, r: ScanReport) => {
+    // A cancelled scan is not a result: most of the files were never read, so
+    // "0 findings" next to the project name would read as "clean" — the exact
+    // false reassurance the results screen refuses to give. Nothing is recorded,
+    // and any earlier honest entry for this target survives untouched.
+    if (r.cancelled) return;
     const score = computeScore(r);
     const entry: RecentTarget = {
       mode: isRepo ? "repo" : "local",
