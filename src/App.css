@@ -398,7 +398,7 @@ kbd,
   font-weight: var(--fw-bold);
 }
 .recent-grade.tone-ok { background: var(--ok-bg); color: var(--ok-hi); }
-.recent-grade.tone-med { background: var(--med-bg); color: var(--med-hi); }
+.recent-grade.tone-med { background: var(--med-bg); color: var(--med); }
 .recent-grade.tone-high { background: var(--high-bg); color: var(--high-hi); }
 .recent-grade.tone-crit { background: var(--crit-bg); color: var(--crit-hi); }
 
@@ -431,7 +431,7 @@ kbd,
   gap: var(--sp-2);
   border: 2px dashed var(--a);
   border-radius: var(--r-3);
-  background: color-mix(in srgb, var(--a) 10%, var(--bg));
+  background: color-mix(in srgb, var(--a) 10%, var(--s-1));
   backdrop-filter: blur(2px);
   pointer-events: none;
 }
@@ -3073,7 +3073,7 @@ kbd,
   margin-bottom: var(--sp-2);
   outline: none;
 }
-.rep-org::placeholder { color: var(--t-4); font-weight: var(--fw-reg); }
+.rep-org::placeholder { color: var(--t-4); font-weight: var(--fw-normal); }
 
 .rep-title { font-size: 26px; font-weight: var(--fw-bold); color: var(--t-1); margin: var(--sp-1) 0; }
 .rep-sub { font-size: var(--fs-sm); color: var(--t-3); }
@@ -3377,7 +3377,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 .attack-paths .ap-sub {
   margin-left: var(--sp-2);
   font-size: var(--fs-xs);
-  font-weight: var(--fw-reg);
+  font-weight: var(--fw-normal);
   color: var(--t-4);
   text-transform: none;
   letter-spacing: 0;

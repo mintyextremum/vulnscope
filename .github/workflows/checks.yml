@@ -46,6 +46,9 @@ jobs:
       # Excel/LibreOffice silently refuse a malformed SpreadsheetML workbook.
       - name: Excel export shape
         run: npm run audit:excel
+      # A misspelled design token drops the whole declaration without a word.
+      - name: CSS token references
+        run: npm run audit:cssvars
       # `tsc --noEmit` says the types hold; it says nothing about whether the
       # bundle builds. Rollup's tree-shaking, env inlining and asset handling
       # only happen here.
