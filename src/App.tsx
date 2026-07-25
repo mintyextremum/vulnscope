@@ -518,18 +518,15 @@ export default function App() {
    * other pill at zero — the pills are how you pick.
    */
   /**
-   * The narrowing that is neither a severity pick nor one of the "only X"
-   * toggles: search, author, and the suppressed rule. Split out so a toggle's
-   * own chip can count what clicking it would yield without counting itself.
+   * Search and author narrowing — the part that says nothing about whether a
+   * finding is suppressed. Kept separate so the suppressed chip can count the
+   * silenced findings *in this view* without its own rule hiding them first.
    */
-  const matchesBase = useCallback(
+  const matchesSearch = useCallback(
     (f: Finding) => {
       // Author narrowing keys on the raw git-blame author (what the detail chip
       // shows); findings without blame drop out while an author is selected.
       if (authorFilter && f.extra?.blame?.author !== authorFilter) return false;
-      // Suppressed findings stay reachable but out of the way: the default list
-      // answers "what needs attention", and the user already decided these do not.
-      if (!showSuppressed && f.suppressed) return false;
       const q = findingQuery.trim().toLowerCase();
       if (q) {
         // Search what the row shows. CWE and the category are printed on every
@@ -554,7 +551,17 @@ export default function App() {
     },
     // `lang` rather than `t`: t is rebuilt every render, which would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [showSuppressed, findingQuery, authorFilter, lang]
+    [findingQuery, authorFilter, lang]
+  );
+
+  /**
+   * Search/author plus the suppressed rule: silenced findings stay reachable but
+   * out of the way, because the default list answers "what needs attention" and
+   * the user already decided these do not.
+   */
+  const matchesBase = useCallback(
+    (f: Finding) => (showSuppressed || !f.suppressed) && matchesSearch(f),
+    [showSuppressed, matchesSearch]
   );
 
   const matchesNonSeverity = useCallback(
@@ -604,19 +611,24 @@ export default function App() {
    * its own toggle, so it answers exactly "how many would clicking this leave".
    */
   const chipCounts = useMemo(() => {
-    if (!report) return { newCount: 0, reachableCount: 0 };
+    if (!report) return { newCount: 0, reachableCount: 0, suppressedCount: 0 };
     let newCount = 0;
     let reachableCount = 0;
+    let suppressedCount = 0;
     for (const f of report.findings) {
       if ((tab === "beta") !== !!f.extra?.experimental) continue;
       if (selectedFile && (tab === "findings" || tab === "beta") && f.file !== selectedFile) continue;
       if (sevFilter.size > 0 && !sevFilter.has(f.severity)) continue;
+      // Suppressed is counted before the visibility rule can hide it — that chip
+      // is the way back to them.
+      if (!matchesSearch(f)) continue;
+      if (f.suppressed) suppressedCount++;
       if (!matchesBase(f)) continue;
       if (f.isNew && (!onlyReachable || f.extra?.onDataPath)) newCount++;
       if (f.extra?.onDataPath && (!onlyNew || f.isNew)) reachableCount++;
     }
-    return { newCount, reachableCount };
-  }, [report, tab, selectedFile, sevFilter, matchesBase, onlyNew, onlyReachable]);
+    return { newCount, reachableCount, suppressedCount };
+  }, [report, tab, selectedFile, sevFilter, matchesSearch, matchesBase, onlyNew, onlyReachable]);
 
   /** True while anything is narrowing the list, so counts can say "N из M". */
   const anyFilterActive =
@@ -803,7 +815,7 @@ export default function App() {
         : 0,
       newCount: chipCounts.newCount,
       reachableCount: chipCounts.reachableCount,
-      suppressedCount: report?.suppressedCount ?? 0,
+      suppressedCount: chipCounts.suppressedCount,
       query: findingQuery,
       setQuery: setFindingQuery,
       onlyNew,
