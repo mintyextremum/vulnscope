@@ -775,8 +775,19 @@ function hljsLang(path: string): string {
  * Above this, syntax highlighting costs more than it is worth: highlight.js walks
  * the whole file on the main thread, and a 200k-line bundle in node_modules would
  * block the window for seconds to colourise code nobody reads line by line.
+ *
+ * The number is `maxHighlightLines` from settings. It used to be a constant here
+ * holding exactly the value the setting claimed to control, so the field in the
+ * settings screen moved and nothing happened. App publishes it as a root data
+ * attribute; `highlightLines` is a plain function called from two places, and
+ * threading a prop through both call sites would put the same lie one level up.
  */
-const MAX_HIGHLIGHT_LINES = 6000;
+const HIGHLIGHT_FALLBACK = 6000;
+
+function maxHighlightLines(): number {
+  const raw = Number(document.documentElement.dataset.maxHighlight);
+  return Number.isFinite(raw) && raw >= 0 ? raw : HIGHLIGHT_FALLBACK;
+}
 
 /**
  * Highlights a whole block, then splits into lines. Splitting first would break
@@ -784,7 +795,9 @@ const MAX_HIGHLIGHT_LINES = 6000;
  */
 function highlightLines(code: string, language: string): string[] {
   const plain = code.split("\n");
-  if (plain.length > MAX_HIGHLIGHT_LINES) {
+  // 0 means "never highlight", which the setting offers as its lower bound.
+  const limit = maxHighlightLines();
+  if (limit === 0 || plain.length > limit) {
     return plain.map(escapeHtml);
   }
 

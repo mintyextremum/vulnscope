@@ -15,7 +15,8 @@
     "audit:xml1c": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/xml1c-audit.mjs",
     "audit:excel": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/excel-audit.mjs",
     "audit:cssvars": "node scripts/cssvars-audit.mjs",
-    "check": "npx tsc --noEmit && npm run audit:contrast && npm run audit:i18n && npm run audit:sarif && npm run audit:score && npm run audit:xml1c && npm run audit:excel && npm run audit:cssvars && npm run build",
+    "audit:settings": "node scripts/settings-audit.mjs",
+    "check": "npx tsc --noEmit && npm run audit:contrast && npm run audit:i18n && npm run audit:sarif && npm run audit:score && npm run audit:xml1c && npm run audit:excel && npm run audit:cssvars && npm run audit:settings && npm run build",
     "check:rust": "cd src-tauri && cargo test --lib && cargo clippy --lib -- -D warnings",
     "check:all": "npm run check && npm run check:rust"
   },

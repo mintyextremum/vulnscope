@@ -92,6 +92,9 @@ export default function App() {
   const [tools, setTools] = useState<ToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Placeholders until settings arrive; the real values come from
+  // `default*` below, once.
+  const defaultsApplied = useRef(false);
   const [respectGitignore, setRespectGitignore] = useState(true);
   const [includeVendor, setIncludeVendor] = useState(false);
   const [checkSecrets, setCheckSecrets] = useState(true);
@@ -180,7 +183,22 @@ export default function App() {
         }
       })
       .catch(() => {});
-    invoke<AppSettings>("get_settings").then(setSettings).catch(() => {});
+    invoke<AppSettings>("get_settings")
+      .then((cfg) => {
+        setSettings(cfg);
+        // The four "Что включено по умолчанию" switches only mean something if
+        // the scan form starts from them. It was hardcoded `useState(true)`, so
+        // they saved, drew, and changed nothing. Applied once, on first load:
+        // afterwards the form belongs to the user for the rest of the session.
+        if (!defaultsApplied.current) {
+          defaultsApplied.current = true;
+          setRespectGitignore(cfg.defaultRespectGitignore);
+          setIncludeVendor(cfg.defaultIncludeVendor);
+          setCheckSecrets(cfg.defaultCheckSecrets);
+          setCheckDependencies(cfg.defaultCheckDependencies);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -234,6 +252,7 @@ export default function App() {
     // as text drifting out of its row further down the file.
     root.style.setProperty("--code-row-h", `${Math.round(codeSize * 1.65)}px`);
     root.dataset.wrapCode = settings.wrapCodeLines ? "1" : "0";
+    root.dataset.maxHighlight = String(settings.maxHighlightLines ?? 6000);
 
     setFormatLang(settings.language === "en" ? "en" : "ru");
   }, [settings]);
