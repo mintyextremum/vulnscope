@@ -277,7 +277,7 @@ async fn probe_version(tool: Tool) -> Option<String> {
         Some(path) => {
             tokio::time::timeout(
                 Duration::from_secs(10),
-                tokio::process::Command::new(path)
+                crate::proc::command(path)
                     .args(tool.version_args())
                     .stdin(Stdio::null())
                     .output(),
@@ -1801,7 +1801,7 @@ async fn run_tool(
         return Err(format!("{program} не найден в PATH"));
     };
 
-    let mut cmd = tokio::process::Command::new(&exe);
+    let mut cmd = crate::proc::command(&exe);
     cmd.args(args)
         .current_dir(cwd)
         .stdin(Stdio::null())

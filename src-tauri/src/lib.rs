@@ -6,6 +6,7 @@ mod git;
 mod model;
 mod osv;
 mod pkgmgr;
+mod proc;
 mod rules;
 mod scanner;
 mod secrets;
@@ -427,7 +428,7 @@ fn open_in_editor(path: String, line: u32) -> Result<(), String> {
     };
     let resolved = pkgmgr::resolve_program(program)
         .ok_or_else(|| format!("Редактор не найден: {program}"))?;
-    std::process::Command::new(resolved)
+    proc::std_command(resolved)
         .args(&argv[1..])
         .spawn()
         .map_err(|e| format!("Не удалось запустить редактор: {e}"))?;
