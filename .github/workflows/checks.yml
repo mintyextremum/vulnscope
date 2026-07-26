@@ -49,6 +49,10 @@ jobs:
       # A misspelled design token drops the whole declaration without a word.
       - name: CSS token references
         run: npm run audit:cssvars
+      # A setting nobody reads still saves, still draws a switch, still animates.
+      # Nine of them shipped that way before this check existed.
+      - name: Settings are wired up
+        run: npm run audit:settings
       # `tsc --noEmit` says the types hold; it says nothing about whether the
       # bundle builds. Rollup's tree-shaking, env inlining and asset handling
       # only happen here.
