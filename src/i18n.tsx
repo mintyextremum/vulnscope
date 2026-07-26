@@ -341,8 +341,8 @@ export const EN: Record<string, string> = {
     "Keys, tokens and passwords in source. The secret's value never reaches the report — only the fact and the location.",
   "Манифесты сверяются с базой OSV.dev (с кэшем). Показывает уязвимые пакеты и версию, где исправлено.":
     "Manifests are checked against OSV.dev (cached). Shows vulnerable packages and the version that fixes them.",
-  "Semgrep, Bandit, Trivy, gitleaks и другие подключаются по желанию; их находки объединяются с встроенными без дублей.":
-    "Semgrep, Bandit, Trivy, gitleaks and others plug in optionally; their findings merge with the built-in ones without duplicates.",
+  "Semgrep, Bandit, Trivy, gitleaks и другие подключаются по желанию; их находки объединяются с встроенными без дублей. Это отдельные консольные программы, поэтому VulnScope запускает их без окна — иначе при старте по экрану пробегала бы дюжина чёрных прямоугольников. Список того, что реально отработало, всегда виден в отчёте.":
+    "Semgrep, Bandit, Trivy, gitleaks and others are optional; their findings are merged with the built-in ones without duplicates. They are separate console programs, so VulnScope launches them without a window — otherwise a dozen black rectangles would race across the screen at startup. What actually ran is always listed in the report.",
   "Эвристики (BETA)": "Heuristics (BETA)",
   "Подозрительные места, которые точные правила не поймали. Живут на отдельной вкладке и не влияют на счётчики и оценку.":
     "Suspicious spots the precise rules missed. They live on their own tab and do not affect the counts or the score.",

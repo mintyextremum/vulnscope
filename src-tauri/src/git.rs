@@ -53,7 +53,7 @@ pub fn parse_repo_url(input: &str) -> Result<RepoRef> {
 }
 
 pub fn git_available() -> bool {
-    std::process::Command::new("git")
+    crate::proc::std_command("git")
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -88,7 +88,7 @@ pub async fn shallow_clone(repo: &RepoRef) -> Result<PathBuf> {
     }
 
     let url = repo.clone_url();
-    let output = tokio::process::Command::new("git")
+    let output = crate::proc::command("git")
         .args([
             "clone",
             "--depth",

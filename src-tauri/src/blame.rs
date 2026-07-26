@@ -2,7 +2,8 @@ use crate::model::{BlameInfo, Finding};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use crate::proc::std_command;
+use std::process::Stdio;
 
 /// Annotates findings with `git blame` attribution: who last touched each
 /// offending line, in which commit, and when. This is what turns a finding into
@@ -85,7 +86,7 @@ fn normalize_path(p: &str) -> String {
 /// same shape as a finding's path. `None` when the listing fails, which makes
 /// the caller fall back to attempting every file rather than attributing none.
 fn tracked_files(root: &Path) -> Option<HashSet<String>> {
-    let out = Command::new("git")
+    let out = std_command("git")
         .arg("-C")
         .arg(root)
         // NUL-separated: a path may legally contain anything but NUL, and
@@ -109,7 +110,7 @@ fn tracked_files(root: &Path) -> Option<HashSet<String>> {
 /// True only for a non-shallow work tree — the two conditions under which blame
 /// output can be trusted.
 fn repo_supports_blame(root: &Path) -> bool {
-    let Ok(out) = Command::new("git")
+    let Ok(out) = std_command("git")
         .arg("-C")
         .arg(root)
         .args(["rev-parse", "--is-inside-work-tree", "--is-shallow-repository"])
@@ -129,7 +130,7 @@ fn repo_supports_blame(root: &Path) -> bool {
 /// Blames just the finding lines of one file (`-L n,n` per line, one process
 /// per file) and returns line → attribution.
 fn blame_file(root: &Path, file: &str, lines: &[u32]) -> Option<HashMap<u32, BlameInfo>> {
-    let mut cmd = Command::new("git");
+    let mut cmd = std_command("git");
     cmd.arg("-C").arg(root).args(["blame", "--line-porcelain"]);
     for l in lines {
         cmd.arg("-L").arg(format!("{l},{l}"));

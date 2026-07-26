@@ -171,7 +171,7 @@ async fn detect_one(m: PkgMgr) -> PkgMgrStatus {
 
     let result = tokio::time::timeout(
         Duration::from_secs(8),
-        tokio::process::Command::new(&exe)
+        crate::proc::command(&exe)
             .args(args)
             .stdin(Stdio::null())
             .output(),
@@ -245,7 +245,7 @@ pub async fn install(program: &str, args: &[String]) -> InstallResult {
     let result = tokio::time::timeout(
         // Compiling a Rust tool from source genuinely takes minutes.
         Duration::from_secs(900),
-        tokio::process::Command::new(&exe)
+        crate::proc::command(&exe)
             .args(args)
             .stdin(Stdio::null())
             .output(),
