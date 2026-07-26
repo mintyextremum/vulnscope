@@ -330,8 +330,8 @@ export const EN: Record<string, string> = {
   // Help screen (reference)
   "Справка": "Help",
   "Что это": "What it is",
-  "VulnScope — локальный сканер безопасности кода. Он ничего не отправляет наружу (кроме запросов к базе CVE, и то по желанию): весь анализ идёт на вашей машине. Укажите папку или ссылку на GitHub-репозиторий — и получите размеченный отчёт.":
-    "VulnScope is a local code-security scanner. It sends nothing out (except CVE-database queries, and only if you want them): all analysis runs on your machine. Point it at a folder or a GitHub URL and get an annotated report.",
+  "VulnScope — локальный сканер безопасности кода: весь анализ идёт на вашей машине, исходники никуда не уходят. Наружу отправляется только то, без чего нельзя обойтись, и это перечислимо: имена и версии пакетов — в базу CVE, наборы правил и базы уязвимостей — во внешние сканеры, которые их скачивают. Метрики и проверка найденных секретов у провайдеров отключены принудительно. Офлайн-режим в настройках убирает и это. Укажите папку или ссылку на GitHub-репозиторий — и получите размеченный отчёт.":
+    "VulnScope is a local code security scanner: all analysis runs on your machine and your sources never leave it. What does go out is only what cannot be avoided, and it is enumerable: package names and versions to the CVE database, and rule sets and vulnerability databases pulled in by the external scanners. Telemetry and provider-side verification of discovered secrets are forced off. Offline mode in the settings removes even this. Point it at a folder or a GitHub URL and get an annotated report.",
   "Движки поиска": "Detection engines",
   "Больше 270 паттернов на 38 языках плюс детекторы секретов. Каждая находка размечена CWE, OWASP и уровнем важности.":
     "Over 270 patterns across 38 languages plus secret detectors. Every finding is tagged with CWE, OWASP and a severity.",

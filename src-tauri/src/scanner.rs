@@ -1175,6 +1175,7 @@ pub async fn run_scan(
             },
             &cancel,
             cfg.external_timeout_secs,
+            cfg.offline,
         )
         .await;
         findings.append(&mut ext.findings);
