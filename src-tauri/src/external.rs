@@ -236,6 +236,31 @@ impl Tool {
                 | Tool::Grype
         )
     }
+
+    /// True when the tool reaches the network to do its job.
+    ///
+    /// Not a guess about what it *might* do: these fetch a rule set or an
+    /// advisory database, or query an API per dependency, and without a warm
+    /// cache they simply fail offline. The locally-complete ones — gitleaks,
+    /// bandit, ruff, gosec, hadolint, trufflehog with verification off — carry
+    /// their detection logic in the binary.
+    pub fn needs_network(self) -> bool {
+        matches!(
+            self,
+            // Rule set from the semgrep registry (cached under ~/.semgrep).
+            Tool::Semgrep
+                // Vulnerability databases, downloaded and refreshed.
+                | Tool::Trivy
+                | Tool::Grype
+                // The RustSec advisory repository.
+                | Tool::CargoAudit
+                // One API query per dependency.
+                | Tool::OsvScanner
+                | Tool::NpmAudit
+                // Pulls provider metadata for cloud checks.
+                | Tool::Checkov
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1856,6 +1881,7 @@ pub async fn run_available(
     manifests: &Manifests<'_>,
     cancel: &AtomicBool,
     timeout_secs: u32,
+    offline: bool,
 ) -> ExternalResult {
     let Manifests {
         cargo_lockfiles,
@@ -1869,8 +1895,28 @@ pub async fn run_available(
     // takes minutes, and killing the batch would lose the tools that finished.
     let timeout = Duration::from_secs(u64::from(timeout_secs));
 
+    // Offline covers the external tools too, not only OSV. Skipping is stated
+    // once, by name: a scanner that quietly ran fewer engines than the user
+    // enabled is how a clean report stops meaning anything.
+    if offline {
+        let skipped: Vec<&str> = statuses
+            .iter()
+            .filter(|s| s.available && enabled.contains(&s.tool) && s.tool.needs_network())
+            .map(|s| s.label.as_str())
+            .collect();
+        if !skipped.is_empty() {
+            warnings.push(format!(
+                "Офлайн-режим: не запускались сканеры, которым нужна сеть — {}.",
+                skipped.join(", ")
+            ));
+        }
+    }
+
     for status in statuses {
         if !status.available || !enabled.contains(&status.tool) {
+            continue;
+        }
+        if offline && status.tool.needs_network() {
             continue;
         }
         // Between tools as well as inside them: one scanner may have finished
@@ -1880,9 +1926,25 @@ pub async fn run_available(
         }
 
         let outcome = match status.tool {
+            // `--config=auto` was the obvious choice and the wrong one: semgrep
+            // refuses it with metrics off ("Cannot create auto config when
+            // metrics are off"), so using it *mandates* sending the run's
+            // telemetry — rule ids, counts, repository identity — to
+            // semgrep.dev. That is a list of what is vulnerable in the user's
+            // project, from an app whose home screen promises local analysis.
+            // `p/default` needs no telemetry and found exactly the same issues
+            // on this repo (4 vs 4).
             Tool::Semgrep => run_tool(
                 "semgrep",
-                &["scan", "--config=auto", "--json", "--quiet", "--no-git-ignore", "."],
+                &[
+                    "scan",
+                    "--config=p/default",
+                    "--metrics=off",
+                    "--json",
+                    "--quiet",
+                    "--no-git-ignore",
+                    ".",
+                ],
                 root,
                 timeout,
                 cancel,
@@ -1976,9 +2038,14 @@ pub async fn run_available(
             .await
             .map(|o| parse_trivy(&o, root)),
 
+            // `--no-verification` is not a tuning knob here. TruffleHog
+            // verifies by default, and verifying means sending each credential
+            // it finds to the provider it belongs to, to ask whether it still
+            // works. A local scanner must not post the user's secrets to third
+            // parties to produce a nicer badge.
             Tool::Trufflehog => run_tool(
                 "trufflehog",
-                &["filesystem", ".", "--json", "--no-update"],
+                &["filesystem", ".", "--json", "--no-update", "--no-verification"],
                 root,
                 timeout,
                 cancel,
@@ -2060,6 +2127,54 @@ mod tests {
 
     fn root() -> &'static Path {
         Path::new("/proj")
+    }
+
+    /// The two flags that decide whether a "local" scan stays local.
+    ///
+    /// Both defaults are the dangerous ones, and both are a single word in an
+    /// argument list — exactly the kind of thing that gets dropped in a refactor
+    /// and noticed by nobody, because the scan still works and the report still
+    /// looks right. What changes is where the user's data went.
+    #[test]
+    fn nothing_is_sent_to_a_third_party_by_default() {
+        // Only the code that runs: the comments below explain `--config=auto`
+        // by name, and this test quotes it too. Searching the whole file would
+        // make the test fail on its own explanation.
+        let full = include_str!("external.rs");
+        let src: String = full
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap_or("")
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // semgrep: `--config=auto` cannot run with metrics off — choosing it
+        // means choosing to send telemetry about the findings.
+        assert!(
+            !src.contains("--config=auto"),
+            "semgrep с --config=auto обязан слать метрики в semgrep.dev"
+        );
+        assert!(src.contains("--metrics=off"), "у semgrep должно стоять --metrics=off");
+
+        // trufflehog: verification posts every discovered credential to the
+        // provider it belongs to.
+        assert!(
+            src.contains("--no-verification"),
+            "trufflehog без --no-verification отправляет найденные секреты провайдерам"
+        );
+    }
+
+    #[test]
+    fn offline_covers_the_tools_that_reach_the_network() {
+        for t in [Tool::Semgrep, Tool::Trivy, Tool::Grype, Tool::CargoAudit, Tool::OsvScanner] {
+            assert!(t.needs_network(), "{t:?} тянет правила или базу из сети");
+        }
+        // Locally complete: their detection logic ships in the binary.
+        for t in [Tool::Gitleaks, Tool::Bandit, Tool::Ruff, Tool::Gosec, Tool::Trufflehog] {
+            assert!(!t.needs_network(), "{t:?} работает без сети");
+        }
     }
 
     #[test]
