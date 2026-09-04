@@ -1,0 +1,82 @@
+name: release
+
+# Tag-driven: pushing v1.2.3 builds the installers and publishes the release.
+# Nothing here runs on a normal push — a release is a deliberate act.
+on:
+  push:
+    tags:
+      - "v*"
+  # Lets a release be rebuilt from the UI without moving the tag, which is the
+  # thing you actually want when a publish step fails after a good build.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build (e.g. v1.0.0)"
+        required: true
+        type: string
+
+# Writing releases is the whole point, so this job needs more than checks.yml.
+# It is still the minimum: no packages, no pages, no id-token.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Windows is what VulnScope ships on. macOS and Linux are deliberately not
+    # built here: the code compiles cross-platform, but it has only ever been
+    # tested on Windows, and shipping untested binaries is worse than shipping
+    # none. Adding a platform means adding it to the test matrix first.
+    runs-on: windows-latest
+
+    steps:
+      # Third-party actions pinned to a commit, not a tag: a tag can be moved
+      # under us, which is exactly what VS-CI-002 reports in other pipelines.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      # A release must not be able to ship what CI would have rejected. The tag
+      # can point anywhere, including a commit that never passed checks.yml, so
+      # the gate is repeated here rather than assumed.
+      - name: Verify before building
+        run: npm run check:all
+
+      # Builds the frontend, compiles the Rust core, produces the NSIS and MSI
+      # bundles, and creates the GitHub release with them attached.
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: VulnScope ${{ inputs.tag || github.ref_name }}
+          releaseBody: |
+            See [CHANGELOG.md](https://github.com/mintyextremum/vulnscope/blob/main/CHANGELOG.md) for what changed.
+
+            **Install:** download `VulnScope_*_x64-setup.exe` below and run it.
+            Windows 10/11, 64-bit.
+
+            These builds are not code-signed, so SmartScreen will warn on first
+            run — choose **More info → Run anyway**, or build from source.
+          # Published as a draft on purpose: it gives a human the chance to read
+          # the notes and check the installers before anyone can download them.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: false
