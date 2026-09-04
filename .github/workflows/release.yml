@@ -79,4 +79,3 @@ jobs:
           # the notes and check the installers before anyone can download them.
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: false
