@@ -1,0 +1,10 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability in VulnScope
+    url: https://github.com/mintyextremum/vulnscope/security/advisories/new
+    about: >
+      Report privately, not as a public issue. See SECURITY.md for what is in
+      scope.
+  - name: Question or idea
+    url: https://github.com/mintyextremum/vulnscope/discussions
+    about: For anything that is not a bug report or a feature request.
