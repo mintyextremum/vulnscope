@@ -1,8 +1,31 @@
 {
   "name": "vulnscope",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "Desktop security scanner: 274 static-analysis rules, taint tracking, secret detection and CVE lookup, running fully on your machine.",
+  "license": "Apache-2.0",
+  "author": "MintyExtremum",
+  "homepage": "https://github.com/mintyextremum/vulnscope",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mintyextremum/vulnscope.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mintyextremum/vulnscope/issues"
+  },
+  "keywords": [
+    "security",
+    "sast",
+    "static-analysis",
+    "vulnerability-scanner",
+    "secret-detection",
+    "taint-analysis",
+    "cve",
+    "sarif",
+    "tauri",
+    "rust"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
