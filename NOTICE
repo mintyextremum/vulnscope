@@ -1,0 +1,27 @@
+VulnScope
+Copyright 2026 MintyExtremum
+
+This product includes software developed by MintyExtremum
+(https://github.com/mintyextremum/vulnscope).
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file
+for the full terms.
+
+--------------------------------------------------------------------
+
+VulnScope bundles no third-party source in this repository. It builds
+against dependencies declared in package.json and src-tauri/Cargo.toml,
+each governed by its own license. Notable components:
+
+  - Tauri 2 (Apache-2.0 OR MIT) — https://tauri.app
+  - React (MIT) — https://react.dev
+  - highlight.js (BSD-3-Clause) — https://highlightjs.org
+  - Material Symbols (Apache-2.0) — https://fonts.google.com/icons
+  - regex, rayon, serde, tokio, reqwest (Apache-2.0 OR MIT)
+
+VulnScope queries the OSV.dev vulnerability database at run time when the
+CVE check is enabled. OSV data is licensed CC-BY-4.0 by its publishers.
+
+External scanners (Semgrep, Bandit, Gitleaks, Trivy and others) are never
+bundled, downloaded, or installed by VulnScope. If present on the machine,
+they run under their own licenses.

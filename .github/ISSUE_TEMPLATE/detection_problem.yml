@@ -1,0 +1,57 @@
+name: Detection problem
+description: A false positive, or a vulnerability VulnScope missed
+labels: ["detection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are the most useful reports the project gets: a code sample here
+        usually becomes a regression test, so the same mistake cannot come back.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which is it
+      options:
+        - False positive — it reported something that is fine
+        - Missed detection — it should have reported something
+        - Wrong severity, CWE, or recommendation
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Code sample
+      description: >
+        The smallest snippet that shows the problem. Please make sure it contains
+        no real secrets — a placeholder value is fine, the entropy check is not
+        the point here.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      placeholder: "Python"
+    validations:
+      required: true
+
+  - type: input
+    id: rule
+    attributes:
+      label: Rule id, if you know it
+      description: Shown on the finding card, e.g. VS-PY-003.
+      placeholder: "VS-PY-003"
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+      description: >
+        For a false positive, say why the code is safe — a guard VulnScope did
+        not recognise is the usual cause, and naming it is the fix.
+    validations:
+      required: true

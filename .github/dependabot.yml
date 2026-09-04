@@ -1,0 +1,32 @@
+version: 2
+
+# A scanner that reports outdated dependencies in other people's projects should
+# not quietly rot itself. CI already fails on advisories (npm audit / cargo
+# audit); this is the other half — staying current before an advisory lands.
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the routine bumps. Majors stay separate, because those are
+      # the ones that need a human to look at the changelog.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: cargo
+    directory: "/src-tauri"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # The workflows pin actions to commit SHAs, which is safe but invisible to a
+  # human — nobody reads a SHA and notices it is a year old. Dependabot does.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

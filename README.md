@@ -1,473 +1,506 @@
+<div align="center">
+
 # VulnScope
 
+**A desktop security scanner that runs entirely on your machine.**
+
+274 static-analysis rules, a deterministic data-flow engine, 55 secret detectors,
+and CVE lookup — for local projects and public repositories.
+
 [![checks](https://github.com/mintyextremum/vulnscope/actions/workflows/checks.yml/badge.svg)](https://github.com/mintyextremum/vulnscope/actions/workflows/checks.yml)
+[![release](https://img.shields.io/github/v/release/mintyextremum/vulnscope?color=5b8def)](https://github.com/mintyextremum/vulnscope/releases/latest)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![platform](https://img.shields.io/badge/platform-Windows-lightgrey)](https://github.com/mintyextremum/vulnscope/releases/latest)
 
-*[English version](README.en.md)*
+*[Русская версия](README.ru.md)*
 
-Десктопное приложение для аудита безопасности кода. Анализирует локальные проекты
-и публичные репозитории на Rust, Python, JavaScript/TypeScript, React и не только:
-находит опасные конструкции, секреты в исходниках и известные CVE в зависимостях.
+<img src="docs/images/01-dashboard.png" alt="VulnScope dashboard: security score, riskiest files, and scan statistics" width="900">
 
-Весь анализ выполняется на вашем компьютере. Наружу уходит только один запрос —
-в базу [OSV.dev](https://osv.dev) со списком имён и версий пакетов (не код), и то
-лишь если включена проверка CVE.
+</div>
 
-## Что оно находит
+---
 
-**Код — 274 встроенных правила** для 38 языков. Инъекции команд, SQL, NoSQL, LDAP,
-XPath, JNDI и шаблонов (SSTI, SpEL), XSS, загрязнение прототипа, небезопасная
-рефлексия (`Class.forName`, `constantize`), path traversal, открытые редиректы,
-небезопасная десериализация (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`, XStream,
-Jackson default typing, Json.NET `TypeNameHandling`, `binary_to_term`), XXE,
-выполнение кода через ScriptEngine/Groovy, отключённая проверка TLS и ключей SSH,
-слабая криптография (ECB, зашитый ключ, нулевой IV), сравнение секретов не за
-постоянное время, mass assignment, path traversal и Zip Slip, обход проверки JWT,
-зашитый `SECRET_KEY`, `xp_cmdshell` и файловые операции в SQL, проблемы `unsafe` в
-Rust, ошибки конфигурации в Dockerfile, GitHub Actions, Terraform, nginx и
-Kubernetes (привилегии, хостовые пространства имён, опасные capabilities). Каждая
-находка размечена CWE и категорией OWASP Top 10 и сопровождается рекомендацией.
+## What this is
 
-**Анализ потока данных (флагман).** Собственный детерминированный движок, который
-не просто ищет опасный вызов на строке, а отвечает на главный вопрос: *доходят ли
-до него пользовательские данные?* Он прослеживает ввод (запрос, argv, stdin) через
-присваивания переменных до опасного приёмника — команд ОС, SQL, файловых операций,
-исходящих запросов, eval — и показывает **весь путь «источник → переменная →
-приёмник»**, где каждый шаг открывается в коде. Если по пути стоит экранирование,
-параметризация или белый список, поток считается разорванным и находка не выдаётся.
-Это ловит многострочные уязвимости, которых не видят построчные правила, и каждая
-находка самопроверяема — виден точный маршрут, без ИИ и «чёрных ящиков».
+Point VulnScope at a folder or a GitHub URL and it gives you an annotated report:
+dangerous constructs in the code, secrets committed to the source, and known CVEs
+in the dependencies — each with a CWE, an OWASP Top 10 category, a confidence
+level, and a concrete fix.
 
-**Индикаторы компрометации.** Отдельная категория ловит не «рискованные приёмы», а
-то, что оставляет атакующий: PHP-веб-шеллы (`eval($_POST[...])`, вызов функции по
-имени из запроса, упакованные `eval(base64_decode(...))`), реверс-шеллы
-(`/dev/tcp/…`, netcat/mkfifo, `pty.spawn` на сокет), download-cradle PowerShell
-(`IEX (…).DownloadString`) и упакованные пейлоады (`eval(atob(…))`,
-`exec(base64.b64decode(…))`). Всё это помечается как **критическое** с высокой
-достоверностью: обычный код так не делает, а живой веб-шелл в дереве означает, что
-машина уже под контролем.
+**Analysis happens on your computer.** The only request that ever leaves is to
+[OSV.dev](https://osv.dev), carrying a list of package names and versions — never
+your code — and only when the CVE check is enabled. Offline mode removes even
+that. Telemetry and provider-side verification of discovered secrets are forced
+off and cannot be switched on.
 
-| Язык | Правил |
+## Install
+
+Download the latest installer from the
+**[releases page](https://github.com/mintyextremum/vulnscope/releases/latest)**:
+
+| File | What it is |
 |---|---|
-| Python | 39 |
-| JavaScript / TypeScript / React | 36 |
-| Java / Kotlin | 30 |
-| Terraform | 28 |
-| PHP | 17 |
-| Ruby | 14 |
-| C# | 14 |
-| Go | 13 |
-| Kubernetes | 11 |
-| Rust | 10 |
-| Dockerfile | 10 |
-| Swift | 6 |
-| GitHub Actions | 6 |
-| C / C++ | 6 |
-| Nginx | 5 |
-| SQL | 4 |
-| Shell | 4 |
-| PowerShell | 4 |
-| Elixir | 4 |
-| Scala | 3 |
-| Perl | 3 |
-| Ansible | 3 |
-| Lua | 2 |
-| Vue / Svelte | по 1 |
+| `VulnScope_1.0.0_x64-setup.exe` | NSIS installer — the usual choice |
+| `VulnScope_1.0.0_x64_en-US.msi` | MSI package, for deployment via group policy |
 
-Языки определяются по расширению и имени файла — Vue, Svelte, GraphQL, SQL и другие
-распознаются и попадают в статистику, даже если специальных правил для них пока нет.
+Windows 10 or 11, 64-bit. Nothing else to install: WebView2 ships with Windows 11
+and current Windows 10, and VulnScope bundles no runtime of its own.
 
-Полный список с описаниями и рекомендациями открывается в приложении по кнопке
-«Правила» (Ctrl+R).
+Windows will show a SmartScreen warning on first run, because these builds are not
+code-signed — a certificate costs more than this project earns. Choose **More
+info → Run anyway**, or build it yourself from source (see
+[Development](#development)).
 
-**Свои правила.** Кнопка «Свои» (Ctrl+E) открывает редактор: регулярное выражение,
-важность, языки, CWE/OWASP и рекомендация. Есть живой предпросмотр — правило
-проверяется на вашем примере кода до сохранения, с показом того, какие строки
-отсеклись через «не срабатывать, если содержит». Свои правила работают наравне со
-встроенными: так же пропускают комментарии и тестовые файлы. Хранятся в
-`%APPDATA%/vulnscope/rules.json`, есть импорт и экспорт набора.
+> **Building from source is the other supported path.** macOS and Linux are not
+> released today: the code compiles cross-platform, but it has only ever been
+> tested on Windows, so publishing untested binaries would be dishonest.
 
-**Секреты — 55 правил.** Ключи AWS и Azure Storage, токены GitHub, GitLab
-(включая runner и pipeline-trigger), Slack (включая incoming webhook), npm, PyPI,
-Discord, Twilio, Mailgun, Square, Hugging Face, Postman, Databricks, New Relic,
-Notion, Atlassian, Linear, Doppler, PlanetScale, HashiCorp Vault, Grafana, Dropbox,
-Terraform Cloud, Firebase, Adobe, Asana, Mailchimp, SonarQube, Figma, Airtable,
-Docker Hub, RubyGems, Pulumi, ключи Stripe (в т.ч. секрет вебхука), Google,
-SendGrid, токены Shopify и DigitalOcean, Sentry DSN, приватные ключи, строки
-подключения к БД, JWT. Значения проверяются на энтропию,
-поэтому `your-api-key-here` и подобные плейсхолдеры не попадают в отчёт. В
-интерфейс и в экспорт секрет уходит **замаскированным** — сырое значение никогда
-не покидает файл.
+## Contents
 
-**Зависимости — CVE через OSV.dev.** Разбираются `package.json`,
-`package-lock.json`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`,
-`Cargo.lock`. Lock-файл имеет приоритет над манифестом: в нём точные версии.
-Severity считается из CVSS-вектора, ответы кэшируются на 7 дней — повторный скан
-того же проекта работает без сети.
+- [What it finds](#what-it-finds)
+  - [Rules](#code--274-built-in-rules) · [Data-flow analysis](#data-flow-analysis-the-flagship) · [Compromise indicators](#compromise-indicators) · [Secrets](#secrets--55-detectors) · [Dependencies](#dependencies--cves-via-osvdev) · [External scanners](#external-scanners-optional)
+- [What it doesn't analyze](#what-it-doesnt-analyze)
+- [Working through the results](#working-through-the-results)
+  - [Security score](#security-score) · [While the scan runs](#while-the-scan-runs) · [Comparing scans](#comparing-with-the-last-scan) · [Suppressing](#suppressing-findings) · [Accountability](#accountability)
+- [Export](#export)
+- [Interface](#interface) · [Accessibility](#accessibility) · [Language](#language) · [Themes](#themes) · [Settings](#settings)
+- [Development](#development) · [How it works](#how-it-works) · [Accuracy and limits](#accuracy-and-limits)
+- [Contributing](#contributing) · [Security](#security) · [License](#license)
 
-**Внешние сканеры (необязательно).** Если в системе есть `semgrep`, `bandit`,
-`cargo-audit` или `gitleaks`, их находки подхватываются и приводятся к общему
-формату. Приложение полностью работоспособно и без них, но с ними покрытие
-заметно шире — на тестовом проекте находок становится 197 вместо 155.
+---
 
-| Тул | Что добавляет | Установка |
+## What it finds
+
+### Code — 274 built-in rules
+
+Across 37 languages: command, SQL, NoSQL, LDAP, XPath, JNDI and template
+injection (SSTI, SpEL), XSS, prototype pollution, unsafe reflection
+(`Class.forName`, `constantize`), path traversal, open redirects, unsafe
+deserialization (`pickle`, `yaml.load`, SnakeYAML, `XMLDecoder`, XStream, Jackson
+default typing, Json.NET `TypeNameHandling`, `binary_to_term`), XXE, code
+execution via ScriptEngine/Groovy, disabled TLS and SSH host-key verification,
+weak cryptography (ECB, hardcoded key, zero IV), non-constant-time secret
+comparison, mass assignment, Zip Slip, JWT verification bypass, a hardcoded
+`SECRET_KEY`, `xp_cmdshell` and file operations in SQL, `unsafe` pitfalls in Rust,
+and misconfigurations in Dockerfiles, GitHub Actions, Terraform, nginx and
+Kubernetes (privileges, host namespaces, dangerous capabilities).
+
+| Language | Rules |  | Language | Rules |
+|---|---|---|---|---|
+| Python | 39 | | Nginx | 5 |
+| JavaScript / TypeScript / React | 36 | | SQL | 4 |
+| Java / Kotlin | 30 | | Shell | 4 |
+| Terraform | 28 | | PowerShell | 4 |
+| PHP | 17 | | Elixir | 4 |
+| Ruby | 14 | | Scala | 3 |
+| C# | 14 | | Perl | 3 |
+| Go | 13 | | Ansible | 3 |
+| Kubernetes | 11 | | Lua | 2 |
+| Rust | 10 | | Vue | 1 |
+| Dockerfile | 10 | | Svelte | 1 |
+| Swift · GitHub Actions · C/C++ | 6 each | | | |
+
+Languages are detected by extension and filename, so Vue, Svelte, GraphQL, SQL and
+others are recognised and counted in the statistics even where no rules target
+them yet. The full catalogue, with descriptions and fixes, opens in the app under
+**Rules** (`Ctrl+R`).
+
+**Your own rules.** **Custom** (`Ctrl+E`) opens an editor: regular expression,
+severity, languages, CWE/OWASP and the fix text. A live preview runs the rule
+against your own sample before you save it, showing which lines were dropped by
+"do not fire if it contains". Custom rules work exactly like built-in ones — same
+comment and test-file handling. They live in `%APPDATA%/vulnscope/rules.json`, and
+the set can be imported and exported.
+
+### Data-flow analysis (the flagship)
+
+A deterministic engine that does not just look for a dangerous call on a line, but
+answers the question that actually matters: **does user data reach it?**
+
+It traces input — a request, `argv`, `stdin` — through variable assignments to a
+dangerous sink (OS commands, SQL, file operations, outbound requests, `eval`) and
+reports the whole **source → variable → sink** path, with every step openable in
+the code. Tracking is interprocedural within a file and follows flows across files
+end to end.
+
+If escaping, parameterization, or an allowlist sits along the way, the flow is
+considered broken and nothing is reported. This catches multi-line vulnerabilities
+that line-by-line rules cannot see, and every finding is self-verifiable: the exact
+route is visible. No AI, no black boxes — the same input always produces the same
+answer.
+
+<div align="center">
+<img src="docs/images/02-findings.png" alt="Findings list with the file tree, a selected finding, its code, fix, and CWE/OWASP classification" width="900">
+</div>
+
+### Compromise indicators
+
+A dedicated category catches not "risky patterns" but what an attacker leaves
+behind: PHP web shells (`eval($_POST[...])`, a function called by name from the
+request, packed `eval(base64_decode(...))`), reverse shells (`/dev/tcp/…`,
+netcat/mkfifo, `pty.spawn` onto a socket), PowerShell download cradles
+(`IEX (…).DownloadString`), and packed payloads (`eval(atob(…))`,
+`exec(base64.b64decode(…))`).
+
+These are flagged **critical** with high confidence: ordinary code does not do
+this, and a live web shell in the tree means the machine is already owned.
+
+### Secrets — 55 detectors
+
+AWS and Azure Storage keys; GitHub, GitLab (including runner and pipeline-trigger),
+Slack (including incoming webhook), npm, PyPI, Discord, Twilio, Mailgun, Square,
+Hugging Face, Postman, Databricks, New Relic, Notion, Atlassian, Linear, Doppler,
+PlanetScale, HashiCorp Vault, Grafana, Dropbox, Terraform Cloud, Firebase, Adobe,
+Asana, Mailchimp, SonarQube, Figma, Airtable, Docker Hub, RubyGems and Pulumi
+tokens; Stripe (including webhook secret), Google and SendGrid keys; Shopify and
+DigitalOcean tokens; Sentry DSNs; private keys; database connection strings; JWTs.
+
+Values are checked for entropy, so `your-api-key-here` and similar placeholders
+never reach the report. **The secret is masked everywhere** — in the interface and
+in every export — so the raw value never leaves the file. A test walks the real
+pipeline to prove it.
+
+### Dependencies — CVEs via OSV.dev
+
+Parses `package.json`, `package-lock.json`, `requirements.txt`, `pyproject.toml`,
+`Cargo.toml` and `Cargo.lock`. A lockfile wins over a manifest, because it has the
+exact versions. Severity is computed from the CVSS vector, and responses are cached
+for 7 days — re-scanning the same project works offline.
+
+**Deduplication.** OSV aggregates several databases (GHSA, PYSEC, RUSTSEC), so one
+vulnerability arrives as several records sharing a CVE; with cargo-audit they
+overlap again. Records about the same package-version that share at least one
+identifier collapse into one, with the union of their CVE/CWE ids and the worst
+severity. On the test project that removes about 40% of the duplicates.
+
+### External scanners (optional)
+
+If these are installed on the machine, their findings are picked up and normalised
+into the same shape. VulnScope is fully usable without them — but with them,
+coverage is noticeably wider: 197 findings instead of 155 on the test project.
+
+| Tool | What it adds | Install |
 |---|---|---|
-| Semgrep | Тысячи правил с анализом потока данных для 30+ языков | `pipx install semgrep` |
-| Bandit | Углублённый анализ Python по AST | `pipx install bandit` |
-| Ruff | Быстрый линтер Python, правила безопасности из bandit | `pipx install ruff` |
-| cargo-audit | Advisory базы RustSec для крейтов | `cargo install cargo-audit --locked` |
-| Gitleaks | 150+ паттернов секретов | `scoop install gitleaks` |
-| TruffleHog | 800+ детекторов, проверяет, живой ли ключ | `scoop install trufflehog` |
-| osv-scanner | Официальный сканер OSV: больше экосистем | `scoop install osv-scanner` |
-| Trivy | Уязвимости в зависимостях и IaC, плюс misconfig | `scoop install trivy` |
-| Checkov | Тысячи проверок Terraform, CloudFormation, Kubernetes и Helm | `pipx install checkov` |
-| gosec | Углублённый анализ безопасности Go по AST | `go install github.com/securego/gosec/v2/cmd/gosec@latest` |
-| Grype | Уязвимости зависимостей из lock-файлов и SBOM (база Anchore) | `scoop install grype` |
-| Hadolint | Линтер Dockerfile по синтаксису, а не по шаблону | `scoop install hadolint` |
-| npm audit | Аудит npm-зависимостей | входит в Node.js |
+| Semgrep | Thousands of dataflow-aware rules for 30+ languages | `pipx install semgrep` |
+| Bandit | Deeper AST-based Python analysis | `pipx install bandit` |
+| Ruff | Fast Python linter, bandit's security rules | `pipx install ruff` |
+| cargo-audit | RustSec advisories for crates | `cargo install cargo-audit --locked` |
+| Gitleaks | 150+ secret patterns | `scoop install gitleaks` |
+| TruffleHog | 800+ detectors, verifies whether a key is live | `scoop install trufflehog` |
+| osv-scanner | The official OSV scanner: more ecosystems | `scoop install osv-scanner` |
+| Trivy | Dependency and IaC vulnerabilities, plus misconfig | `scoop install trivy` |
+| Checkov | Thousands of Terraform, CloudFormation, Kubernetes and Helm checks | `pipx install checkov` |
+| gosec | Deeper AST-based Go security analysis | `go install github.com/securego/gosec/v2/cmd/gosec@latest` |
+| Grype | Dependency vulnerabilities from lockfiles and SBOMs | `scoop install grype` |
+| Hadolint | Dockerfile linter by syntax, not by pattern | `scoop install hadolint` |
+| npm audit | npm dependency audit | ships with Node.js |
 
-Ещё один — **govulncheck** — можно установить из приложения, но его вывод пока не
-разбирается. Он честно помечен «не подключён», в счётчик не входит и в скан не
-попадает.
+When several tools — and the built-in rules — flag **the same line with the same
+CWE**, the findings collapse into one that lists every engine that agreed, so a
+single command injection is not shown three times.
 
-Когда несколько тулов (и встроенные правила) помечают **одну и ту же строку с тем
-же CWE**, находки схлопываются в одну с перечислением всех согласившихся движков —
-так одна инъекция команд не показывается трижды.
+The **External scanners** card shows the exact command and lets you copy it, but
+**downloads and runs nothing itself**. A security scanner that fetches and executes
+binaries becomes the very supply-chain threat it exists to find. After installing,
+press **Check again**.
 
-Карточка «Внешние сканеры» показывает точную команду и даёт её скопировать, но
-**не скачивает и не запускает ничего сама**: сканер безопасности, который тянет и
-исполняет бинарники, становится той самой угрозой цепочки поставок, которую он
-призван искать. После установки достаточно нажать «Проверить снова».
+> **govulncheck** can be installed from the app, but its output is not parsed yet.
+> It is honestly marked "not wired up", excluded from the counter, and never run.
 
-**Дедупликация.** OSV агрегирует несколько баз (GHSA, PYSEC, RUSTSEC), поэтому
-одна уязвимость приходит несколькими записями с одним CVE; с cargo-audit они
-пересекаются ещё раз. Записи про один и тот же пакет-версию, у которых совпадает
-хотя бы один идентификатор, схлопываются в одну — с объединённым набором
-CVE/CWE и худшей из severity. На тестовом проекте это убирает ~40% дублей.
+## What it doesn't analyze
 
-## Что оно не анализирует
+Binaries (`.exe`, `.dll`, `.so`, `.pyc`), media, archives, minified bundles, and
+files over 2 MB. Binaries are detected by content as well as by extension — NUL
+bytes in the first 8 KB give one away whatever it is called.
 
-Бинарники (`.exe`, `.dll`, `.so`, `.pyc`), медиа, архивы, минифицированные бандлы
-и файлы больше 2 МБ. Бинарные файлы определяются не только по расширению, но и по
-содержимому — NUL-байты в первых 8 КБ выдают бинарник с любым именем. Всё
-пропущенное показано на вкладке «Пропущено» с причиной: чистый отчёт должен быть
-честным, а не выглядеть чистым за счёт умолчаний.
+Everything skipped is listed on the **Skipped** tab with its reason. A clean report
+should be honest, not clean because of what it quietly ignored.
 
-По умолчанию пропускаются `node_modules`, `venv`, `target` и подобные каталоги —
-находки в чужом коде вы всё равно не почините. Это отключается галочкой «Включая
-зависимости».
+`node_modules`, `venv`, `target` and similar directories are skipped by default —
+you would not fix findings in someone else's code anyway. The **Include
+dependencies** checkbox turns that off.
 
-## Пока идёт скан
+## Working through the results
 
-Экран сканирования показывает не только процент, но и конвейер этапов: что уже
-позади, что идёт сейчас, что впереди. Список строится из настроек конкретного
-прогона — этап, которого не будет, не висит в ожидании. Это не украшение: анализ
-кода занимает миллисекунды, а запрос к OSV — секунды, и без конвейера пауза
-выглядит зависанием.
+### Security score
 
-Процент показывается только там, где он что-то значит — пока читаются файлы. На
-запросе к OSV и на внешних сканерах вместо него крутится дуга с названием этапа:
-все файлы уже прочитаны, и «100%» означало бы «готово» там, где работа идёт ещё
-минуту. Счётчик времени тикает сам, не дожидаясь событий от сканера.
+One number for the whole report, on a 0–100 scale with a letter grade. Each finding
+subtracts points weighted by severity and — the part that sets it apart — by
+whether the data-flow engine proved it **reachable** from untrusted input. A
+reachable critical is worse than an isolated one, and the score says so.
 
-«Отменить» действительно останавливает работу: запущенный сканер убивается
-(`kill_on_drop`), а не дорабатывает до конца — раньше отмена во время semgrep
-висела минутами. Прерванный прогон всегда помечается как отменённый, даже если
-успел собрать находки: отчёт, который выглядит полным, — худшее, что может
-сделать сканер безопасности.
+It is deterministic and fully attributable: the same report always yields the same
+score, and every point traces to a factor shown in the breakdown. The dashboard
+also lists **attack paths** sorted by danger, each opening the finding behind it.
 
-Список внешних сканеров опрашивается один раз за сессию и кэшируется: раньше
-каждый скан начинался с запуска 12 процессов `--version`, и всё это время экран
-стоял на «Подготовке» с нулями. Кнопка «Проверить снова» опрашивает заново.
+### While the scan runs
 
-## Сравнение с прошлым сканом
+The scan screen shows a pipeline of stages — done, in progress, ahead — built from
+that run's options, so a stage that will not run is never shown waiting. This is
+not decoration: scanning code takes milliseconds while an OSV query takes seconds,
+and without the pipeline the pause reads as a freeze.
 
-Каждый скан цели сохраняет снимок находок, и следующий показывает разницу:
-сколько появилось нового, сколько исчезло, сколько осталось. Новые находки
-помечены в списке — на большом проекте важно не общее число, а то, что вы
-добавили за сегодня.
+The percentage appears only where it is meaningful (reading files). On the OSV query
+and external scanners, a spinning arc with the stage name replaces it, because every
+file has already been read and "100%" would mean "done" while a minute of work
+remains.
 
-Находка опознаётся по отпечатку: хеш от идентификатора правила, пути и самого
-кода со схлопнутыми пробелами — **без номера строки**. Добавленный сверху импорт
-сдвигает весь файл; если считать по строкам, каждая находка окажется «исправлена»
-и тут же «появилась заново», а все подавления молча слетят. Переформатирование по
-той же причине отпечаток не ломает.
+**Cancel** really stops the work: a running scanner is killed rather than left to
+finish. An interrupted run is always marked cancelled even if it collected
+findings — a report that looks complete is the worst thing a security scanner can
+produce.
 
-Первый скан цели честно говорит, что сравнивать не с чем, вместо «0 новых».
-Снимки лежат в `%APPDATA%/vulnscope/history/`, по одному на проект.
+### Comparing with the last scan
 
-## Подавление находок
+Each scan of a target stores a snapshot, and the next one shows the delta: how many
+findings are new, fixed, unchanged. On a big project the number that matters is not
+the total but what you added today.
 
-Ложное срабатывание или осознанно принятый риск скрывается кнопкой «Подавить».
-**Причина обязательна**: подавление без объяснения ничем не отличается от
-попытки спрятать проблему, и через полгода никто не вспомнит, почему здесь тихо.
-Можно погасить одну находку или все находки правила в файле.
+A finding is identified by a fingerprint — a hash of the rule id, the path, and the
+code with whitespace collapsed, **without the line number**. An import added at the
+top shifts the whole file; counting by line would mark every finding "fixed" and
+instantly "new again", and would silently void every suppression. Reformatting
+leaves the fingerprint intact for the same reason.
 
-Записи лежат в `.vulnscope-ignore` **в самом проекте**, а не в настройках
-приложения: это решение об этом коде, поэтому оно версионируется вместе с ним,
-приезжает с клоном и видно на ревью. Формат — JSON с отпечатком, правилом, путём
-и причиной.
+The first scan of a target says plainly that there is nothing to compare against,
+rather than reporting "0 new".
 
-Подавленные находки не исчезают: они остаются в списке с пометкой и кнопкой
-«Вернуть», но не попадают в счётчики — счётчик отвечает на вопрос «что требует
-внимания». Подавление не засчитывается как «исправлено»: заглушить — не значит
-починить. Битый `.vulnscope-ignore` не отменяет скан и не отключает подавления
-молча — приложение предупреждает и сканирует без них.
+### Suppressing findings
 
-## Экспорт
+A false positive or an accepted risk is hidden with **Suppress**, and a reason is
+**required**: a suppression without an explanation is indistinguishable from hiding
+a problem, and in six months nobody will remember why it is quiet here.
 
-Отчёт выгружается в пять форматов: **JSON** (все данные), **SARIF 2.1.0** (для
-GitHub code scanning и CI — с дедупликацией правил, маппингом уровней и
-стабильными отпечатками), **Markdown** (читаемый отчёт для PR, issue или чата),
-**CSV** (строка на находку для сортировки и триажа в таблице, с защитой от
-инъекции формул) и **HTML** (самодостаточный файл — открыть в браузере или
-напечатать в PDF). Все форматы следуют выбранному языку интерфейса, и во всех
-секрет остаётся замаскированным. Markdown-отчёт можно ещё и скопировать прямо в
-буфер обмена (`Ctrl+K` → «Скопировать отчёт») — чтобы вставить в PR или чат без
-диалога сохранения.
+Entries live in `.vulnscope-ignore` **inside the project**, not in the app's
+settings. It is a decision about this code, so it is versioned with it, travels
+with a clone, and shows up in review.
 
-Отдельную находку копирует кнопка «Копировать» в её карточке: заголовок с уровнем,
-`файл:строка`, правило, CWE/OWASP, описание, сам фрагмент кода в блоке с подсветкой
-и рекомендация. Копировать весь отчёт ради одной находки не нужно — а формат общий
-с отчётом, чтобы они не разъезжались.
+Suppressed findings do not disappear: they stay in the list with a badge and a
+**Restore** button, but drop out of the counts — the count answers "what needs
+attention". A suppression is never counted as "fixed": silencing is not repairing.
+A corrupt `.vulnscope-ignore` does not cancel the scan or silently disable
+suppressions; the app warns and scans without them.
 
-Когда список сужен фильтрами, в палитре появляется **экспорт отфильтрованного**
-(Markdown, CSV, HTML) — чтобы отдать команде именно отобранное. Документ честно
-помечен: «выборка N из M находок полного отчёта», а сводка пересчитана под
-содержимое. В JSON и SARIF выборка не выгружается намеренно: JSON — это полные
-данные по определению, а частичный SARIF в code scanning закрыл бы отсутствующие
-в нём алерты как исправленные.
+### Accountability
 
-## Интерфейс
+Findings can be annotated from `git blame` with who last touched the offending
+line, in which commit, and when — turning a finding into an assignable work item.
+The report and the exports then break results down per author, and the findings
+list can be filtered by one.
 
-Окно без рамки ОС: тайтлбар свой, панели разделены перепадом поверхности и тенью,
-а не линиями. Ширина дерева файлов и списка находок тянется мышью и запоминается
-между запусками. Переключение экранов — с кросс-фейдом; вся анимация выключается
-при `prefers-reduced-motion`.
+Attribution is deliberately skipped where it would lie, such as on files git does
+not track. When a staff registry has been imported, git authors are mapped onto
+real people by e-mail first, then by name.
 
-Над списком находок — поиск по названию, пути, категории, CWE, CVE,
-идентификатору правила и коду: искать можно ровно то, что написано в строке
-находки. Название ищется и в переводе, поэтому в английском интерфейсе работает
-поиск по тому, что видно на экране. Рядом — переключатели «только новые» и
-«подавленные»; оба появляются, только когда есть что показывать. Панель всегда
-сообщает, сколько находок скрыто, и даёт сбросить фильтры одним кликом: список,
-опустевший из-за фильтра, слишком похож на чистый проект, поэтому он говорит об
-этом прямо и не показывает зелёный щит. Выбранный в дереве файл тоже сужает
-список — он показан чипом с крестиком, чтобы сужение не было незаметным.
+## Export
 
-Просмотрщик показывает код, но правят его в редакторе — поэтому кнопка рядом с
-путём в карточке находки показывает файл в системном проводнике. А если в
-настройках задать команду редактора (например, `code -g {file}:{line}`), вторая
-кнопка откроет находку прямо в нём на нужной строке. Какой редактор — решаете
-вы: команда настраивается плейсхолдерами, а не зашита в приложение.
+Eight formats, all following the language on screen, all keeping secrets masked:
 
-| Клавиши | Действие |
+| Format | For |
 |---|---|
-| `Ctrl+K` | Командная палитра |
-| `Ctrl+R` | Каталог правил |
-| `Ctrl+E` | Свои правила |
-| `Ctrl+,` | Настройки |
-| `Ctrl+N` | Новое сканирование |
-| `Ctrl+Shift+R` | Пересканировать ту же цель |
-| `Ctrl+S` | Экспорт отчёта |
-| `1`–`4` | Вкладки: обзор / находки / код / пропущено |
-| `J`, `K`, `↑`, `↓` | Переход по находкам |
-| `Enter` | Открыть находку в коде |
-| `Esc` | Закрыть палитру, каталог или настройки |
+| **JSON** | The complete data |
+| **SARIF 2.1.0** | GitHub code scanning and CI dashboards — rule dedup, severity mapping, stable fingerprints, and the traced data-flow path |
+| **Markdown** | A readable report for a PR, an issue, or chat |
+| **CSV** | One row per finding for triage in a spreadsheet, with a formula-injection guard |
+| **Excel** | A real multi-sheet workbook |
+| **HTML** | A single self-contained file to open in a browser |
+| **PDF** | A print-ready report with metrics and per-author breakdown |
+| **XML (1C)** | Loads unattended into 1C, with a project and staff registry |
 
-**Все сочетания переназначаются** в настройках (Ctrl+,): нажмите на сочетание и
-введите своё, Backspace очищает. Конфликты подсвечиваются — два действия на одной
-клавише означают, что одно молча не сработает.
+The Markdown report can be copied straight to the clipboard (`Ctrl+K` → Copy
+report) without a save dialog. A single finding is copied by the **Copy** button on
+its card: severity heading, `file:line`, rule, CWE/OWASP, description, the snippet
+in a highlighted fence, and the fix.
 
-## Доступность
+When the list is narrowed by filters, the palette offers **filtered export**
+(Markdown, CSV, HTML) for handing the triaged subset to your team. The document
+says so honestly — "a selection of N of M findings from the full report" — with its
+summary recomputed to match its contents. JSON and SARIF deliberately stay
+full-report only: JSON is the complete data by definition, and a partial SARIF
+upload would make code scanning close every alert absent from it as fixed.
 
-Отдельная вкладка в `Ctrl+,` → «Доступность» собирает всё в одном месте:
+## Interface
 
-- **Масштаб интерфейса** 80–250%. Через `zoom`, а не размер шрифта, — на 200%
-  раскладка масштабируется целиком и ничего не наезжает (WCAG 1.4.4, проверено).
-- **Уменьшить анимацию** и **не показывать фоновое свечение** — движение как
-  помеха концентрации.
-- **Всегда показывать фокус** — рамка видна и после клика мышью.
-- **Подписывать уровень опасности** — слово («Крит», «Выс»…) рядом со
-  счётчиками; сам текст всегда в DOM, так что скринридер читает «Крит 24», а не
-  «24», даже когда подпись скрыта (WCAG 1.4.1).
-- **Подчёркивать ссылки** (1.4.1) и **крупные области нажатия** ≥24×24 px (2.5.8).
+A window with no OS frame: the title bar is ours, and panels are separated by a
+change of surface and a shadow rather than lines. The file tree and findings list
+resize by dragging and remember their width across launches. All animation stops
+under `prefers-reduced-motion`.
 
-Каждый переключатель — атрибут на корне документа, а стилистика решает, как он
-выглядит; всё хранится в `settings.json`, значения зажимаются на бэкенде.
+Above the findings list is a search over title, path, category, CWE, CVE, rule id
+and code — you can search exactly what the row shows. The title is matched in its
+translation too, so search works on what you see in English. The panel always says
+how many findings are hidden and resets the filters in one click: a list emptied by
+a filter looks too much like a clean project, so it says so plainly instead of
+showing a green shield.
 
-**Экранные дикторы.** Экран сканирования — это `role="progressbar"` (без
-`aria-valuenow` на неопределённых этапах — так ARIA сообщает «идёт работа, объём
-неизвестен»). Голосом объявляются **вехи**, а не поток: скрытый `role="status"`
-`aria-live="polite"` обновляется только при смене этапа и на четвертях процента,
-поэтому диктор произносит «Анализ кода 82%», «Запрос базы CVE», «Готово», а не
-каждый обработанный файл. Часто меняющиеся счётчики и список этапов (где статус
-передан цветом) помечены `aria-hidden`, чтобы не дублировать и не сбивать. При
-переходе на дашборд озвучивается итог — «Сканирование завершено. Найдено 174:
-24 критических, 72 высоких…» (с правильным русским склонением по числу), чтобы
-после «Готово» человек не попадал на молчащий экран. Знаки
-Material Symbols тоже `aria-hidden` — иначе диктор читал бы имя лиги́туры
-(«content_copy»); все иконочные кнопки при этом имеют `aria-label` или `title`.
+The viewer shows the code, but fixing it happens in an editor — so a button next to
+the path reveals the file in the system file manager. Set an editor command in the
+settings (say, `code -g {file}:{line}`) and a second button opens the finding right
+in it, at the line. Which editor is your call: the command is configured with
+placeholders, not baked into the app.
 
-Контраст не декларируется, а измеряется: `npm run audit:contrast` считает
-отношения по WCAG 2.2 для **29 пар, которые интерфейс реально рисует** (текст на
-своей поверхности, элементы управления, числа на бейджах, все цвета подсветки
-кода) в каждой из четырёх схем. Скрипт возвращает ненулевой код при нарушении,
-так что его можно повесить на релиз. Аудит **импортирует** те же пресеты, что и
-приложение, а не парсит исходник: первая версия на регулярках проглотила одну
-схему и проверяла другую под её именем.
-
-Он же нашёл реальные провалы, которые теперь исправлены: третичный текст давал
-3.99 : 1 вместо 4.5, а белый на акцентной кнопке — 3.23 : 1 (в схеме «Контраст»
-и вовсе 2.72 : 1).
-
-**Цвет текста на заливке вычисляется, а не хранится.** Акцент выбирает
-пользователь, и белый на зелёном акценте даёт 1.8 : 1 — ни одно фиксированное
-значение не подходит всем. `deriveInks` подбирает тёмные или светлые чернила по
-яркости фона для акцента и каждого уровня опасности; явно заданное значение
-всегда важнее вычисленного.
-
-**Дальтонизм.** Тот же скрипт прогоняет цвета уровней через симуляцию
-протанопии, дейтеранопии и тританопии (матрицы Viénot–Brettel–Mollon) и проверяет
-попарную различимость. Так нашлось, что в светлой схеме «высокая» и «средняя»
-сливались для людей без красных или зелёных колбочек (~8% мужчин) — цвет заменён
-на различимый при всех трёх типах. Сверх этого у каждого уровня свой значок:
-по WCAG 1.4.1 цвет никогда не должен быть единственным признаком.
-
-## Язык (RU/EN)
-
-Интерфейс переключается между русским и английским в `Ctrl+,` → «Вид» → «Язык»;
-смена применяется сразу, без перезапуска, и хранится в `settings.json`.
-
-Локализация сделана в стиле gettext (`src/i18n.tsx`): ключ — сама русская
-строка, английский словарь `EN` даёт перевод, а отсутствующий ключ откатывается
-к исходнику. Так русский текст остаётся читаемым прямо в JSX. Интерполяция — через
-`{имя}`-плейсхолдеры, чтобы значение вставало в нужное место при разном порядке
-слов; счётные формы («24 критических» / «1 критическая») в озвучке склоняются по
-числу.
-
-Откат к исходнику удобен, но молчалив: забытый ключ не ломает сборку, а просто
-показывает русскую строку в английском интерфейсе — и это видно, только если
-переключить язык. Поэтому полнота проверяется отдельно: `npm run audit:i18n`
-собирает строки из **всех** мест, откуда они попадают в интерфейс, и падает,
-если какой-то нет в словаре:
-
-| Источник | Что берётся |
+| Keys | Action |
 |---|---|
-| `src/**` | литералы `t(...)` / `tr(...)` |
-| `rules.rs`, `secrets.rs` | `title`, `description`, `recommendation`, `category` каждого правила |
-| `model.rs` | метки `sourceLabel`, `reasonLabel`, `phaseLabel` (match-армы `label()`) |
-| `settings.rs` | названия действий и групп для настройки клавиш (`action_labels()`) |
+| `Ctrl+K` | Command palette |
+| `Ctrl+R` | Rule catalogue |
+| `Ctrl+E` | Custom rules |
+| `Ctrl+,` | Settings |
+| `Ctrl+N` | New scan |
+| `Ctrl+Shift+R` | Re-scan the same target |
+| `Ctrl+S` | Export report |
+| `1`–`4` | Tabs: overview / findings / code / skipped |
+| `J`, `K`, `↑`, `↓` | Move between findings |
+| `Enter` | Open the finding in code |
+| `Esc` | Close the palette, catalogue or settings |
 
-Так новое правило или новая фаза скана не уедут в релиз без перевода. Строки без
-кириллицы (`Path traversal`, `Semgrep`, `document.write()`) пропускаются: откат к
-исходнику уже даёт правильный английский.
+**Every shortcut is rebindable** in settings: click a combo and type your own,
+Backspace clears it. Conflicts are highlighted — two actions on one key means one
+of them silently will not fire.
 
-Переведена **оболочка приложения**: навигация, настройки, экраны сканирования и
-результатов, подсказки, пустые состояния, командная палитра, единицы (мс/КБ →
-ms/KB) и форматы чисел. Каталог из 114 встроенных правил (заголовки и описания
-находок, которые выдаёт движок на Rust) — это отдельный контент и пока остаётся
-на русском независимо от языка интерфейса; переводить меры безопасности наспех
-хуже, чем оставить в исходном виде.
+## Accessibility
 
-## Темы и цвета
+Contrast is measured, not claimed: `npm run audit:contrast` checks WCAG 2.2 AA for
+the pairs the UI actually paints across every theme, and runs the severity colours
+through simulations of three colour-vision deficiencies. The ink on any fill is
+computed from that fill's luminance, so a chosen accent never leaves unreadable
+text.
 
-Весь интерфейс собран из токенов (`src/theme.css`) — в компонентах не осталось
-ни одного захардкоженного цвета, включая подсветку кода: highlight.js переведён
-на те же токены, иначе светлая схема оставила бы код в цветах GitHub Dark.
+A dedicated **Accessibility** tab collects: interface zoom (80–250%, via `zoom` so
+nothing overlaps at 200%), reduce motion, hide the background glow, always show
+focus, spell out severity next to counts, underline links, and larger hit targets.
+The scan screen is a `role="progressbar"` with a polite live region that announces
+milestones rather than every frame.
 
-Готовые схемы: **Ночь** (как задумано), **Полночь** (почти чёрная, для OLED),
-**День** (светлая целиком) и **Контраст**. Пресеты — это диффы, а не полные
-темы: что схема не назвала, берёт значение из таблицы стилей, поэтому новый
-токен не ломает старые пресеты.
+## Language
 
-Любой токен правится в `Ctrl+,` → «Вид» → «Показать все цвета»: изменение
-применяется сразу (токены — это и есть то, что читает стилистика, никакого
-отдельного предпросмотра), изменённые отмечены полосой, рядом — кнопка вернуть.
+The interface switches between Russian and English under `Ctrl+,` → Appearance →
+Language, instantly. The whole shell **and** the built-in rule catalogue — finding
+titles, descriptions, fixes — are translated.
 
-**Для тех, кто правит руками:** тема лежит в `settings.json` под ключом `theme`
-как `id токена → цвет`. Есть экспорт и импорт `.vulnscope-theme.json`, чтобы
-возить схему между машинами и держать в репозитории.
+Localization is gettext-style ([`src/i18n.tsx`](src/i18n.tsx)): the key is the
+Russian string itself, and a missing key falls back to the source. That fallback is
+convenient but silent — a forgotten key does not break the build, it just shows
+Russian in the English UI. So completeness is checked on its own:
+`npm run audit:i18n` collects strings from every place they reach the UI and fails
+on any the dictionary lacks. Neither a new rule nor a new scan phase can ship
+untranslated.
 
-Значения темы **проверяются** и на бэкенде, и при импорте: принимаются только
-`#hex`, `rgb()/rgba()/hsl()/hsla()`. Всё остальное отбрасывается — `url(...)` в
-цвете превратил бы локальный сканер в приложение, которое ходит в сеть, просто
-открыв чужую тему (`settings::is_color`, тесты рядом).
+## Themes
 
-Каталог токенов — `src/theme-tokens.ts`: он же описывает группы и подписи для
-редактора. Новый цвет в интерфейсе начинается с записи в этом файле.
+Every colour comes from one token file ([`src/theme.css`](src/theme.css)) — nothing
+is hardcoded in a component, syntax highlighting included. **18 presets** (Night,
+Midnight, Day, Contrast, Forest, Ocean, Amethyst, Graphite, Paper, Mist, Sunset,
+Arctic, Sepia, Neon, Lavender, Peach and two light variants); any token is editable
+under `Ctrl+,` → Appearance → Show all colors, applied live. Themes export and
+import as `.vulnscope-theme.json`.
 
-## Настройки
+## Settings
 
-`Ctrl+,` — лимиты сканирования (размер файла, порог «минифицирован», находок на
-файл), TTL и параллельность запросов к OSV, поведение правил, что включено по
-умолчанию, акцентный цвет, плотность интерфейса и порог отключения подсветки.
-Значения зажимаются в разумные пределы на стороне бэкенда: `maxFileSizeMb = 0`
-означал бы «пропустить все файлы» и отчёт, который выглядит чистым.
+`Ctrl+,` — scan limits (file size, the "minified" threshold, findings per file),
+OSV request TTL and concurrency, rule behaviour, what is enabled by default, the
+accent colour, interface density, and the highlighting cut-off. Values are clamped
+to sane ranges on the backend: `maxFileSizeMb = 0` would mean "skip every file" and
+a report that looks clean.
 
-Настройки лежат в `%APPDATA%/vulnscope/settings.json`.
+Settings live in `%APPDATA%/vulnscope/settings.json`.
 
-Токены дизайна вынесены в `src/theme.css`: одна 4-пиксельная шкала отступов, шкала
-поверхностей вместо границ, типографика с фиксированными ступенями.
+## Development
 
-## Установка
-
-Готовые сборки лежат в `src-tauri/target/release/bundle/`:
-
-- `nsis/VulnScope_0.1.0_x64-setup.exe` — установщик, 7.7 МБ
-- `msi/VulnScope_0.1.0_x64_en-US.msi` — MSI-пакет, 9.5 МБ
-
-## Разработка
-
-Нужны Node 18+ и Rust 1.75+.
+Needs **Node 18+** and **Rust 1.77+**. On Windows you also need the MSVC build
+tools.
 
 ```bash
 npm install
-npm run tauri dev     # запуск с горячей перезагрузкой
-npm run tauri build   # сборка установщиков
+npm run tauri dev     # run with hot reload
+npm run tauri build   # build the installers
 ```
 
-Тесты бэкенда (193 шт.):
+Run everything CI runs, in one command:
 
 ```bash
-cd src-tauri && cargo test
+npm run check:all
 ```
 
-Проверки: `npm run audit:contrast` — аудит темы, `npm run audit:i18n` — полнота
-локализации. CI гоняет оба на каждый push, плюс `npm run build`,
-`cargo clippy -- -D warnings` и `npm audit` / `cargo audit` по собственным
-зависимостям.
+That covers a TypeScript typecheck, eight audit scripts, a production build, the
+288 backend tests, and Clippy with warnings denied.
 
-## Как это устроено
+Each audit script exists because something shipped broken in a way review did not
+catch — contrast, localization completeness, SARIF shape, score maths, 1C XML
+shape, Excel workbook shape, CSS token references, and whether every setting is
+actually read by something. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a
+rule or a translation.
 
-Ядро на Rust, интерфейс на React + TypeScript, всё внутри Tauri 2.
+## How it works
 
-| Модуль | Назначение |
+A Rust core, a React + TypeScript interface, all inside Tauri 2.
+
+| Module | Purpose |
 |---|---|
-| `walk.rs` | Обход файлов, отсев бинарников, определение языка |
-| `rules.rs` | Движок правил и каталог из 167 правил |
-| `secrets.rs` | Поиск секретов с проверкой энтропии |
-| `deps.rs` | Разбор манифестов зависимостей |
-| `osv.rs` | Клиент OSV.dev, расчёт CVSS, кэш на диске |
-| `external.rs` | Запуск внешних сканеров и нормализация вывода |
-| `git.rs` | Клонирование репозиториев |
-| `scanner.rs` | Оркестрация, прогресс, ETA, отмена |
+| `walk.rs` | Walking files, rejecting binaries, detecting the language |
+| `rules.rs` | The rule engine and the catalogue of 274 rules |
+| `taint.rs` | The data-flow engine: sources, sinks, sanitisers, paths |
+| `secrets.rs` | Secret detection with an entropy check |
+| `deps.rs` | Parsing dependency manifests |
+| `osv.rs` | OSV.dev client, CVSS scoring, on-disk cache |
+| `external.rs` | Running external scanners and normalising their output |
+| `baseline.rs` | Fingerprints, scan-to-scan comparison, suppressions |
+| `blame.rs` | `git blame` attribution for findings |
+| `userrules.rs` | User-defined rules |
+| `git.rs` | Cloning repositories |
+| `pkgmgr.rs`, `proc.rs` | Locating and spawning external tools |
+| `settings.rs` | Settings, validation, keybindings |
+| `scanner.rs` | Orchestration, progress, ETA, cancellation |
 
-**Производительность.** Правила прогоняются через `RegexSet`: файл платит только
-за те паттерны, которые реально где-то совпали. Обход параллелится через rayon —
-~2100 файлов/с, 10k файлов и 1.1 млн строк за 18 с. Запросы к OSV идут волнами по
-16 параллельно (последовательно было в 9 раз медленнее).
+**Performance.** Rules are prefiltered through a `RegexSet`, so a file only pays for
+the patterns that actually matched somewhere. The walk is parallelised with rayon —
+about 2100 files/s, or 10k files and 1.1M lines in 18 seconds. OSV queries go in
+waves of 16 in parallel; sequential was 9× slower.
 
-Просмотрщик кода **виртуализирован**: в DOM живёт только видимое окно строк, а не
-весь файл, иначе бандл на 24 тысячи строк вешал бы окно. Подсветка синтаксиса
-отключается на файлах длиннее 6000 строк — highlight.js работает в главном потоке,
-и раскрашивать бандл дороже, чем полезно.
+The code viewer is **virtualised**: only the visible window of lines lives in the
+DOM, or a 24,000-line bundle would freeze the window. Syntax highlighting switches
+off past 6000 lines, because highlight.js runs on the main thread and colouring a
+bundle costs more than it is worth.
 
-## Точность
+## Accuracy and limits
 
-Правила основаны на регулярных выражениях, а не на анализе потока данных. Это
-значит, что часть находок требует проверки человеком — у каждой указана
-достоверность («Высокая точность» / «Требует проверки»). Закомментированный код
-игнорируется, шумные правила подавляются в тестовых файлах, а `unless_contains`
-снимает срабатывание, когда рядом видна защита (`DOMPurify.sanitize`,
-`yaml.SafeLoader`). Инструмент помогает найти подозрительные места быстрее — он не
-заменяет ревью.
+VulnScope uses two engines with different guarantees, and it tells you which one
+found what.
+
+**Pattern rules** are regular expressions. They see one line at a time, so some
+findings need a human look — each carries a confidence badge ("High confidence" /
+"Needs review"). Commented-out code is ignored, noisy rules are suppressed in test
+files, and `unless_contains` drops a match when a guard is visible next to it
+(`DOMPurify.sanitize`, `yaml.SafeLoader`).
+
+**The data-flow engine** is stronger: it reports a finding only when it can show
+the path from an untrusted source to a dangerous sink, and it shows you that path.
+It is deliberately conservative rather than a full compiler — identifier-level
+tracking within a line window, sanitiser-aware — which keeps it deterministic and
+every finding checkable by eye.
+
+Neither engine is complete. A scanner that finds nothing is not proof that there is
+nothing to find, and neither replaces review — the point is to get you to the
+suspicious places faster.
+
+## Contributing
+
+Pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the setup, the
+check suite, and walkthroughs for the two most common contributions: adding a
+detection rule and adding a translation.
+
+Bug reports are just as useful — especially a false positive or a missed detection
+with a minimal code sample, which becomes a regression test.
+
+## Security
+
+To report a vulnerability **in VulnScope itself**, please use
+[private vulnerability reporting](https://github.com/mintyextremum/vulnscope/security/advisories/new)
+rather than a public issue. [SECURITY.md](SECURITY.md) sets out what is in scope
+and the design commitments the project intends to hold.
+
+A missed vulnerability or a false positive in *scanned* code is a detection bug —
+open a normal issue for those.
+
+## License
+
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for third-party components.
