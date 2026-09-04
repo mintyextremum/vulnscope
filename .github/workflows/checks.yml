@@ -72,7 +72,7 @@ jobs:
       # (RUSTSEC-2026-0041), and an older audit binary fails to parse the whole
       # database rather than skipping the entry. Letting the tool float meant the
       # job broke on someone else's advisory being published.
-      - uses: taiki-e/install-action@ed67fa35ac944f3a9b33f12c4dd43b6f31a47e20 # v2.83.3
+      - uses: taiki-e/install-action@0758d235715de2f3551eacc980d9ae8fce9342c3 # v2.87.3
         with:
           tool: cargo-audit@0.22.2
       # Fails on advisories only. The unmaintained/unsound warnings today are
