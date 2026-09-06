@@ -139,20 +139,128 @@ fn classify_entry(code: &str) -> &'static str {
 static SOURCE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(rules::HEURISTICS[0].taint).expect("bad taint source pattern"));
 
-/// A value that has passed through one of these is no longer trusted-dangerous:
-/// escaping, encoding, parameterisation, allowlisting, or a numeric coercion.
-static SANITIZER_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        // Framework sanitizers and neutralising coercions. Like the rest of the
-        // list these clear taint for every sink category (a value known safe is
-        // treated as safe everywhere) — the same trade-off `basename`/`int(`
-        // already make. Added: secure_filename (Werkzeug path-traversal guard),
-        // bleach.clean / strip_tags (HTML sanitizers), and Go's strconv numeric/
-        // bool coercions (a parsed number can carry no injection payload).
-        r"(?i)\b(?:escape|sanitiz|encode|quote|parameteriz|prepared?statement|bindparam|placeholder|whitelist|allowlist|escapeshellarg|escapeshellcmd|htmlspecialchars|htmlentities|shlex\.quote|escape_filter_chars|filterencode|encodevalue|filepath\.clean|basename|secure_filename|bleach\.clean|strip_tags|strconv\.(?:Atoi|ParseInt|ParseFloat|ParseBool)|int\s*\(|integer\s*\(|parseint|number\s*\(|to_i\b|::from_str)",
-    )
-    .expect("bad sanitizer pattern")
+// Sink categories, as spelled by the heuristics in `rules.rs`. Kept as
+// constants so a sanitiser's scope cannot drift from the category it claims to
+// neutralise — `sanitiser_scopes_name_real_categories` asserts every one of
+// these appears in HEURISTICS.
+const CAT_CMD: &str = "Инъекция команд";
+const CAT_SQL: &str = "SQL-инъекция";
+const CAT_NOSQL: &str = "NoSQL-инъекция";
+const CAT_PATH: &str = "Path traversal";
+const CAT_XSS: &str = "XSS";
+const CAT_CODE: &str = "Выполнение кода";
+const CAT_REDIRECT: &str = "Открытый редирект";
+const CAT_SSRF: &str = "SSRF";
+
+/// What a sanitiser actually protects against.
+///
+/// The distinction matters more than it looks. `htmlspecialchars` makes a value
+/// safe to print into HTML and does nothing whatsoever for SQL: treating it as a
+/// blanket clearance means
+///
+/// ```python
+/// safe = html.escape(request.args.get('id'))
+/// cur.execute('SELECT * FROM t WHERE id = ' + safe)
+/// ```
+///
+/// is silently dropped — a real injection the engine saw and discarded. A false
+/// negative here is the worst kind the flagship can produce: the reviewer is
+/// told the path was checked.
+enum Scope {
+    /// Neutralises the value entirely — a parsed integer or an allowlisted
+    /// choice cannot carry a payload for any sink.
+    Everything,
+    /// Neutralises only these sink categories.
+    Only(&'static [&'static str]),
+}
+
+/// Sanitisers whose scope is well understood, checked before the generic terms
+/// below. Order matters only in that a match here suppresses the generic pass;
+/// several entries may match, and their categories are unioned.
+static SCOPED_SANITIZERS: Lazy<Vec<(Regex, &'static [&'static str])>> = Lazy::new(|| {
+    let table: &[(&str, Scope)] = &[
+        // Shell quoting: safe to hand to a shell, still hostile in SQL or HTML.
+        (r"escapeshellarg|escapeshellcmd|shlex\.quote|pipes\.quote", Scope::Only(&[CAT_CMD])),
+        // HTML/XSS sanitisers. `strip_tags` removes markup and nothing else.
+        (
+            r"htmlspecialchars|htmlentities|bleach\.clean|strip_tags|escape_?html|html[._]?escape|cgi\.escape|sanitize_?html|dompurify\.sanitize",
+            Scope::Only(&[CAT_XSS]),
+        ),
+        // Parameterisation is the SQL/NoSQL answer; it says nothing about a path
+        // or a shell.
+        (
+            r"parameteriz|prepared?_?statement|bindparam|bind_param|placeholder|real_escape_string|pg_escape|quote_ident|addslashes",
+            Scope::Only(&[CAT_SQL, CAT_NOSQL]),
+        ),
+        // Path canonicalisation: stops `..`, stops nothing else.
+        (
+            r"filepath\.clean|secure_filename|os\.path\.basename|\bbasename\s*\(|werkzeug\.utils\.secure_filename",
+            Scope::Only(&[CAT_PATH]),
+        ),
+        // URL-component encoding keeps a value inside one URL field, which is
+        // what an open redirect abuses. It does not stop SSRF: a fully encoded
+        // attacker host is still that host.
+        (r"encodeuricomponent|urlencode|url_encode|quote_plus", Scope::Only(&[CAT_REDIRECT, CAT_XSS])),
+        // LDAP filter escaping — no taint category of its own today, so it
+        // clears nothing rather than pretending to cover one.
+        (r"escape_filter_chars|filterencode|encodevalue", Scope::Only(&[])),
+        // Numeric and boolean coercions: the result cannot carry a payload of
+        // any kind, so this genuinely is a blanket clearance.
+        (
+            r"strconv\.(?:Atoi|ParseInt|ParseFloat|ParseBool)|\bint\s*\(|\binteger\s*\(|parseint|\bnumber\s*\(|\bto_i\b|::from_str|parsefloat",
+            Scope::Everything,
+        ),
+        // An allowlist replaces the value with one the code already trusts.
+        (r"whitelist|allowlist", Scope::Everything),
+    ];
+    table
+        .iter()
+        .map(|(pat, scope)| {
+            let cats: &'static [&'static str] = match scope {
+                Scope::Everything => ALL_CATEGORIES,
+                Scope::Only(c) => c,
+            };
+            (
+                Regex::new(&format!("(?i){pat}")).expect("bad scoped sanitizer pattern"),
+                cats,
+            )
+        })
+        .collect()
 });
+
+/// Every sink category the engine knows. Used as the clearance set for
+/// sanitisers that genuinely neutralise a value for all of them.
+const ALL_CATEGORIES: &[&str] =
+    &[CAT_CMD, CAT_SQL, CAT_NOSQL, CAT_PATH, CAT_XSS, CAT_CODE, CAT_REDIRECT, CAT_SSRF];
+
+/// Broad, ambiguous wording — `escape(`, `sanitize(`, `encode(`, `quote(`. The
+/// intent is protective but the target is unknowable from the name alone, so
+/// these keep the old blanket behaviour rather than guessing a scope and
+/// inventing findings. Only consulted when no scoped sanitiser above matched,
+/// otherwise `escapeshellarg` would match bare `escape` and widen itself back to
+/// everything.
+static GENERIC_SANITIZER_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)\b(?:escape|sanitiz|encode|quote)").expect("bad generic sanitizer pattern")
+});
+
+/// The categories `rhs` neutralises, or `None` when it sanitises nothing.
+fn sanitized_categories(rhs: &str) -> Option<BTreeSet<&'static str>> {
+    let mut cats: BTreeSet<&'static str> = BTreeSet::new();
+    let mut matched = false;
+    for (re, categories) in SCOPED_SANITIZERS.iter() {
+        if re.is_match(rhs) {
+            matched = true;
+            cats.extend(categories.iter().copied());
+        }
+    }
+    if matched {
+        return Some(cats);
+    }
+    if GENERIC_SANITIZER_RE.is_match(rhs) {
+        return Some(ALL_CATEGORIES.iter().copied().collect());
+    }
+    None
+}
 
 /// Compiled sink patterns for every heuristic, paired with its metadata.
 struct CompiledSink {
@@ -219,11 +327,21 @@ struct TaintVar {
     /// computation) rather than a real source, which parameter — by index. This
     /// is what lets a call site learn "argument in slot `i` reaches a sink".
     origin_param: Option<usize>,
+    /// Sink categories this value has already been made safe for. A value that
+    /// went through `htmlspecialchars` is harmless in HTML and unchanged
+    /// everywhere else, so the clearance travels with the value instead of
+    /// deleting it.
+    cleared: BTreeSet<&'static str>,
 }
 
 impl TaintVar {
     fn source_line(&self) -> u32 {
         self.steps.first().map(|s| s.line).unwrap_or(0)
+    }
+
+    /// Whether this value is still dangerous for `category`.
+    fn dangerous_for(&self, category: &str) -> bool {
+        !self.cleared.contains(category)
     }
 }
 
@@ -501,7 +619,10 @@ fn process_line(
         if !s.re.is_match(text) {
             continue;
         }
-        let best = earliest_referenced(tainted, text, line);
+        // Only values still dangerous *for this sink's category* count. A value
+        // that passed an HTML escaper is skipped at an XSS sink and still
+        // reported at a SQL one — the whole point of scoping sanitisers.
+        let best = earliest_referenced_for(tainted, text, line, s.category);
         if let Some(v) = best {
             on_sink(
                 v,
@@ -535,14 +656,65 @@ fn process_line(
         if lhs.is_empty() {
             return;
         }
-        if SANITIZER_RE.is_match(rhs) {
-            tainted.remove(&lhs);
+        if let Some(cats) = sanitized_categories(rhs) {
+            // The value is safe for `cats` and unchanged for everything else, so
+            // the taint is narrowed rather than dropped. Carrying the underlying
+            // chain forward is what lets a later SQL sink still report a flow
+            // that only ever passed an HTML escaper.
+            // The value being sanitised is either a variable already tracked or
+            // — far more common in real code — a source written inline, as in
+            // `$safe = htmlspecialchars($_GET['id'])`. Both must survive the
+            // narrowing, or the partially-sanitised flow is lost exactly where
+            // it matters most.
+            let carried = tainted
+                .iter()
+                .filter(|(name, _)| contains_word(rhs, name))
+                .map(|(_, v)| v.clone())
+                .min_by_key(|v| v.source_line())
+                .map(|mut v| {
+                    v.steps.push(FlowStep {
+                        line,
+                        code: code.clone(),
+                        role: FlowRole::Propagation,
+                        file: None,
+                    });
+                    v
+                })
+                .or_else(|| {
+                    SOURCE_RE.is_match(rhs).then(|| TaintVar {
+                        steps: vec![FlowStep {
+                            line,
+                            code: code.clone(),
+                            role: FlowRole::Source,
+                            file: None,
+                        }],
+                        origin_param: None,
+                        cleared: BTreeSet::new(),
+                    })
+                });
+            match carried {
+                Some(mut v) => {
+                    v.cleared.extend(cats);
+                    if ALL_CATEGORIES.iter().all(|c| v.cleared.contains(c)) {
+                        // Nothing left to report on: drop it, so the map does
+                        // not grow with values that can never sink again.
+                        tainted.remove(&lhs);
+                    } else {
+                        tainted.insert(lhs, v);
+                    }
+                }
+                // A sanitiser applied to something untracked introduces nothing.
+                None => {
+                    tainted.remove(&lhs);
+                }
+            }
         } else if SOURCE_RE.is_match(rhs) {
             tainted.insert(
                 lhs,
                 TaintVar {
                     steps: vec![FlowStep { line, code, role: FlowRole::Source, file: None }],
                     origin_param: None,
+                    cleared: BTreeSet::new(),
                 },
             );
         } else if let Some(effect) =
@@ -570,12 +742,24 @@ fn process_line(
     }
 
     // 3) `return <expr>` carrying a tainted value — only the summary pass cares.
-    //    A value wrapped in a sanitiser on the way out is no longer dangerous,
-    //    so the function does not count as returning taint.
+    //    A value wrapped in a sanitiser on the way out is no longer dangerous
+    //    *for what that sanitiser covers*. A function returning
+    //    `htmlspecialchars($x)` is an HTML escaper, not a general-purpose one,
+    //    so it keeps returning taint for SQL and the rest.
     if let Some(rest) = return_expr(trimmed) {
-        if !SANITIZER_RE.is_match(rest) {
-            if let Some(v) = earliest_referenced(tainted, rest, line) {
-                on_return(v);
+        match sanitized_categories(rest) {
+            Some(cats) if ALL_CATEGORIES.iter().all(|c| cats.contains(c)) => {}
+            Some(cats) => {
+                if let Some(v) = earliest_referenced(tainted, rest, line) {
+                    let mut narrowed = v.clone();
+                    narrowed.cleared.extend(cats);
+                    on_return(&narrowed);
+                }
+            }
+            None => {
+                if let Some(v) = earliest_referenced(tainted, rest, line) {
+                    on_return(v);
+                }
             }
         }
     }
@@ -588,10 +772,31 @@ fn earliest_referenced<'a>(
     text: &str,
     line: u32,
 ) -> Option<&'a TaintVar> {
+    earliest_matching(tainted, text, line, |_| true)
+}
+
+/// As `earliest_referenced`, but ignoring values already made safe for
+/// `category`. Used at a sink, where the category is known.
+fn earliest_referenced_for<'a>(
+    tainted: &'a HashMap<String, TaintVar>,
+    text: &str,
+    line: u32,
+    category: &str,
+) -> Option<&'a TaintVar> {
+    earliest_matching(tainted, text, line, |v| v.dangerous_for(category))
+}
+
+fn earliest_matching<'a>(
+    tainted: &'a HashMap<String, TaintVar>,
+    text: &str,
+    line: u32,
+    accept: impl Fn(&TaintVar) -> bool,
+) -> Option<&'a TaintVar> {
     let mut best: Option<&TaintVar> = None;
     for (name, v) in tainted {
         if contains_word(text, name)
             && line.saturating_sub(v.source_line()) <= WINDOW
+            && accept(v)
             && best.map(|b| v.source_line() < b.source_line()).unwrap_or(true)
         {
             best = Some(v);
@@ -637,7 +842,9 @@ fn call_reaches_sink<'a>(
         }
         for (i, arg) in split_top_commas(&c[2]).into_iter().enumerate() {
             let Some(hit) = summary.sink_params.get(&i) else { continue };
-            if let Some(v) = earliest_referenced(tainted, &arg, line) {
+            // The callee's sink category is known here, so a value already made
+            // safe for it must not be reported through the call either.
+            if let Some(v) = earliest_referenced_for(tainted, &arg, line, hit.category) {
                 return Some(Reached {
                     tail: vec![
                         FlowStep { line, code: code.to_string(), role: FlowRole::Call, file: None },
@@ -743,6 +950,7 @@ fn summarize(
                     file: None,
                 }],
                 origin_param: Some(i),
+                cleared: BTreeSet::new(),
             },
         );
     }
@@ -1047,6 +1255,7 @@ pub fn analyze_leaks(content: &str, lang: Language) -> Vec<TaintFlow> {
                     TaintVar {
                         steps: vec![FlowStep { line, code, role: FlowRole::Source, file: None }],
                         origin_param: None,
+                        cleared: BTreeSet::new(),
                     },
                 );
             } else if let Some(mut v) = tainted
@@ -1293,6 +1502,89 @@ function show(req) {
 }
 ";
         assert!(analyze(code, Language::JavaScript).is_empty(), "bleach.clean should sanitize");
+    }
+
+    /// The bug this whole scoping change exists for: an HTML escaper made the
+    /// engine drop a live SQL injection. `htmlspecialchars` encodes `< > & " '`
+    /// for markup and leaves the value hostile to a query, so the flow must
+    /// still be reported — with the SQL category, not XSS.
+    #[test]
+    fn html_escaper_does_not_clear_sql_injection() {
+        let code = "def show(request, cur):
+    safe = html.escape(request.args.get('id'))
+    cur.execute('SELECT * FROM t WHERE id = ' + safe)
+";
+        let flows = analyze(code, Language::Python);
+        assert!(
+            flows.iter().any(|f| f.category == "SQL-инъекция"),
+            "htmlspecialchars must not clear SQL taint, got {:?}",
+            flows.iter().map(|f| f.category).collect::<Vec<_>>()
+        );
+    }
+
+    /// The other half of the same rule: within its own category the escaper
+    /// still works, or scoping would have traded one false result for another.
+    #[test]
+    fn html_escaper_still_clears_xss() {
+        let code = "function show(req) {
+  const safe = htmlspecialchars(req.query.bio);
+  el.innerHTML = safe;
+}
+";
+        assert!(
+            !analyze(code, Language::JavaScript).iter().any(|f| f.category == "XSS"),
+            "htmlspecialchars should still clear XSS"
+        );
+    }
+
+    /// Shell quoting is the mirror image: safe to hand to a shell, still a
+    /// payload in a query.
+    #[test]
+    fn shell_quoting_is_scoped_to_commands() {
+        let cmd = "import subprocess
+def run(request):
+    arg = shlex.quote(request.args.get('f'))
+    subprocess.run('ls ' + arg, shell=True)
+";
+        assert!(
+            !analyze(cmd, Language::Python).iter().any(|f| f.category == "Инъекция команд"),
+            "shlex.quote should clear command injection"
+        );
+
+        let sql = "def run(request, cur):
+    arg = shlex.quote(request.args.get('id'))
+    cur.execute('SELECT * FROM t WHERE id = ' + arg)
+";
+        assert!(
+            analyze(sql, Language::Python).iter().any(|f| f.category == "SQL-инъекция"),
+            "shlex.quote must not clear SQL taint"
+        );
+    }
+
+    /// A numeric coercion is the one honest blanket clearance: an integer
+    /// cannot carry a payload for any sink, so it clears every category.
+    #[test]
+    fn numeric_coercion_clears_every_category() {
+        let code = "def run(request, cur):
+    n = int(request.args.get('n'))
+    cur.execute('SELECT * FROM t WHERE id = ' + n)
+    subprocess.run('head -n ' + n, shell=True)
+";
+        assert!(analyze(code, Language::Python).is_empty(), "int() should clear everything");
+    }
+
+    /// The scopes name categories as free-form strings; a typo or a renamed
+    /// heuristic would silently stop clearing anything. This ties them to the
+    /// catalogue so the mismatch fails here instead of in the field.
+    #[test]
+    fn sanitizer_scopes_name_real_categories() {
+        let known: Vec<&str> = rules::HEURISTICS.iter().map(|h| h.category).collect();
+        for cat in ALL_CATEGORIES {
+            assert!(
+                known.contains(cat),
+                "category {cat:?} is not produced by any heuristic; scopes would never match"
+            );
+        }
     }
 
     /// Go's strconv.Atoi turns input into an int — no injection payload survives.
