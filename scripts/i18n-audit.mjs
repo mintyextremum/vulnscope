@@ -14,8 +14,12 @@
  *     `Rule` in rules.rs and every `SecretRule` in secrets.rs. These are Rust
  *     constants rendered through `t(finding.title)` and friends, so a new rule
  *     without a dictionary entry shows up in Russian for English users.
- *  3. Backend labels (model.rs) and rebindable actions (settings.rs).
- *  4. The help screen's `SECTIONS` array — data, not literals at the call site,
+ *  3. The data-flow heuristics — `Heuristic` in rules.rs. A separate struct from
+ *     `Rule`, and for a long time an unchecked one: its findings render through
+ *     the same `t(...)`, so a new heuristic shipped untranslated while this very
+ *     check reported everything green.
+ *  4. Backend labels (model.rs) and rebindable actions (settings.rs).
+ *  5. The help screen's `SECTIONS` array — data, not literals at the call site,
  *     so `t(variable)` hides it from (1). Checking it here retires a manual
  *     step that drifted every time the help text was edited.
  *
@@ -245,6 +249,14 @@ const groups = [
   {
     name: "Каталог правил (rules.rs)",
     keys: catalogueKeys(RULES_FILE, "Rule {", ["title", "description", "recommendation", "category"], "правило"),
+  },
+  {
+    // The taint engine's findings render through the same `t(...)` as the
+    // catalogue, but `Heuristic` is a separate struct and was never collected
+    // here — a new heuristic could ship showing Russian in the English UI, and
+    // the check that exists to prevent exactly that would have stayed green.
+    name: "Эвристики потока данных (rules.rs)",
+    keys: catalogueKeys(RULES_FILE, "Heuristic {", ["title", "description", "recommendation", "category"], "эвристика"),
   },
   {
     name: "Детекторы секретов (secrets.rs)",
