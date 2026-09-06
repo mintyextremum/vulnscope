@@ -1504,6 +1504,87 @@ function show(req) {
         assert!(analyze(code, Language::JavaScript).is_empty(), "bleach.clean should sanitize");
     }
 
+    /// PHP reaches a database through `->`, through bare mysqli/pgsql
+    /// functions, and through Laravel's `DB::` facade. The sink pattern used to
+    /// require a literal dot, so every one of these was invisible: SQL
+    /// injection in PHP simply was not traced.
+    #[test]
+    fn php_pdo_arrow_call_is_a_sql_sink() {
+        let code = "<?php
+function show($pdo) {
+  $id = $_GET['id'];
+  $pdo->query(\"SELECT * FROM users WHERE id = $id\");
+}
+";
+        let flows = analyze(code, Language::Php);
+        assert!(
+            flows.iter().any(|f| f.category == "SQL-инъекция"),
+            "$pdo->query must be a SQL sink, got {:?}",
+            flows.iter().map(|f| f.category).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn php_bare_mysqli_function_is_a_sql_sink() {
+        let code = "<?php
+function show($db) {
+  $name = $_POST['name'];
+  mysqli_query($db, \"SELECT * FROM users WHERE name = '$name'\");
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "SQL-инъекция"),
+            "mysqli_query must be a SQL sink"
+        );
+    }
+
+    /// WordPress is a large share of PHP in the wild and never calls `query`
+    /// directly for reads.
+    #[test]
+    fn wordpress_wpdb_getters_are_sql_sinks() {
+        let code = "<?php
+function show($wpdb) {
+  $id = $_GET['id'];
+  $row = $wpdb->get_results(\"SELECT * FROM wp_posts WHERE ID = $id\");
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "SQL-инъекция"),
+            "$wpdb->get_results must be a SQL sink"
+        );
+    }
+
+    #[test]
+    fn laravel_db_facade_is_a_sql_sink() {
+        let code = "<?php
+function show() {
+  $id = $_GET['id'];
+  DB::select(\"SELECT * FROM users WHERE id = $id\");
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "SQL-инъекция"),
+            "DB::select must be a SQL sink"
+        );
+    }
+
+    /// Widening the sink must not cost the guard: a parameterised PHP query is
+    /// still not a finding.
+    #[test]
+    fn php_parameterised_query_stays_quiet() {
+        let code = "<?php
+function show($pdo) {
+  $id = $_GET['id'];
+  $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+  $stmt->bindParam(1, $id);
+}
+";
+        assert!(
+            !analyze(code, Language::Php).iter().any(|f| f.category == "SQL-инъекция"),
+            "bindParam should clear SQL taint"
+        );
+    }
+
     /// The bug this whole scoping change exists for: an HTML escaper made the
     /// engine drop a live SQL injection. `htmlspecialchars` encodes `< > & " '`
     /// for markup and leaves the value hostile to a query, so the flow must

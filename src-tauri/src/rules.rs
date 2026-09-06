@@ -4711,7 +4711,12 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "SQL-инъекция",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)\.(?:execute|executemany|query|rawQuery|exec|prepare|raw)\s*\(",
+        // PHP reaches a database three ways and the dot-anchored form caught
+        // none of them: methods go through `->`, the mysqli/pgsql families are
+        // bare functions, and Laravel's facade is `DB::`. WordPress `$wpdb`
+        // getters are arrow-only here on purpose — a bare `.get_row(` would
+        // start matching unrelated APIs in the other heuristic languages.
+        sink: r"(?i)(?:(?:\.|->)(?:execute|executemany|query|rawQuery|exec|prepare|raw)\s*\(|->(?:get_results|get_var|get_row|get_col)\s*\(|\b(?:mysqli?_(?:query|real_query|multi_query|prepare)|pg_(?:query|query_params|send_query|prepare)|sqlsrv_query|sqlite_query|oci_(?:parse|execute)|odbc_exec)\s*\(|\bDB::(?:select|statement|insert|update|delete|raw)\s*\()",
         cwe: &["CWE-89"],
     },
     Heuristic {
