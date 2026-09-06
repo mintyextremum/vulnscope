@@ -1504,6 +1504,112 @@ function show(req) {
         assert!(analyze(code, Language::JavaScript).is_empty(), "bleach.clean should sanitize");
     }
 
+    /// PHP prints straight to the response — `echo` is where most PHP XSS
+    /// actually happens, and the DOM-shaped patterns never saw it.
+    #[test]
+    fn php_echo_is_an_xss_sink() {
+        let code = "<?php
+function show() {
+  $name = $_GET['name'];
+  echo \"<p>Hello $name</p>\";
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "XSS"),
+            "echo of user input must be XSS"
+        );
+    }
+
+    /// The reason `print` and `printf` are not in the pattern: they are ordinary
+    /// console output in four of the heuristic languages. A CLI script printing
+    /// its argument is not cross-site scripting, and reporting it as such would
+    /// discredit the whole category.
+    #[test]
+    fn console_print_in_other_languages_is_not_xss() {
+        let py = "import sys
+def main():
+    name = sys.argv[1]
+    print(name)
+";
+        assert!(
+            !analyze(py, Language::Python).iter().any(|f| f.category == "XSS"),
+            "Python print() must not be reported as XSS"
+        );
+
+        let rb = "def main
+  name = ARGV[0]
+  print name
+end
+";
+        assert!(
+            !analyze(rb, Language::Ruby).iter().any(|f| f.category == "XSS"),
+            "Ruby print must not be reported as XSS"
+        );
+    }
+
+    /// PHP makes outbound requests through cURL, and the URL lands at
+    /// `curl_setopt`, not at `curl_exec`.
+    #[test]
+    fn php_curl_is_an_ssrf_sink() {
+        let code = "<?php
+function fetch() {
+  $url = $_GET['url'];
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $url);
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "SSRF"),
+            "curl_setopt with a tainted URL must be SSRF"
+        );
+    }
+
+    /// PHP redirects by emitting a Location header.
+    #[test]
+    fn php_location_header_is_an_open_redirect() {
+        let code = "<?php
+function go() {
+  $next = $_GET['next'];
+  header(\"Location: \" . $next);
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "Открытый редирект"),
+            "header('Location: ...') must be an open redirect sink"
+        );
+    }
+
+    /// A tainted path in `include` is local/remote file inclusion — the most
+    /// damaging shape this category takes, and a keyword rather than a call.
+    #[test]
+    fn php_include_is_a_path_traversal_sink() {
+        let code = "<?php
+function render() {
+  $page = $_GET['page'];
+  include $page . '.php';
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "Path traversal"),
+            "include of user input must be path traversal"
+        );
+    }
+
+    /// PHP object injection: unserialize on attacker data runs magic methods.
+    #[test]
+    fn php_unserialize_is_a_code_execution_sink() {
+        let code = "<?php
+function load() {
+  $blob = $_POST['data'];
+  $obj = unserialize($blob);
+}
+";
+        assert!(
+            analyze(code, Language::Php).iter().any(|f| f.category == "Выполнение кода"),
+            "unserialize of user input must be code execution"
+        );
+    }
+
     /// PHP reaches a database through `->`, through bare mysqli/pgsql
     /// functions, and through Laravel's `DB::` facade. The sink pattern used to
     /// require a literal dot, so every one of these was invisible: SQL

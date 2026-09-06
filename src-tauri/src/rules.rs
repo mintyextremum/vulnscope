@@ -4728,7 +4728,11 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "Path traversal",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink)\s*\(",
+        // PHP's file API and, more importantly, its include family: a tainted
+        // path in `include`/`require` is local or remote file inclusion, the
+        // most damaging form this category takes. Those are keywords, not
+        // calls, so they carry no parenthesis requirement.
+        sink: r"(?i)(?:\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink|file_get_contents|file_put_contents|unlink|scandir|opendir)\s*\(|\b(?:include|require)(?:_once)?\b)",
         cwe: &["CWE-22"],
     },
     Heuristic {
@@ -4740,7 +4744,10 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "SSRF",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)\b(?:requests\.(?:get|post|put|delete|head)|urlopen|urlretrieve|fetch|axios|HttpClient|WebClient|OkHttp|http\.(?:Get|Post|get|post)|URLConnection)\s*[.(]",
+        // The cURL family is how PHP makes an outbound request; `curl_setopt` is
+        // named because the URL usually arrives there (CURLOPT_URL) rather than
+        // at `curl_exec`, which only takes the handle.
+        sink: r"(?i)(?:\b(?:requests\.(?:get|post|put|delete|head)|urlopen|urlretrieve|fetch|axios|HttpClient|WebClient|OkHttp|http\.(?:Get|Post|get|post)|URLConnection)\s*[.(]|\b(?:curl_exec|curl_setopt|curl_init|fsockopen|stream_context_create)\s*\()",
         cwe: &["CWE-918"],
     },
     Heuristic {
@@ -4752,7 +4759,10 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "Выполнение кода",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)\b(?:eval|exec|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load)\s*\(",
+        // PHP equivalents. `assert` is deliberately absent: it executes a string
+        // only in PHP, while Python, Java and Scala all use it as an ordinary
+        // check, and the sink pattern is shared across every heuristic language.
+        sink: r"(?i)\b(?:eval|exec|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load|unserialize|create_function|call_user_func(?:_array)?)\s*\(",
         cwe: &["CWE-94"],
     },
     Heuristic {
@@ -4764,7 +4774,12 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "XSS",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\(|mark_safe\s*\(|\bMarkup\s*\(|\.html_safe\b|v-html\s*=)",
+        // PHP prints straight to the response, which is where most PHP XSS
+        // lives, and none of the DOM-shaped patterns above see it. Only tokens
+        // unique to PHP are added: `print` and `printf` are deliberately absent
+        // because Python, Ruby, Perl and Go all have them, and `print(x)` in a
+        // console script is not cross-site scripting.
+        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\(|mark_safe\s*\(|\bMarkup\s*\(|\.html_safe\b|v-html\s*=|\becho\b|\b(?:print_r|var_dump)\s*\(|<\?=)",
         cwe: &["CWE-79"],
     },
     Heuristic {
@@ -4776,7 +4791,10 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "Открытый редирект",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)(?:\b(?:redirect|sendRedirect|HttpResponseRedirect)\s*\(|(?:res|response)\.redirect\s*\(|Response\.Redirect\s*\(|location\.(?:href|assign|replace)\s*[=(]|window\.location\s*=)",
+        // PHP redirects by emitting a header. `header(` alone would match every
+        // header call, so the Location value is required — that is the only
+        // form that redirects.
+        sink: r"(?i)(?:\b(?:redirect|sendRedirect|HttpResponseRedirect)\s*\(|(?:res|response)\.redirect\s*\(|Response\.Redirect\s*\(|location\.(?:href|assign|replace)\s*[=(]|window\.location\s*=|\bheader\s*\(\s*['\x22]?\s*location\s*:)",
         cwe: &["CWE-601"],
     },
     Heuristic {
