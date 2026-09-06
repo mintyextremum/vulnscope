@@ -46,8 +46,8 @@ Download the latest installer from the
 
 | File | What it is |
 |---|---|
-| `VulnScope_1.0.0_x64-setup.exe` | NSIS installer — the usual choice |
-| `VulnScope_1.0.0_x64_en-US.msi` | MSI package, for deployment via group policy |
+| `VulnScope_1.1.0_x64-setup.exe` | NSIS installer — the usual choice |
+| `VulnScope_1.1.0_x64_en-US.msi` | MSI package, for deployment via group policy |
 
 Windows 10 or 11, 64-bit. Nothing else to install: WebView2 ships with Windows 11
 and current Windows 10, and VulnScope bundles no runtime of its own.

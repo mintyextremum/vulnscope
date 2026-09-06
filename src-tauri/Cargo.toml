@@ -1,6 +1,6 @@
 [package]
 name = "vulnscope"
-version = "1.0.0"
+version = "1.1.0"
 description = "Desktop security scanner: static-analysis rules, taint tracking, secret detection and CVE lookup, running fully on your machine."
 authors = ["MintyExtremum"]
 license = "Apache-2.0"

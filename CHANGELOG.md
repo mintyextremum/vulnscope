@@ -4,6 +4,80 @@ All notable changes to VulnScope are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-09-04
+
+Mostly corrections. Two of them are false negatives in the data-flow engine —
+findings it saw and discarded — which matters more than a feature would: a
+scanner that stays quiet is trusted, and that trust was misplaced.
+
+### Fixed
+
+- **Sanitisers are scoped to the sink category they actually protect.** One
+  shared pattern used to clear taint for all eight categories at once, so an HTML
+  escaper silenced a live SQL injection:
+
+  ```python
+  safe = html.escape(request.args.get('id'))
+  cur.execute('SELECT * FROM t WHERE id = ' + safe)
+  ```
+
+  `escapeshellarg` now covers command injection only, `htmlspecialchars` XSS
+  only, parameterisation SQL and NoSQL, `filepath.Clean` path traversal. Numeric
+  coercions and allowlists still clear everything, honestly — nothing survives
+  `int()`. Ambiguous wording (`escape`, `sanitize`, `encode`, `quote`) keeps the
+  old blanket behaviour: the scope is unknowable from the name, and guessing
+  would trade false negatives for false positives.
+- **A sanitiser applied directly to a source no longer loses the flow.**
+  `safe = html.escape(request.args.get('id'))` has no intermediate variable to
+  carry, which is the shape most real code takes.
+- **PHP is traced by the data-flow engine at all.** Every sink pattern was
+  written for JavaScript and Python, and five of the eight categories matched
+  nothing in PHP. SQL required a literal dot, which PHP never produces — it uses
+  `->`, bare `mysqli_*`/`pg_*` functions, and Laravel's `DB::` facade. Added
+  across the categories: `echo`/`print_r`/`var_dump`/`<?=` (XSS), the cURL family
+  and `fsockopen` (SSRF), `header('Location: …')` (open redirect),
+  `file_get_contents`/`include`/`require` and friends (path traversal, including
+  local and remote file inclusion), `unserialize`/`create_function`/
+  `call_user_func` (code execution), and WordPress `$wpdb` getters.
+- `html.escape` and `cgi.escape` were only ever matched by the generic bucket and
+  so cleared every category.
+- The OSV client introduced itself as `VulnScope/0.1` long after 1.0.0 shipped.
+  It now reads the version from the crate.
+
+### Added
+
+- **Update notification.** Once per launch VulnScope asks the releases feed for
+  the latest version number and shows a dismissible bar when a newer one exists.
+  It downloads nothing and runs nothing — you open the link yourself. There is
+  deliberately no self-updater: one needs a signing key whose leak would mean
+  arbitrary code on every install, which is the supply-chain risk this tool
+  refuses to take elsewhere. It has its own setting, and offline mode overrules
+  it.
+- `npm run audit:i18n` now covers the data-flow heuristics. `Heuristic` is a
+  separate struct from `Rule` and was never collected, so a new one could ship
+  showing Russian in the English interface while the check that exists to prevent
+  exactly that reported everything green.
+
+### Changed
+
+- Dependency updates are no longer opened on a schedule; Dependabot is left on
+  security advisories only. `npm audit` and `cargo audit` still run on every push.
+- The privacy statement in both READMEs and in `SECURITY.md` now documents two
+  outbound requests instead of one. Any third is a valid vulnerability report.
+
+### Security
+
+- `h2` raised to 0.4.19, closing RUSTSEC-2026-0258 (unbounded empty DATA frames).
+  It ships, via reqwest.
+- `browserslist`, `nanoid` and `postcss` raised past their advisories. Build
+  tooling only — none of it reaches a released binary.
+
+### Engineering
+
+- 311 backend tests, up from 288.
+
+[1.1.0]: https://github.com/mintyextremum/vulnscope/releases/tag/v1.1.0
+
 ## [1.0.0] — 2026-09-04
 
 First public release. VulnScope was developed privately over roughly 230 commits;
