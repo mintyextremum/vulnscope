@@ -12,6 +12,7 @@ mod scanner;
 mod secrets;
 mod settings;
 mod taint;
+mod update;
 mod userrules;
 mod walk;
 
@@ -468,6 +469,16 @@ fn check_keybind_conflicts(
     settings::find_conflicts(&keybinds)
 }
 
+/// Asks the releases feed whether a newer version exists. Reads the settings
+/// itself rather than trusting arguments from the webview: `offline` is a
+/// promise about network access, and a promise the frontend could forget to
+/// pass is not one.
+#[tauri::command]
+async fn check_update() -> update::UpdateInfo {
+    let s = settings::load();
+    update::check(s.offline, s.check_updates).await
+}
+
 #[tauri::command]
 fn get_settings_path() -> Result<String, String> {
     settings::settings_path()
@@ -510,6 +521,7 @@ pub fn run() {
             get_package_managers,
             install_tool,
             get_settings,
+            check_update,
             save_settings,
             reset_settings,
             open_in_editor,

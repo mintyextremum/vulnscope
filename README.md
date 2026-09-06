@@ -27,11 +27,17 @@ dangerous constructs in the code, secrets committed to the source, and known CVE
 in the dependencies — each with a CWE, an OWASP Top 10 category, a confidence
 level, and a concrete fix.
 
-**Analysis happens on your computer.** The only request that ever leaves is to
-[OSV.dev](https://osv.dev), carrying a list of package names and versions — never
-your code — and only when the CVE check is enabled. Offline mode removes even
-that. Telemetry and provider-side verification of discovered secrets are forced
-off and cannot be switched on.
+**Analysis happens on your computer.** Exactly two requests ever leave, and
+neither carries a line of your code:
+
+- **[OSV.dev](https://osv.dev)** — a list of package names and versions, and only
+  when the CVE check is enabled.
+- **The releases feed** — a version number, once per launch, to tell you when a
+  newer build exists. It downloads and runs nothing; you open the link yourself.
+  Switch it off under `Ctrl+,` → Network.
+
+Offline mode removes both. Telemetry and provider-side verification of discovered
+secrets are forced off and cannot be switched on.
 
 ## Install
 

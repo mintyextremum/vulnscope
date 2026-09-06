@@ -377,7 +377,9 @@ impl OsvClient {
     pub fn new(cache_days: u32, fetch_concurrency: usize) -> OsvClient {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
-            .user_agent("VulnScope/0.1 (local security scanner)")
+            // From the crate, so the version cannot go stale the way "0.1" did
+            // after the 1.0.0 release.
+            .user_agent(concat!("VulnScope/", env!("CARGO_PKG_VERSION"), " (local security scanner)"))
             .build()
             .unwrap_or_default();
         OsvClient {

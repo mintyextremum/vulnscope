@@ -3750,6 +3750,49 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   .two-col { grid-template-columns: 1fr; }
 }
 
+/* Update notification bar. Colours are the audited pairs only: t-1 and info
+   both carry verified contrast on s-2, so the strip stays readable in all
+   eighteen themes without adding a pair the contrast audit does not know. */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--s-2);
+  border-bottom: 1px solid var(--line);
+  color: var(--t-1);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+.update-bar .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--info);
+}
+
+.update-bar-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--info);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.update-bar-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: var(--sp-1);
+  color: var(--t-2);
+  cursor: pointer;
+  display: flex;
+  border-radius: var(--r-1);
+}
+
+.update-bar-close:hover { background: var(--s-3); color: var(--t-1); }
+
 .warn-box {
   display: flex;
   align-items: flex-start;

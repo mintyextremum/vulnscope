@@ -35,7 +35,8 @@ surface is anything that turns *reading* into *executing*. In particular:
   executes in whatever opens it — including CSV formula injection
 - **Any path by which a detected secret escapes masking** and reaches the UI, an
   export, a log, or a network request
-- Any outbound network request beyond the documented OSV.dev query
+- Any outbound network request beyond the two documented ones (the OSV.dev
+  query and the releases version check)
 - Tampering with the update or release artifacts
 
 ## What is out of scope
@@ -58,16 +59,20 @@ surface is anything that turns *reading* into *executing*. In particular:
 These are properties the project intends to hold. A demonstrated break of any of
 them is a valid report:
 
-1. **Analysis is local.** Your source code never leaves your machine. The only
-   outbound request is to OSV.dev, carrying package names and versions — never
-   code — and only when the CVE check is enabled. Offline mode removes even that.
+1. **Analysis is local.** Your source code never leaves your machine. Two
+   outbound requests exist and no more: OSV.dev, carrying package names and
+   versions and only when the CVE check is enabled; and the releases feed, which
+   fetches a version number once per launch and is switched off with a setting
+   of its own. Offline mode removes both. Any third request is a valid report.
 2. **Secrets are masked everywhere.** A detected secret's raw value never reaches
    the interface, an export, or a log. This is enforced by a test that walks the
    real pipeline (`secret_values_never_reach_the_finding`).
 3. **Nothing is downloaded or executed on your behalf.** VulnScope shows you the
    command to install an external scanner and lets you copy it; it does not fetch
    or run binaries. A security scanner that installs software is the supply-chain
-   threat it exists to find.
+   threat it exists to find. The update check follows the same rule: it reads a
+   version number and tells you, and there is no self-updater — one would need a
+   signing key whose leak means arbitrary code on every install.
 4. **Telemetry is off and cannot be switched on.** Scanner telemetry and
    provider-side verification of discovered secrets are forced off.
 

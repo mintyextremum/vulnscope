@@ -2476,8 +2476,13 @@ export const EN: Record<string, string> = {
     "Gitignore-style patterns, one per line. For example: docs/**",
   Сеть: "Network",
   "Офлайн-режим": "Offline mode",
-  "Совсем без сети: зависимости всё равно разбираются и считаются, но CVE не запрашиваются. Единственное, что VulnScope отправляет наружу, — имена и версии пакетов в OSV.dev.":
-    "No network at all: dependencies are still parsed and counted, but CVEs are not requested. Package names and versions sent to OSV.dev are the only thing VulnScope ever transmits.",
+  "Совсем без сети: зависимости всё равно разбираются и считаются, но CVE не запрашиваются, проверка обновлений не выполняется. Наружу VulnScope отправляет только имена и версии пакетов в OSV.dev и запрос номера последней версии — код не уходит никогда.":
+    "No network at all: dependencies are still parsed and counted, but CVEs are not requested and no update check runs. All VulnScope ever sends out is package names and versions to OSV.dev, plus a request for the latest version number — your code never leaves.",
+  "Проверять обновления": "Check for updates",
+  "Один раз за запуск спрашивает у GitHub номер последней версии и показывает подсказку, если вышла новее. Ничего не скачивает и не запускает — ссылку вы открываете сами. Офлайн-режим отключает и это.":
+    "Asks GitHub once per launch for the latest version number and shows a notice if a newer one exists. Downloads nothing and runs nothing — you open the link yourself. Offline mode disables this too.",
+  "Вышла версия {v} — у вас {cur}.": "Version {v} is out — you have {cur}.",
+  "Открыть страницу релиза": "Open the release page",
   "Ответственные (git blame)": "Attribution (git blame)",
   "Определять автора строки": "Identify the line's author",
   "git blame: приписывает находку тому, кто последним менял строку. Стоит одного вызова git на файл.":

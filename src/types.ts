@@ -43,6 +43,7 @@ export interface AppSettings {
   blameMaxFiles: number;
   /** No network at all — dependencies are parsed but never sent to OSV. */
   offline: boolean;
+  checkUpdates: boolean;
   externalTimeoutSecs: number;
 
   // ---- reports ----
@@ -522,3 +523,13 @@ export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   medium: "Средняя точность",
   low: "Требует проверки",
 };
+
+/** Result of the version check. Never fatal: `error` explains a missing answer
+ *  (offline, disabled, no network) and the UI simply stays quiet. */
+export interface UpdateInfo {
+  current: string;
+  latest: string | null;
+  updateAvailable: boolean;
+  url: string;
+  error: string | null;
+}

@@ -225,6 +225,7 @@ export const DEMO_SETTINGS: AppSettings = {
   enableBlame: true,
   blameMaxFiles: 800,
   offline: false,
+  checkUpdates: false,
   externalTimeoutSecs: 300,
   historyCap: 60,
   reportOrg: "",

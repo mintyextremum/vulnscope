@@ -47,6 +47,12 @@ pub struct Settings {
     /// The tool's promise is local analysis; this makes it absolute.
     #[serde(default)]
     pub offline: bool,
+    /// Ask the releases feed whether a newer version exists, once per launch.
+    /// This is the only outbound request besides OSV, so it gets its own switch
+    /// rather than hiding inside `offline` — someone may want CVE data and no
+    /// version check, or the reverse. `offline` still overrules it.
+    #[serde(default = "default_true")]
+    pub check_updates: bool,
     /// Seconds an external tool may run before it is killed.
     #[serde(default = "default_tool_timeout")]
     pub external_timeout_secs: u32,
@@ -183,6 +189,7 @@ impl Default for Settings {
             enable_blame: true,
             blame_max_files: default_blame_files(),
             offline: false,
+            check_updates: true,
             external_timeout_secs: default_tool_timeout(),
             osv_cache_days: 7,
             osv_concurrency: 16,

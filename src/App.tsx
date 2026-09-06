@@ -22,6 +22,7 @@ import {
   Staff1c,
   ToolId,
   ToolsInfo,
+  UpdateInfo,
 } from "./types";
 import {
   Announce,
@@ -143,6 +144,8 @@ export default function App() {
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<number | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  /// Set only when a newer release exists; null keeps the banner absent.
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [treeW, setTreeW] = useStoredWidth("vs.treeW", 280);
   const [listW, setListW] = useStoredWidth("vs.listW", 360);
 
@@ -196,6 +199,19 @@ export default function App() {
           setIncludeVendor(cfg.defaultIncludeVendor);
           setCheckSecrets(cfg.defaultCheckSecrets);
           setCheckDependencies(cfg.defaultCheckDependencies);
+        }
+        // Once per launch, and only when asked for. The backend re-reads the
+        // settings itself and returns a quiet answer when offline or switched
+        // off, so this call is safe to make unconditionally — but not making it
+        // at all is cheaper and keeps the intent visible here.
+        if (cfg.checkUpdates && !cfg.offline) {
+          invoke<UpdateInfo>("check_update")
+            .then((u) => {
+              if (u.updateAvailable) setUpdate(u);
+            })
+            // A version check that fails is not news. Staying silent is the
+            // feature: nobody needs a scanner complaining about GitHub.
+            .catch(() => {});
         }
       })
       .catch(() => {});
@@ -1540,6 +1556,37 @@ export default function App() {
           <kbd>Ctrl K</kbd>
         </button>
       </Titlebar>
+
+      {/* A notification, not an updater: the link opens in the browser and the
+          user installs it themselves. Dismissed for the session with the ×,
+          because a bar that cannot be closed is an advertisement. */}
+      {update && (
+        <div className="update-bar">
+          <Icon name="rocket_launch" />
+          <span>
+            {t("Вышла версия {v} — у вас {cur}.", {
+              v: update.latest ?? "",
+              cur: update.current,
+            })}
+          </span>
+          <button
+            className="update-bar-link"
+            onClick={() => {
+              void invoke("plugin:opener|open_url", { url: update.url }).catch(() => {});
+            }}
+          >
+            {t("Открыть страницу релиза")}
+          </button>
+          <button
+            className="update-bar-close"
+            onClick={() => setUpdate(null)}
+            title={t("Скрыть")}
+            aria-label={t("Скрыть")}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+      )}
 
       <CommandPalette
         open={paletteOpen}
