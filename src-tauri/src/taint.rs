@@ -183,7 +183,11 @@ static SCOPED_SANITIZERS: Lazy<Vec<(Regex, &'static [&'static str])>> = Lazy::ne
         (r"escapeshellarg|escapeshellcmd|shlex\.quote|pipes\.quote", Scope::Only(&[CAT_CMD])),
         // HTML/XSS sanitisers. `strip_tags` removes markup and nothing else.
         (
-            r"htmlspecialchars|htmlentities|bleach\.clean|strip_tags|escape_?html|html[._]?escape|cgi\.escape|sanitize_?html|dompurify\.sanitize",
+            // `html_?encode` is .NET's HttpUtility/WebUtility/AntiXss HtmlEncode;
+            // `forhtml` is the OWASP Java Encoder (`Encode.forHtml`,
+            // `forHtmlAttribute`, `forHtmlContent`). Without them both fell to the
+            // generic `encode` bucket and cleared SQL taint along with XSS.
+            r"htmlspecialchars|htmlentities|bleach\.clean|strip_tags|escape_?html|html[._]?escape|cgi\.escape|sanitize_?html|dompurify\.sanitize|html_?encode|encode\.forhtml",
             Scope::Only(&[CAT_XSS]),
         ),
         // Parameterisation is the SQL/NoSQL answer; it says nothing about a path
@@ -194,13 +198,20 @@ static SCOPED_SANITIZERS: Lazy<Vec<(Regex, &'static [&'static str])>> = Lazy::ne
         ),
         // Path canonicalisation: stops `..`, stops nothing else.
         (
-            r"filepath\.clean|secure_filename|os\.path\.basename|\bbasename\s*\(|werkzeug\.utils\.secure_filename",
+            // Apache Commons `FilenameUtils.getName` and .NET `Path.GetFileName`
+            // drop every directory component, the same guarantee as `basename`.
+            r"filepath\.clean|secure_filename|os\.path\.basename|\bbasename\s*\(|werkzeug\.utils\.secure_filename|filenameutils\.getname|path\.getfilename",
             Scope::Only(&[CAT_PATH]),
         ),
         // URL-component encoding keeps a value inside one URL field, which is
         // what an open redirect abuses. It does not stop SSRF: a fully encoded
         // attacker host is still that host.
-        (r"encodeuricomponent|urlencode|url_encode|quote_plus", Scope::Only(&[CAT_REDIRECT, CAT_XSS])),
+        // `escapedatastring` is .NET's `Uri.EscapeDataString`, the
+        // encodeURIComponent of that world.
+        (
+            r"encodeuricomponent|urlencode|url_encode|quote_plus|escapedatastring",
+            Scope::Only(&[CAT_REDIRECT, CAT_XSS]),
+        ),
         // LDAP filter escaping — no taint category of its own today, so it
         // clears nothing rather than pretending to cover one.
         (r"escape_filter_chars|filterencode|encodevalue", Scope::Only(&[])),
@@ -288,10 +299,26 @@ static SINKS: Lazy<Vec<CompiledSink>> = Lazy::new(|| {
 /// the many assignment spellings across languages, while rejecting comparisons
 /// (`==`, `<=`, `!=`) — the regex engine has no look-behind, so the `[^=]` after
 /// `=` and the leading anchor carry that weight.
+///
+/// Declared types were once a fixed list (`String`, `int`, …), so any other
+/// type made the line invisible as an assignment and the taint stopped there:
+/// `URL url = new URL(u)`, `List<String> xs = …`, C#'s lowercase `string`, and
+/// every annotated declaration — `const id: string = req.query.id`, which is
+/// simply how TypeScript is written. Both shapes are now accepted generically.
 static ASSIGN_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"^\s*(?:(?:let|const|var|val|my|final|auto|public|private|protected|static|String|int|long|short|float|double|bool|boolean|char|def|func|fn|dim|set)\s+)*(\$?[A-Za-z_][\w]*)\s*(?::?=|:=|<-)\s*([^=].*)$",
-    )
+    Regex::new(concat!(
+        // Declaration keywords and primitives, as before.
+        r"^\s*(?:(?:let|const|var|val|my|final|auto|public|private|protected|static|String|int|long|short|float|double|bool|boolean|char|def|func|fn|dim|set)\s+)*",
+        // A type before the name: `URL url`, `List<String> xs`, `byte[] b`,
+        // `string? s`. Generics may nest; they can never contain `=` or `;`.
+        r"(?:[A-Za-z_][\w.]*(?:<[^=;]*?>)?(?:\[\])*\??\s+)?",
+        r"(\$?[A-Za-z_][\w]*)",
+        // An annotation after the name: TypeScript `id: string`, Kotlin
+        // `url: URL`, Python `x: int`. A type is at least one character, so
+        // Go's `:=` never reads as an empty annotation.
+        r"\s*(?::\s*[\w.<>\[\],|? ]+?\s*)?",
+        r"(?::?=|:=|<-)\s*([^=].*)$",
+    ))
     .expect("bad assignment pattern")
 });
 
@@ -317,6 +344,198 @@ fn contains_word(hay: &str, word: &str) -> bool {
         from = start + 1;
     }
     false
+}
+
+/// The line with string-literal contents blanked out and interpolation kept.
+///
+/// A variable's name inside a string literal is text, not a reference.
+/// `"SELECT * FROM t WHERE id = ?"` names the column `id`; reading that as the
+/// tainted variable `id` reported the canonical *safe* query as an injection,
+/// in every language, and would have done so for every correctly written JDBC
+/// call the moment Java sinks were added.
+///
+/// Interpolation is the main road to injection, so it survives: `${…}` and
+/// `#{…}` (JS templates, Kotlin, Groovy, Scala, Ruby), `{…}` behind an f-string
+/// or a C# `$` prefix, and `$name` (PHP, Perl, Kotlin, Scala, Groovy).
+///
+/// Only for deciding which variables a line *references* and whether a
+/// sanitiser is *called*. Sink and source patterns still read the raw line:
+/// `header("Location: …")` and `php://input` live inside strings by nature.
+fn mask_strings(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let quote = chars[i];
+        if quote != '"' && quote != '\'' && quote != '`' {
+            out.push(quote);
+            i += 1;
+            continue;
+        }
+        let braces = interpolating_prefix(&chars[..i]);
+        out.push(quote);
+        i += 1;
+        while i < chars.len() && chars[i] != quote {
+            let ch = chars[i];
+            let next = chars.get(i + 1).copied();
+            if ch == '\\' {
+                // An escape consumes the next character, quote included.
+                out.push(' ');
+                if next.is_some() {
+                    out.push(' ');
+                }
+                i += 2;
+                continue;
+            }
+            if braces && ch == '{' && next == Some('{') {
+                // `{{` is an escaped literal brace in an f-string or C# `$"…"`.
+                // Consuming only the first would leave the second looking like
+                // an interpolation opener, and `{{id}}` would read as `{id}`.
+                out.push_str("  ");
+                i += 2;
+                continue;
+            }
+            let lead_in = (ch == '$' || ch == '#') && next == Some('{');
+            if lead_in || (braces && ch == '{') {
+                // Keep the balanced `{…}`, with its `$`/`#`, verbatim.
+                if lead_in {
+                    out.push(ch);
+                    i += 1;
+                }
+                let mut depth = 0;
+                while i < chars.len() {
+                    let c = chars[i];
+                    out.push(c);
+                    i += 1;
+                    match c {
+                        '{' => depth += 1,
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                continue;
+            }
+            if ch == '$' && next.is_some_and(|n| n.is_ascii_alphabetic() || n == '_') {
+                // `$name` is emitted twice: as `$name` for PHP and Perl, whose
+                // variables carry the sigil, and as bare `name` for Kotlin,
+                // Scala and Groovy, whose do not. No language has both spellings
+                // of one variable, so neither reading can match the wrong one.
+                let mut j = i + 1;
+                while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                    j += 1;
+                }
+                let name: String = chars[i + 1..j].iter().collect();
+                out.push('$');
+                out.push_str(&name);
+                out.push(' ');
+                out.push_str(&name);
+                i = j;
+                continue;
+            }
+            out.push(' ');
+            i += 1;
+        }
+        if i < chars.len() {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Whether a string opening right after `before` takes `{…}` interpolation: a
+/// Python f-string (`f`, `rf`, `fr`, any case) or a C# interpolated string
+/// (`$`, `$@`, `@$`). The prefix has to stand alone — `buf"` is no f-string.
+fn interpolating_prefix(before: &[char]) -> bool {
+    let mut k = before.len();
+    let mut prefix = String::new();
+    while k > 0 && prefix.len() < 3 {
+        let c = before[k - 1];
+        if c.is_ascii_alphabetic() || c == '$' || c == '@' {
+            prefix.insert(0, c);
+            k -= 1;
+        } else {
+            break;
+        }
+    }
+    if k > 0 && (before[k - 1].is_ascii_alphanumeric() || before[k - 1] == '_') {
+        return false;
+    }
+    matches!(prefix.to_ascii_lowercase().as_str(), "f" | "rf" | "fr" | "$" | "$@" | "@$")
+}
+
+/// The top-level arguments of the call whose `(` sits just before `from`, or
+/// `None` when the closing parenthesis is not on this line.
+fn call_args_from(text: &str, from: usize) -> Option<Vec<String>> {
+    let tail = text.get(from..)?;
+    let mut depth = 1i32;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for (idx, ch) in tail.char_indices() {
+        if let Some(q) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' | '`' => quote = Some(ch),
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(split_top_commas(&tail[..idx]));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// For a SQL sink, the part of the line that is *query text*.
+///
+/// The difference between SQL injection and a parameterised query is exactly
+/// whether the value went into the query or beside it:
+///
+/// ```text
+/// cur.execute("SELECT … WHERE id = " + id)        # injection
+/// cur.execute("SELECT … WHERE id = %s", (id,))    # parameterised
+/// ```
+///
+/// Both put `id` on the sink line, so the whole-line check reported the safe
+/// form too — for DB-API, mysql2, pg, JdbcTemplate and EF Core alike, whose
+/// bind parameters all follow the query. Only the query argument counts: the
+/// first one, or the first two for PHP's procedural drivers, which take the
+/// connection first (`mysqli_query($link, $sql)`) — except the old
+/// `mysql_query($sql, $link)`, which the pair covers too. A call whose closing
+/// parenthesis is on another line falls back to the whole line: missing a
+/// bind parameter is the cheaper mistake than missing an injection.
+fn sql_query_text<'a>(text: &'a str, sink: &Regex) -> std::borrow::Cow<'a, str> {
+    let Some(m) = sink.find(text) else {
+        return std::borrow::Cow::Borrowed(text);
+    };
+    if !m.as_str().ends_with('(') {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let Some(args) = call_args_from(text, m.end()) else {
+        return std::borrow::Cow::Borrowed(text);
+    };
+    let called = m.as_str().to_ascii_lowercase();
+    let procedural = ["mysql", "pg_", "sqlsrv_", "sqlite_", "oci_", "odbc_"]
+        .iter()
+        .any(|p| called.trim_start().starts_with(p));
+    let take = if procedural { 2 } else { 1 };
+    std::borrow::Cow::Owned(args.into_iter().take(take).collect::<Vec<_>>().join(","))
 }
 
 /// The chain that made a variable tainted, from its source to the latest step.
@@ -548,8 +767,28 @@ fn split_top_commas(s: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut depth = 0i32;
     let mut cur = String::new();
+    // A comma or bracket inside a string literal is text. Splitting on it used
+    // to shift every later argument by one — `helper("a, b", x)` put `x` in the
+    // third slot — so the interprocedural pass matched the wrong parameter.
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
     for ch in s.chars() {
+        if let Some(q) = quote {
+            cur.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == q {
+                quote = None;
+            }
+            continue;
+        }
         match ch {
+            '"' | '\'' | '`' => {
+                quote = Some(ch);
+                cur.push(ch);
+            }
             '(' | '[' | '{' => {
                 depth += 1;
                 cur.push(ch);
@@ -622,7 +861,15 @@ fn process_line(
         // Only values still dangerous *for this sink's category* count. A value
         // that passed an HTML escaper is skipped at an XSS sink and still
         // reported at a SQL one — the whole point of scoping sanitisers.
-        let best = earliest_referenced_for(tainted, text, line, s.category);
+        //
+        // For SQL, only the query text: a value passed beside the query as a
+        // bind parameter is the fix, not the bug.
+        let scope = if s.category == CAT_SQL {
+            sql_query_text(text, &s.re)
+        } else {
+            std::borrow::Cow::Borrowed(text)
+        };
+        let best = earliest_referenced_for(tainted, &scope, line, s.category);
         if let Some(v) = best {
             on_sink(
                 v,
@@ -656,7 +903,11 @@ fn process_line(
         if lhs.is_empty() {
             return;
         }
-        if let Some(cats) = sanitized_categories(rhs) {
+        // A sanitiser is a call and a variable is a reference — neither is the
+        // text of a string. `msg = "failed to escape: " + id` used to count
+        // as sanitising `id`, because the word sat inside the literal.
+        let code_rhs = mask_strings(rhs);
+        if let Some(cats) = sanitized_categories(&code_rhs) {
             // The value is safe for `cats` and unchanged for everything else, so
             // the taint is narrowed rather than dropped. Carrying the underlying
             // chain forward is what lets a later SQL sink still report a flow
@@ -668,7 +919,7 @@ fn process_line(
             // it matters most.
             let carried = tainted
                 .iter()
-                .filter(|(name, _)| contains_word(rhs, name))
+                .filter(|(name, _)| contains_word(&code_rhs, name))
                 .map(|(_, v)| v.clone())
                 .min_by_key(|v| v.source_line())
                 .map(|mut v| {
@@ -729,7 +980,7 @@ fn process_line(
             };
         } else if let Some(mut v) = tainted
             .iter()
-            .filter(|(name, _)| contains_word(rhs, name))
+            .filter(|(name, _)| contains_word(&code_rhs, name))
             .map(|(_, v)| v.clone())
             .min_by_key(|v| v.source_line())
         {
@@ -747,7 +998,7 @@ fn process_line(
     //    `htmlspecialchars($x)` is an HTML escaper, not a general-purpose one,
     //    so it keeps returning taint for SQL and the rest.
     if let Some(rest) = return_expr(trimmed) {
-        match sanitized_categories(rest) {
+        match sanitized_categories(&mask_strings(rest)) {
             Some(cats) if ALL_CATEGORIES.iter().all(|c| cats.contains(c)) => {}
             Some(cats) => {
                 if let Some(v) = earliest_referenced(tainted, rest, line) {
@@ -792,9 +1043,12 @@ fn earliest_matching<'a>(
     line: u32,
     accept: impl Fn(&TaintVar) -> bool,
 ) -> Option<&'a TaintVar> {
+    // Every "does this line use the variable" question goes through here, so
+    // this is the one place string contents stop counting as references.
+    let text = mask_strings(text);
     let mut best: Option<&TaintVar> = None;
     for (name, v) in tainted {
-        if contains_word(text, name)
+        if contains_word(&text, name)
             && line.saturating_sub(v.source_line()) <= WINDOW
             && accept(v)
             && best.map(|b| v.source_line() < b.source_line()).unwrap_or(true)
@@ -1502,6 +1756,278 @@ function show(req) {
 }
 ";
         assert!(analyze(code, Language::JavaScript).is_empty(), "bleach.clean should sanitize");
+    }
+
+    // ------------------------------------------------------------ JVM and .NET
+
+    /// Java, Kotlin and C# carry 44 catalogue rules between them, yet not one
+    /// ordinary injection in them reached a data-flow finding: the sink patterns
+    /// were written for Python and JavaScript. Sources were fine — the engine
+    /// saw the input and tracked it, then had nowhere to report it.
+    #[test]
+    fn jvm_and_dotnet_injections_are_traced() {
+        let cases: &[(&str, &str, Language, &str)] = &[
+            ("SQL-инъекция", "JDBC executeQuery", Language::Java,
+             "void a(HttpServletRequest request, Statement stmt) throws Exception {\n  String id = request.getParameter(\"id\");\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id);\n}\n"),
+            ("SQL-инъекция", "prepareStatement is not magic", Language::Java,
+             "void a(HttpServletRequest request, Connection conn) throws Exception {\n  String id = request.getParameter(\"id\");\n  PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM t WHERE id = \" + id);\n}\n"),
+            ("SQL-инъекция", "JPA createQuery", Language::Java,
+             "void a(HttpServletRequest request, EntityManager em) {\n  String n = request.getParameter(\"n\");\n  em.createQuery(\"FROM User WHERE name = '\" + n + \"'\");\n}\n"),
+            ("SQL-инъекция", "Kotlin concatenation", Language::Kotlin,
+             "fun a(request: HttpServletRequest, stmt: Statement) {\n  val id = request.getParameter(\"id\")\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id)\n}\n"),
+            ("SQL-инъекция", "Kotlin string template", Language::Kotlin,
+             "fun a(request: HttpServletRequest, stmt: Statement) {\n  val id = request.getParameter(\"id\")\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = $id\")\n}\n"),
+            ("SQL-инъекция", "ADO.NET SqlCommand", Language::CSharp,
+             "void A(HttpRequest Request, SqlConnection conn) {\n  var id = Request.Query[\"id\"];\n  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = \" + id, conn);\n}\n"),
+            ("SQL-инъекция", "C# interpolated string", Language::CSharp,
+             "void A(HttpRequest Request, SqlConnection conn) {\n  var id = Request.Query[\"id\"];\n  var cmd = new SqlCommand($\"SELECT * FROM t WHERE id = {id}\", conn);\n}\n"),
+            ("SQL-инъекция", "EF Core FromSqlRaw", Language::CSharp,
+             "void A(HttpRequest Request, AppDb db) {\n  var id = Request.Query[\"id\"];\n  var u = db.Users.FromSqlRaw(\"SELECT * FROM Users WHERE Id = \" + id);\n}\n"),
+            ("Path traversal", "java.io.File", Language::Java,
+             "void a(HttpServletRequest request) {\n  String f = request.getParameter(\"f\");\n  File file = new File(\"/data/\" + f);\n}\n"),
+            ("Path traversal", "Kotlin bare File(", Language::Kotlin,
+             "fun a(request: HttpServletRequest) {\n  val f = request.getParameter(\"f\")\n  val file = File(\"/data/\" + f)\n}\n"),
+            ("Path traversal", "NIO Files", Language::Java,
+             "void a(HttpServletRequest request) throws Exception {\n  String f = request.getParameter(\"f\");\n  byte[] b = Files.readAllBytes(Path.of(f));\n}\n"),
+            ("Path traversal", ".NET File.ReadAllText", Language::CSharp,
+             "void A(HttpRequest Request) {\n  var f = Request.Query[\"f\"];\n  var text = File.ReadAllText(f);\n}\n"),
+            ("XSS", "servlet writer", Language::Java,
+             "void a(HttpServletRequest request, HttpServletResponse response) throws Exception {\n  String n = request.getParameter(\"n\");\n  response.getWriter().write(\"<p>\" + n);\n}\n"),
+            ("XSS", "Response.Write", Language::CSharp,
+             "void A(HttpRequest Request) {\n  var n = Request.Query[\"n\"];\n  Response.Write(\"<p>\" + n);\n}\n"),
+            ("SSRF", "URL.openStream", Language::Java,
+             "void a(HttpServletRequest request) throws Exception {\n  String u = request.getParameter(\"u\");\n  URL url = new URL(u);\n  InputStream s = url.openStream();\n}\n"),
+            ("SSRF", "RestTemplate", Language::Java,
+             "void a(HttpServletRequest request, RestTemplate rest) {\n  String u = request.getParameter(\"u\");\n  String b = rest.getForObject(u, String.class);\n}\n"),
+            ("SSRF", "HttpClient", Language::CSharp,
+             "async Task A(HttpRequest Request, HttpClient client) {\n  var u = Request.Query[\"u\"];\n  var body = await client.GetStringAsync(u);\n}\n"),
+            ("Инъекция команд", "Process.Start", Language::CSharp,
+             "void A(HttpRequest Request) {\n  var c = Request.Query[\"c\"];\n  Process.Start(\"cmd.exe\", \"/c \" + c);\n}\n"),
+            ("Выполнение кода", "Java deserialisation", Language::Java,
+             "void a(HttpServletRequest request) throws Exception {\n  ObjectInputStream in = new ObjectInputStream(request.getInputStream());\n  Object o = in.readObject();\n}\n"),
+            ("Выполнение кода", "SpEL", Language::Java,
+             "void a(HttpServletRequest request, ExpressionParser parser) {\n  String e = request.getParameter(\"e\");\n  Object v = parser.parseExpression(e).getValue();\n}\n"),
+        ];
+        let mut missed = Vec::new();
+        for (want, name, lang, code) in cases {
+            if !analyze(code, *lang).iter().any(|f| f.category == *want) {
+                missed.push(format!("{name} ({lang:?}) — expected {want}"));
+            }
+        }
+        assert!(missed.is_empty(), "not traced:\n  {}", missed.join("\n  "));
+    }
+
+    /// A declared type used to end the trail: any type outside a fixed list made
+    /// the line invisible as an assignment. That silently disabled propagation
+    /// for most real Java and C#, and for every annotated TypeScript or Python
+    /// declaration — not a JVM problem at all, just the one that exposed it.
+    #[test]
+    fn typed_declarations_carry_taint() {
+        let cases: &[(&str, Language, &str)] = &[
+            ("TypeScript annotation", Language::TypeScript,
+             "function a(req, db) {\n  const id: string = req.query.id as string;\n  db.query(\"SELECT * FROM t WHERE id = \" + id);\n}\n"),
+            ("C# lowercase string", Language::CSharp,
+             "void A(HttpRequest Request, SqlConnection conn) {\n  string id = Request.Query[\"id\"];\n  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = \" + id, conn);\n}\n"),
+            ("Python annotation", Language::Python,
+             "def a(request, cur):\n    uid: str = request.args.get('id')\n    cur.execute(\"SELECT * FROM t WHERE id = \" + uid)\n"),
+            ("Java class-typed intermediate", Language::Java,
+             "void a(HttpServletRequest request, Statement stmt) throws Exception {\n  String id = request.getParameter(\"id\");\n  StringBuilder sql = new StringBuilder(\"SELECT * FROM t WHERE id = \").append(id);\n  stmt.executeQuery(sql.toString());\n}\n"),
+        ];
+        for (name, lang, code) in cases {
+            assert!(
+                analyze(code, *lang).iter().any(|f| f.category == "SQL-инъекция"),
+                "{name}: the typed declaration dropped the taint"
+            );
+        }
+    }
+
+    /// Every ecosystem's canonical *safe* form. Each of these would have been an
+    /// injection finding had the sinks been added without string masking and
+    /// bind-parameter awareness — the column is literally named `id`, like the
+    /// variable, and Spring passes the value on the very same line.
+    #[test]
+    fn jvm_and_dotnet_safe_forms_stay_quiet() {
+        let cases: &[(&str, Language, &str)] = &[
+            ("JDBC PreparedStatement", Language::Java,
+             "void a(HttpServletRequest request, Connection conn) throws Exception {\n  String id = request.getParameter(\"id\");\n  PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM t WHERE id = ?\");\n  ps.setString(1, id);\n  ps.executeQuery();\n}\n"),
+            ("Spring JdbcTemplate bind argument", Language::Java,
+             "void a(HttpServletRequest request, JdbcTemplate jdbc) {\n  String id = request.getParameter(\"id\");\n  String n = jdbc.queryForObject(\"SELECT n FROM t WHERE id = ?\", String.class, id);\n}\n"),
+            ("ADO.NET parameters", Language::CSharp,
+             "void A(HttpRequest Request, SqlConnection conn) {\n  var id = Request.Query[\"id\"];\n  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = @id\", conn);\n  cmd.Parameters.AddWithValue(\"@id\", id);\n}\n"),
+            ("EF Core FromSqlInterpolated", Language::CSharp,
+             "void A(HttpRequest Request, AppDb db) {\n  var id = Request.Query[\"id\"];\n  var u = db.Users.FromSqlInterpolated($\"SELECT * FROM Users WHERE Id = {id}\");\n}\n"),
+        ];
+        for (name, lang, code) in cases {
+            let sql: Vec<_> =
+                analyze(code, *lang).into_iter().filter(|f| f.category == "SQL-инъекция").collect();
+            assert!(sql.is_empty(), "{name} reported as SQL injection");
+        }
+    }
+
+    /// Console output is not a response. `System.out.println` is the JVM's
+    /// `print`, and reporting it as XSS would discredit the category.
+    #[test]
+    fn jvm_console_output_is_not_xss() {
+        let code = "\
+public static void main(String[] args) {
+  String name = args[0];
+  System.out.println(name);
+}
+";
+        assert!(!analyze(code, Language::Java).iter().any(|f| f.category == "XSS"));
+    }
+
+    /// Sanitiser scoping reaches .NET and the OWASP Java Encoder: an HTML
+    /// encoder clears XSS and nothing else.
+    #[test]
+    fn dotnet_and_jvm_html_encoders_are_scoped() {
+        let xss = "\
+void A(HttpRequest Request) {
+  var safe = HttpUtility.HtmlEncode(Request.Query[\"n\"]);
+  Response.Write(\"<p>\" + safe);
+}
+";
+        assert!(
+            !analyze(xss, Language::CSharp).iter().any(|f| f.category == "XSS"),
+            "HtmlEncode should clear XSS"
+        );
+
+        let sql = "\
+void A(HttpRequest Request, SqlConnection conn) {
+  var safe = HttpUtility.HtmlEncode(Request.Query[\"id\"]);
+  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = \" + safe, conn);
+}
+";
+        assert!(
+            analyze(sql, Language::CSharp).iter().any(|f| f.category == "SQL-инъекция"),
+            "HtmlEncode must not clear SQL taint"
+        );
+
+        let java = "\
+void a(HttpServletRequest request, HttpServletResponse response) throws Exception {
+  String safe = Encode.forHtml(request.getParameter(\"n\"));
+  response.getWriter().write(\"<p>\" + safe);
+}
+";
+        assert!(
+            !analyze(java, Language::Java).iter().any(|f| f.category == "XSS"),
+            "Encode.forHtml should clear XSS"
+        );
+    }
+
+    // ---------------------------------------------------- strings are not code
+
+    #[test]
+    fn mask_blanks_literals_and_keeps_interpolation() {
+        // Plain literal: the column name disappears, the code around it stays.
+        let m = mask_strings("cur.execute(\"SELECT * FROM t WHERE id = ?\")");
+        assert!(m.starts_with("cur.execute(\""));
+        assert!(!contains_word(&m, "id"), "column name must not survive: {m}");
+
+        // Each interpolation form keeps the variable visible.
+        for (line, var) in [
+            ("q = `SELECT ${id}`", "id"),            // JS template
+            ("q = f\"SELECT {id}\"", "id"),          // Python f-string
+            ("q = $\"SELECT {id}\"", "id"),          // C# interpolated
+            ("q = \"SELECT #{id}\"", "id"),          // Ruby
+            ("val q = \"SELECT ${id}\"", "id"),      // Kotlin braces
+            ("val q = \"SELECT $id\"", "id"),        // Kotlin bare
+            ("$q = \"SELECT $id\";", "$id"),         // PHP
+        ] {
+            assert!(contains_word(&mask_strings(line), var), "{var} lost in {line}");
+        }
+    }
+
+    /// `{…}` interpolates only behind an f/`$` prefix: in a plain string it is
+    /// text (MessageFormat, JSON), and `{{` is an escaped brace in an f-string.
+    #[test]
+    fn braces_interpolate_only_behind_a_prefix() {
+        assert!(!contains_word(&mask_strings("m = \"hello {id}\""), "id"));
+        assert!(!contains_word(&mask_strings("m = f\"hello {{id}}\""), "id"));
+        assert!(!contains_word(&mask_strings("buf\"{id}\""), "id"), "buf is not an f prefix");
+    }
+
+    #[test]
+    fn escaped_quotes_do_not_end_the_literal() {
+        let m = mask_strings(r#"s = "say \"id\" now" + id"#);
+        // Exactly one `id` survives: the concatenated variable, not the quoted word.
+        assert_eq!(m.matches("id").count(), 1, "{m}");
+    }
+
+    /// The false positive this change exists for: `id` named only as a column.
+    #[test]
+    fn column_name_in_a_literal_is_not_a_flow() {
+        let py = "\
+def a(request, cur):
+    id = request.args.get('id')
+    cur.execute(\"SELECT * FROM t WHERE id = 1\")
+";
+        assert!(analyze(py, Language::Python).is_empty(), "column name read as the variable");
+
+        let js = "\
+function a(req, db) {
+  const id = req.query.id;
+  db.query(\"SELECT * FROM t WHERE id = ?\", [1]);
+}
+";
+        assert!(analyze(js, Language::JavaScript).is_empty(), "column name read as the variable");
+    }
+
+    /// The canonical safe form in each ecosystem passes the value *beside* the
+    /// query. That is the fix for SQL injection and must not be reported as one.
+    #[test]
+    fn bind_parameters_are_not_sql_injection() {
+        let cases: &[(&str, Language)] = &[
+            ("def a(request, cur):\n    id = request.args.get('id')\n    cur.execute(\"SELECT * FROM t WHERE id = %s\", (id,))\n", Language::Python),
+            ("function a(req, db) {\n  const id = req.query.id;\n  db.query(\"SELECT * FROM t WHERE id = ?\", [id]);\n}\n", Language::JavaScript),
+            ("<?php\nfunction a($c) {\n  $id = $_GET['id'];\n  pg_query_params($c, 'SELECT * FROM t WHERE id = $1', array($id));\n}\n", Language::Php),
+        ];
+        for (code, lang) in cases {
+            let sql: Vec<_> = analyze(code, *lang).into_iter().filter(|f| f.category == "SQL-инъекция").collect();
+            assert!(sql.is_empty(), "bind parameter reported as injection in {lang:?}:\n{code}");
+        }
+    }
+
+    /// Narrowing to the query argument must not cost a single real injection.
+    #[test]
+    fn injection_in_the_query_argument_is_still_found() {
+        let cases: &[(&str, Language)] = &[
+            ("def a(request, cur):\n    id = request.args.get('id')\n    cur.execute(\"SELECT * FROM t WHERE id = \" + id, ())\n", Language::Python),
+            ("def a(request, cur):\n    id = request.args.get('id')\n    cur.execute(f\"SELECT * FROM t WHERE id = {id}\")\n", Language::Python),
+            ("function a(req, db) {\n  const id = req.query.id;\n  db.query(`SELECT * FROM t WHERE id = ${id}`, []);\n}\n", Language::JavaScript),
+            // PHP procedural takes the connection first; the query is argument two.
+            ("<?php\nfunction a($db) {\n  $name = $_POST['name'];\n  mysqli_query($db, \"SELECT * FROM t WHERE name = '$name'\");\n}\n", Language::Php),
+        ];
+        for (code, lang) in cases {
+            assert!(
+                analyze(code, *lang).iter().any(|f| f.category == "SQL-инъекция"),
+                "real injection lost in {lang:?}:\n{code}"
+            );
+        }
+    }
+
+    /// A comma inside a string used to split an argument in two and shift every
+    /// later one — `helper("a, b", x)` saw `x` in the wrong slot.
+    #[test]
+    fn commas_inside_strings_do_not_split_arguments() {
+        assert_eq!(split_top_commas(r#""a, b", x"#).len(), 2);
+        assert_eq!(split_top_commas(r#"'(', x"#).len(), 2);
+        assert_eq!(split_top_commas(r#""say \"a, b\"", x"#).len(), 2);
+    }
+
+    /// The word "escape" inside a message is not a call to an escaper.
+    #[test]
+    fn sanitizer_words_inside_strings_do_not_sanitize() {
+        let code = "\
+def a(request, cur):
+    id = request.args.get('id')
+    q = \"escape failed for \" + id
+    cur.execute(q)
+";
+        assert!(
+            analyze(code, Language::Python).iter().any(|f| f.category == "SQL-инъекция"),
+            "a string mentioning 'escape' cleared the taint"
+        );
     }
 
     /// PHP prints straight to the response — `echo` is where most PHP XSS

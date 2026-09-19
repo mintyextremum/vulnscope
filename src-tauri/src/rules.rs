@@ -4699,7 +4699,10 @@ pub static HEURISTICS: &[Heuristic] = &[
         category: "Инъекция команд",
         languages: HEUR_LANGS,
         taint: TAINT,
-        sink: r"(?i)\b(?:system|popen|shell_exec|passthru|proc_open|pcntl_exec|Runtime\.getRuntime|ProcessBuilder|subprocess\.(?:call|run|Popen|check_output)|os\.system|child_process\.\w+|exec\.Command(?:Context)?|exec(?:File|Sync)?)\s*\(",
+        // .NET launches processes through `Process.Start` / `ProcessStartInfo`;
+        // until these were added, a command injection in C# was invisible to
+        // the data-flow engine although the catalogue carries C# rules.
+        sink: r"(?i)\b(?:system|popen|shell_exec|passthru|proc_open|pcntl_exec|Runtime\.getRuntime|ProcessBuilder|subprocess\.(?:call|run|Popen|check_output)|os\.system|child_process\.\w+|exec\.Command(?:Context)?|exec(?:File|Sync)?|Process\.Start|ProcessStartInfo)\s*\(",
         cwe: &["CWE-78"],
     },
     Heuristic {
@@ -4716,7 +4719,17 @@ pub static HEURISTICS: &[Heuristic] = &[
         // bare functions, and Laravel's facade is `DB::`. WordPress `$wpdb`
         // getters are arrow-only here on purpose — a bare `.get_row(` would
         // start matching unrelated APIs in the other heuristic languages.
-        sink: r"(?i)(?:(?:\.|->)(?:execute|executemany|query|rawQuery|exec|prepare|raw)\s*\(|->(?:get_results|get_var|get_row|get_col)\s*\(|\b(?:mysqli?_(?:query|real_query|multi_query|prepare)|pg_(?:query|query_params|send_query|prepare)|sqlsrv_query|sqlite_query|oci_(?:parse|execute)|odbc_exec)\s*\(|\bDB::(?:select|statement|insert|update|delete|raw)\s*\()",
+        //
+        // JVM and .NET had the same blind spot: `executeQuery(` never matched
+        // `execute\s*\(`, and ADO.NET builds the query in a constructor. Added:
+        // JDBC (`executeQuery`, `executeUpdate`, `addBatch`, and
+        // `prepareStatement` — concatenating into it is still injection, the
+        // name notwithstanding), JPA/Hibernate (`createQuery`,
+        // `createNativeQuery`), Spring's `queryFor*`, EF Core's raw-SQL entry
+        // points, and the ADO.NET command constructors. `FromSqlInterpolated`
+        // and `ExecuteSqlInterpolated` are absent on purpose: EF parameterises
+        // those itself.
+        sink: r"(?i)(?:(?:\.|->)(?:execute|executemany|query|rawQuery|exec|prepare|raw|executeQuery|executeUpdate|executeLargeUpdate|addBatch|prepareStatement|prepareCall|createQuery|createNativeQuery|createSQLQuery|queryForObject|queryForList|queryForMap|queryForRowSet|FromSqlRaw|ExecuteSqlRaw|ExecuteSqlRawAsync|SqlQueryRaw)\s*\(|->(?:get_results|get_var|get_row|get_col)\s*\(|\b(?:mysqli?_(?:query|real_query|multi_query|prepare)|pg_(?:query|query_params|send_query|prepare)|sqlsrv_query|sqlite_query|oci_(?:parse|execute)|odbc_exec)\s*\(|\bDB::(?:select|statement|insert|update|delete|raw)\s*\(|\b(?:Sql|OleDb|Odbc|Npgsql|MySql|Sqlite)Command\s*\()",
         cwe: &["CWE-89"],
     },
     Heuristic {
@@ -4732,7 +4745,14 @@ pub static HEURISTICS: &[Heuristic] = &[
         // path in `include`/`require` is local or remote file inclusion, the
         // most damaging form this category takes. Those are keywords, not
         // calls, so they carry no parenthesis requirement.
-        sink: r"(?i)(?:\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink|file_get_contents|file_put_contents|unlink|scandir|opendir)\s*\(|\b(?:include|require)(?:_once)?\b)",
+        //
+        // JVM: `new File(…)` (bare `File(…)` in Kotlin), the stream and
+        // reader/writer constructors, and NIO's `Files.*`. The `File(` form
+        // refuses a `[` right after the parenthesis — that is the browser's
+        // `new File([blob], name)`, which builds a blob and touches no path.
+        // .NET: the static `File.*` family, `FileStream`/`StreamReader`/
+        // `StreamWriter`, and `Directory.*` listing and deletion.
+        sink: r"(?i)(?:\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink|file_get_contents|file_put_contents|unlink|scandir|opendir|FileOutputStream|FileReader|FileWriter|RandomAccessFile|FileStream|StreamReader|StreamWriter)\s*\(|\b(?:include|require)(?:_once)?\b|\bFile\s*\(\s*[^\[\s)]|\bFiles\.(?:readAllBytes|readAllLines|readString|lines|newInputStream|newOutputStream|newBufferedReader|newBufferedWriter|write|writeString|copy|move|delete|deleteIfExists)\s*\(|\bFile\.(?:ReadAll\w*|WriteAll\w*|Open\w*|Append\w*|Delete|Copy|Move|Replace|Create\w*)\s*\(|\bDirectory\.(?:GetFiles|EnumerateFiles|Delete)\s*\()",
         cwe: &["CWE-22"],
     },
     Heuristic {
@@ -4747,7 +4767,14 @@ pub static HEURISTICS: &[Heuristic] = &[
         // The cURL family is how PHP makes an outbound request; `curl_setopt` is
         // named because the URL usually arrives there (CURLOPT_URL) rather than
         // at `curl_exec`, which only takes the handle.
-        sink: r"(?i)(?:\b(?:requests\.(?:get|post|put|delete|head)|urlopen|urlretrieve|fetch|axios|HttpClient|WebClient|OkHttp|http\.(?:Get|Post|get|post)|URLConnection)\s*[.(]|\b(?:curl_exec|curl_setopt|curl_init|fsockopen|stream_context_create)\s*\()",
+        //
+        // JVM: the request happens at `openStream`/`openConnection`, not at
+        // `new URL(…)` — building a URL fetches nothing, and in JavaScript the
+        // same constructor is everyday parsing. Spring's `RestTemplate` verbs.
+        // .NET: `HttpClient` appears only where it is constructed, so the call
+        // sites are named instead — but only the HttpClient-specific ones.
+        // `GetAsync` is a caching and repository verb as much as an HTTP one.
+        sink: r"(?i)(?:\b(?:requests\.(?:get|post|put|delete|head)|urlopen|urlretrieve|fetch|axios|HttpClient|WebClient|OkHttp|http\.(?:Get|Post|get|post)|URLConnection)\s*[.(]|\b(?:curl_exec|curl_setopt|curl_init|fsockopen|stream_context_create)\s*\(|\.(?:openStream|openConnection|getForObject|getForEntity|postForObject|postForEntity|patchForObject|GetStringAsync|GetStreamAsync|GetByteArrayAsync|GetFromJsonAsync|PostAsJsonAsync)\s*\(|\bWebRequest\.Create\s*\()",
         cwe: &["CWE-918"],
     },
     Heuristic {
@@ -4762,7 +4789,14 @@ pub static HEURISTICS: &[Heuristic] = &[
         // PHP equivalents. `assert` is deliberately absent: it executes a string
         // only in PHP, while Python, Java and Scala all use it as an ordinary
         // check, and the sink pattern is shared across every heuristic language.
-        sink: r"(?i)\b(?:eval|exec|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load|unserialize|create_function|call_user_func(?:_array)?)\s*\(",
+        //
+        // JVM: Java deserialisation (`readObject`, `readUnshared` — an
+        // `ObjectInputStream` or `XMLDecoder` over request data is the classic
+        // gadget-chain entry) and SpEL's `parseExpression`. .NET
+        // deserialisation is deliberately left out: the dangerous formatters
+        // (`BinaryFormatter` and kin) are named only where constructed, and a
+        // bare `.Deserialize(` would flag System.Text.Json, which is safe.
+        sink: r"(?i)(?:\b(?:eval|exec|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load|unserialize|create_function|call_user_func(?:_array)?)\s*\(|\.(?:readObject|readUnshared|parseExpression)\s*\()",
         cwe: &["CWE-94"],
     },
     Heuristic {
@@ -4779,7 +4813,15 @@ pub static HEURISTICS: &[Heuristic] = &[
         // unique to PHP are added: `print` and `printf` are deliberately absent
         // because Python, Ruby, Perl and Go all have them, and `print(x)` in a
         // console script is not cross-site scripting.
-        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\(|mark_safe\s*\(|\bMarkup\s*\(|\.html_safe\b|v-html\s*=|\becho\b|\b(?:print_r|var_dump)\s*\(|<\?=)",
+        //
+        // JVM: the servlet writer, but only chained off `getWriter()`. A bare
+        // `.println(` would take `System.out.println` with it — console output,
+        // the same trap as `print` above. The two-line form (`out = …
+        // getWriter(); out.println(x)`) is therefore not seen; that is the
+        // price of not calling every log line XSS. .NET: `Response.Write` and
+        // the Razor/Blazor raw-HTML escapes (`Html.Raw`, `HtmlString`,
+        // `MarkupString`).
+        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\(|mark_safe\s*\(|\bMarkup\s*\(|\.html_safe\b|v-html\s*=|\becho\b|\b(?:print_r|var_dump)\s*\(|<\?=|getWriter\s*\(\s*\)\s*\.\s*(?:write|print|println|printf|append|format)\s*\(|\bResponse\.Write\s*\(|\bHtml\.Raw\s*\(|\b(?:HtmlString|MarkupString)\s*\()",
         cwe: &["CWE-79"],
     },
     Heuristic {
