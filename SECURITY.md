@@ -83,5 +83,5 @@ single-maintainer project, please upgrade before reporting.
 
 | Version | Supported |
 |---|---|
-| 1.1.x | Yes |
-| < 1.1 | No |
+| 1.2.x | Yes |
+| < 1.2 | No |

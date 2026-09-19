@@ -4,6 +4,79 @@ All notable changes to VulnScope are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-09-19
+
+Java, Kotlin and C# join the data-flow engine — and, to make that worth
+shipping, the engine learns that a string literal is not code. The second part
+fixes false positives in every language, not only the new ones.
+
+### Added
+
+- **Data-flow coverage for Java, Kotlin and C#.** A probe of twelve ordinary
+  vulnerabilities — `executeQuery`, `new File`, `Process.Start`,
+  `getWriter().write` and the like — found every one of them invisible, although
+  the catalogue carries 44 rules for these languages. The sources were fine: the
+  engine tracked the input and simply had no sink to report it at. Now covered:
+  - **JVM** — JDBC (`executeQuery`, `executeUpdate`, `addBatch`, and
+    `prepareStatement`, since concatenating into it is still injection),
+    JPA/Hibernate queries, Spring's `JdbcTemplate`, `RestTemplate` and SpEL,
+    `java.io` and NIO file access, the servlet writer, `URL.openStream`, and Java
+    deserialisation (`readObject`).
+  - **.NET** — ADO.NET command constructors, EF Core's raw-SQL methods,
+    `Process.Start`, `System.IO`, `Response.Write`, Razor and Blazor raw HTML,
+    and `HttpClient`.
+  - Sanitisers for both, scoped like the rest: `HtmlEncode` and the OWASP Java
+    Encoder clear XSS only; `FilenameUtils.getName` and `Path.GetFileName` clear
+    path traversal only; `Uri.EscapeDataString` clears redirects and XSS.
+
+### Fixed
+
+- **A column name is no longer read as a variable.** `cur.execute("SELECT …
+  WHERE id = 1")` was reported as SQL injection whenever a tainted variable
+  happened to be called `id` — in every language. On Java it would have flagged
+  every correctly written `prepareStatement("… WHERE id = ?")`. String contents
+  are now masked when the engine asks which variables a line uses, while
+  interpolation is kept, because interpolation is the main road to injection:
+  `${…}`, `#{…}`, `{…}` behind an `f` or `$` prefix, and `$name`.
+- **A bind parameter is no longer read as an injection.** `cur.execute(sql,
+  (id,))`, `db.query(sql, [id])` and `jdbc.queryForObject(sql, T, id)` are the
+  *fix* for SQL injection, and all of them put the value on the sink line. For
+  SQL sinks only the argument carrying the query text now counts.
+- **Typed declarations no longer end the trail.** The engine recognised a fixed
+  list of declared types, so `URL url = …`, `List<String> xs = …`, C#'s
+  lowercase `string`, and every annotated declaration — `const id: string =
+  req.query.id`, which is ordinary TypeScript — silently stopped propagation.
+  This was a false negative in TypeScript and Python as much as in Java.
+- A comma inside a string literal split a call argument in two, so
+  `helper("a, b", x)` saw `x` in the wrong position and the interprocedural pass
+  matched the wrong parameter.
+- The word "escape" inside a message string counted as a call to an escaper and
+  cleared the taint.
+
+### Security
+
+- `rustls` raised to 0.23.45, closing RUSTSEC-2026-0285 (TLS 1.3 handshake
+  messages accepted across encryption-level boundaries). It ships: it carries
+  both of VulnScope's outbound HTTPS requests, to OSV.dev and to the releases
+  feed.
+
+### Deliberately not added
+
+Each of these would have made a category less trustworthy, and each is pinned
+by a test: a bare `.println(` (it would take `System.out.println` — console
+output, not XSS), `new URL(` (constructing a URL fetches nothing, and in
+JavaScript it is everyday parsing), `GetAsync` (a caching and repository verb as
+much as an HTTP one), .NET `.Deserialize(` (System.Text.Json is safe), and
+`FromSqlInterpolated` (EF Core parameterises it itself).
+
+### Engineering
+
+- 324 backend tests, up from 311. The test for the canonical safe forms was
+  checked against the engine with the fixes disabled: without them, the JDBC
+  `PreparedStatement` is reported as SQL injection.
+
+[1.2.0]: https://github.com/mintyextremum/vulnscope/releases/tag/v1.2.0
+
 ## [1.1.0] — 2026-09-04
 
 Mostly corrections. Two of them are false negatives in the data-flow engine —
