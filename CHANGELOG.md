@@ -54,6 +54,12 @@ apply.
   list would not have, and still excludes bind parameters — they follow the query
   and arrive as a collection.
 
+### Security
+
+- `source-map-js` raised to 1.2.2, closing GHSA-68fv-2mgg-jv7q (event-loop denial
+  of service through indexed source-map section offsets). Build tooling, reached
+  through postcss — it does not enter a released binary.
+
 ### Deliberately not added
 
 Ruby's `send` (it is also `res.send` in Express and `socket.send`), Go's
