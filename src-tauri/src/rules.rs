@@ -4702,7 +4702,7 @@ pub static HEURISTICS: &[Heuristic] = &[
         // .NET launches processes through `Process.Start` / `ProcessStartInfo`;
         // until these were added, a command injection in C# was invisible to
         // the data-flow engine although the catalogue carries C# rules.
-        sink: r"(?i)\b(?:system|popen|shell_exec|passthru|proc_open|pcntl_exec|Runtime\.getRuntime|ProcessBuilder|subprocess\.(?:call|run|Popen|check_output)|os\.system|child_process\.\w+|exec\.Command(?:Context)?|exec(?:File|Sync)?|Process\.Start|ProcessStartInfo)\s*\(",
+        sink: r"(?i)(?:\b(?:system|popen|shell_exec|passthru|proc_open|pcntl_exec|Runtime\.getRuntime|ProcessBuilder|subprocess\.(?:call|run|Popen|check_output)|os\.system|child_process\.\w+|exec\.Command(?:Context)?|Process\.Start|ProcessStartInfo)\s*\(|(?:^|[^\w.$>])exec(?:File|Sync)?\s*\(|\bSystem\.cmd\s*\(|:os\.cmd\s*\()",
         cwe: &["CWE-78"],
     },
     Heuristic {
@@ -4729,7 +4729,7 @@ pub static HEURISTICS: &[Heuristic] = &[
         // points, and the ADO.NET command constructors. `FromSqlInterpolated`
         // and `ExecuteSqlInterpolated` are absent on purpose: EF parameterises
         // those itself.
-        sink: r"(?i)(?:(?:\.|->)(?:execute|executemany|query|rawQuery|exec|prepare|raw|executeQuery|executeUpdate|executeLargeUpdate|addBatch|prepareStatement|prepareCall|createQuery|createNativeQuery|createSQLQuery|queryForObject|queryForList|queryForMap|queryForRowSet|FromSqlRaw|ExecuteSqlRaw|ExecuteSqlRawAsync|SqlQueryRaw)\s*\(|->(?:get_results|get_var|get_row|get_col)\s*\(|\b(?:mysqli?_(?:query|real_query|multi_query|prepare)|pg_(?:query|query_params|send_query|prepare)|sqlsrv_query|sqlite_query|oci_(?:parse|execute)|odbc_exec)\s*\(|\bDB::(?:select|statement|insert|update|delete|raw)\s*\(|\b(?:Sql|OleDb|Odbc|Npgsql|MySql|Sqlite)Command\s*\()",
+        sink: r"(?i)(?:(?:\.|->)(?:(?-i:execute|executemany)|query|rawQuery|prepare|raw|executeQuery|executeUpdate|executeLargeUpdate|addBatch|prepareStatement|prepareCall|createQuery|createNativeQuery|createSQLQuery|queryForObject|queryForList|queryForMap|queryForRowSet|FromSqlRaw|ExecuteSqlRaw|ExecuteSqlRawAsync|SqlQueryRaw|QueryRow|QueryContext|QueryRowContext|ExecContext|PrepareContext|NamedExec|NamedQuery|find_by_sql|count_by_sql|exec_query|exec_update|exec_delete)\s*\(|\.(?:where|order|group|having|reorder)\s*\(\s*[\x22']|(?-i:\.Exec)\s*\(|->exec\s*\(|->(?:get_results|get_var|get_row|get_col)\s*\(|\b(?:mysqli?_(?:query|real_query|multi_query|prepare)|pg_(?:query|query_params|send_query|prepare)|sqlsrv_query|sqlite_query|oci_(?:parse|execute)|odbc_exec)\s*\(|\bDB::(?:select|statement|insert|update|delete|raw)\s*\(|\b(?:Sql|OleDb|Odbc|Npgsql|MySql|Sqlite)Command\s*\(|\bEcto\.Adapters\.SQL\.query\s*\(|\bSQL\s*\(\s*[\x22'])",
         cwe: &["CWE-89"],
     },
     Heuristic {
@@ -4752,7 +4752,7 @@ pub static HEURISTICS: &[Heuristic] = &[
         // `new File([blob], name)`, which builds a blob and touches no path.
         // .NET: the static `File.*` family, `FileStream`/`StreamReader`/
         // `StreamWriter`, and `Directory.*` listing and deletion.
-        sink: r"(?i)(?:\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink|file_get_contents|file_put_contents|unlink|scandir|opendir|FileOutputStream|FileReader|FileWriter|RandomAccessFile|FileStream|StreamReader|StreamWriter)\s*\(|\b(?:include|require)(?:_once)?\b|\bFile\s*\(\s*[^\[\s)]|\bFiles\.(?:readAllBytes|readAllLines|readString|lines|newInputStream|newOutputStream|newBufferedReader|newBufferedWriter|write|writeString|copy|move|delete|deleteIfExists)\s*\(|\bFile\.(?:ReadAll\w*|WriteAll\w*|Open\w*|Append\w*|Delete|Copy|Move|Replace|Create\w*)\s*\(|\bDirectory\.(?:GetFiles|EnumerateFiles|Delete)\s*\()",
+        sink: r"(?i)(?:\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink|file_get_contents|file_put_contents|unlink|scandir|opendir|FileOutputStream|FileReader|FileWriter|RandomAccessFile|FileStream|StreamReader|StreamWriter)\s*\(|\b(?:include|require)(?:_once)?\b|\bFile\s*\(\s*[^\[\s)]|\bFiles\.(?:readAllBytes|readAllLines|readString|lines|newInputStream|newOutputStream|newBufferedReader|newBufferedWriter|write|writeString|copy|move|delete|deleteIfExists)\s*\(|\bFile\.(?:ReadAll\w*|WriteAll\w*|Open\w*|Append\w*|Delete|Copy|Move|Replace|Create\w*)\s*\(|\bDirectory\.(?:GetFiles|EnumerateFiles|Delete)\s*\(|\bos\.(?:WriteFile|Create|Remove|RemoveAll|OpenFile)\s*\()",
         cwe: &["CWE-22"],
     },
     Heuristic {
@@ -4796,7 +4796,7 @@ pub static HEURISTICS: &[Heuristic] = &[
         // deserialisation is deliberately left out: the dangerous formatters
         // (`BinaryFormatter` and kin) are named only where constructed, and a
         // bare `.Deserialize(` would flag System.Text.Json, which is safe.
-        sink: r"(?i)(?:\b(?:eval|exec|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load|unserialize|create_function|call_user_func(?:_array)?)\s*\(|\.(?:readObject|readUnshared|parseExpression)\s*\()",
+        sink: r"(?i)(?:(?:^|[^\w.$>])exec\s*\(|\b(?:eval|compile|new\s+Function|pickle\.loads?|cPickle\.loads?|yaml\.(?:load|full_load|unsafe_load)|marshal\.loads?|Marshal\.load|unserialize|create_function|call_user_func(?:_array)?)\s*\(|\.(?:readObject|readUnshared|parseExpression|public_send|instance_eval|class_eval|module_eval)\s*\(|\bERB\.new\s*\()",
         cwe: &["CWE-94"],
     },
     Heuristic {
@@ -4821,7 +4821,7 @@ pub static HEURISTICS: &[Heuristic] = &[
         // price of not calling every log line XSS. .NET: `Response.Write` and
         // the Razor/Blazor raw-HTML escapes (`Html.Raw`, `HtmlString`,
         // `MarkupString`).
-        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\(|mark_safe\s*\(|\bMarkup\s*\(|\.html_safe\b|v-html\s*=|\becho\b|\b(?:print_r|var_dump)\s*\(|<\?=|getWriter\s*\(\s*\)\s*\.\s*(?:write|print|println|printf|append|format)\s*\(|\bResponse\.Write\s*\(|\bHtml\.Raw\s*\(|\b(?:HtmlString|MarkupString)\s*\()",
+        sink: r"(?i)(?:\.(?:inner|outer)HTML\s*=|insertAdjacentHTML\s*\(|document\.write(?:ln)?\s*\(|dangerouslySetInnerHTML|\.html\s*\(|render_template_string\s*\(|mark_safe\s*\(|\bMarkup\s*\(|\.html_safe\b|v-html\s*=|\becho\b|\b(?:print_r|var_dump)\s*\(|<\?=|getWriter\s*\(\s*\)\s*\.\s*(?:write|print|println|printf|append|format)\s*\(|\bResponse\.Write\s*\(|\bHtml\.Raw\s*\(|\b(?:HtmlString|MarkupString)\s*\(|(?:^|[^\w.])raw\s*\(|\btemplate\.HTML\s*\()",
         cwe: &["CWE-79"],
     },
     Heuristic {

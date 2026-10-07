@@ -524,18 +524,51 @@ fn sql_query_text<'a>(text: &'a str, sink: &Regex) -> std::borrow::Cow<'a, str> 
     let Some(m) = sink.find(text) else {
         return std::borrow::Cow::Borrowed(text);
     };
-    if !m.as_str().ends_with('(') {
-        return std::borrow::Cow::Borrowed(text);
-    }
-    let Some(args) = call_args_from(text, m.end()) else {
+    // The argument list opens at the last parenthesis inside the match, not
+    // necessarily at its end: `.where('` carries the opening quote that tells a
+    // raw-SQL builder call from a bound one.
+    let Some(paren) = m.as_str().rfind('(') else {
         return std::borrow::Cow::Borrowed(text);
     };
-    let called = m.as_str().to_ascii_lowercase();
-    let procedural = ["mysql", "pg_", "sqlsrv_", "sqlite_", "oci_", "odbc_"]
-        .iter()
-        .any(|p| called.trim_start().starts_with(p));
-    let take = if procedural { 2 } else { 1 };
+    let Some(args) = call_args_from(text, m.start() + paren + 1) else {
+        return std::borrow::Cow::Borrowed(text);
+    };
+    // The query is the first argument, unless something plainer comes first. A
+    // connection, a context or a repository is a bare handle — `$db`, `ctx`,
+    // `Repo` — while a query is a literal, a concatenation, or a variable
+    // holding one. When argument one is a handle, argument two counts as well,
+    // which is what `mysqli_query($link, $sql)`, `db.QueryContext(ctx, sql)`
+    // and `Ecto.Adapters.SQL.query(Repo, sql)` all need. This replaced a list
+    // of driver prefixes that would have had to grow for every ecosystem.
+    //
+    // Bind parameters can never qualify: they follow the query and arrive as a
+    // collection, so `cur.execute(sql, (id,))` still stops at `sql`.
+    let take = if args.len() > 1 && is_bare_handle(&args[0]) && !is_collection(&args[1]) {
+        2
+    } else {
+        1
+    };
     std::borrow::Cow::Owned(args.into_iter().take(take).collect::<Vec<_>>().join(","))
+}
+
+/// A bare handle: letters, digits and the punctuation that spells a path to one
+/// (`_ $ . : & *`). No quotes, no operators, no call of its own — so `conn`,
+/// `$db`, `ctx` and `Ecto.Repo` qualify, and `"SELECT …" + id` does not.
+fn is_bare_handle(arg: &str) -> bool {
+    let t = arg.trim();
+    !t.is_empty()
+        && t.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '$' | '.' | ':' | '&' | '*'))
+}
+
+/// A tuple, list, array or map literal — the shape bind parameters arrive in.
+fn is_collection(arg: &str) -> bool {
+    let t = arg.trim_start();
+    t.starts_with('(')
+        || t.starts_with('[')
+        || t.starts_with('{')
+        || t.starts_with("new ")
+        || t.starts_with("map[")
+        || t.get(..6).is_some_and(|p| p.eq_ignore_ascii_case("array("))
 }
 
 /// The chain that made a variable tainted, from its source to the latest step.
@@ -1756,6 +1789,126 @@ function show(req) {
 }
 ";
         assert!(analyze(code, Language::JavaScript).is_empty(), "bleach.clean should sanitize");
+    }
+
+    // ------------------------------------------- Ruby, Go, Scala and Elixir
+
+    /// The rest of the heuristic languages, probed the same way the JVM was.
+    /// Rails reaches a database through its query builder, Go through the
+    /// `*Context` methods, Elixir through Ecto — none of which looked like a
+    /// sink, so eleven of twenty-one ordinary idioms produced nothing at all.
+    #[test]
+    fn ruby_go_scala_elixir_are_traced() {
+        let cases: &[(&str, &str, Language, &str)] = &[
+            ("SQL-инъекция", "ActiveRecord where", Language::Ruby,
+             "def show(params)\n  name = params[:name]\n  User.where(\"name = '#{name}'\")\nend\n"),
+            ("SQL-инъекция", "find_by_sql", Language::Ruby,
+             "def show(params)\n  id = params[:id]\n  User.find_by_sql(\"SELECT * FROM users WHERE id = #{id}\")\nend\n"),
+            ("SQL-инъекция", "order clause", Language::Ruby,
+             "def show(params)\n  col = params[:sort]\n  User.order(\"#{col} ASC\")\nend\n"),
+            ("Выполнение кода", "public_send", Language::Ruby,
+             "def call(params, obj)\n  m = params[:m]\n  obj.public_send(m)\nend\n"),
+            ("Выполнение кода", "instance_eval", Language::Ruby,
+             "def call(params, obj)\n  code = params[:code]\n  obj.instance_eval(code)\nend\n"),
+            ("Выполнение кода", "ERB template", Language::Ruby,
+             "def render(params)\n  tpl = params[:tpl]\n  ERB.new(tpl).result(binding)\nend\n"),
+            ("XSS", "raw helper", Language::Ruby,
+             "def show(params)\n  bio = params[:bio]\n  raw(bio)\nend\n"),
+            ("SQL-инъекция", "database/sql QueryRow", Language::Go,
+             "func h(r *http.Request, db *sql.DB) {\n\tid := r.URL.Query().Get(\"id\")\n\tdb.QueryRow(\"SELECT * FROM t WHERE id = \" + id)\n}\n"),
+            ("SQL-инъекция", "context variant", Language::Go,
+             "func h(r *http.Request, db *sql.DB) {\n\tid := r.URL.Query().Get(\"id\")\n\tdb.QueryContext(ctx, \"SELECT * FROM t WHERE id = \" + id)\n}\n"),
+            ("Path traversal", "os.WriteFile", Language::Go,
+             "func h(r *http.Request) {\n\tf := r.URL.Query().Get(\"f\")\n\tos.WriteFile(\"/data/\" + f, b, 0644)\n}\n"),
+            ("XSS", "template.HTML", Language::Go,
+             "func h(w http.ResponseWriter, r *http.Request) {\n\tn := r.URL.Query().Get(\"n\")\n\ttpl.Execute(w, template.HTML(n))\n}\n"),
+            ("SQL-инъекция", "Anorm", Language::Scala,
+             "def show(request: Request) = {\n  val id = request.getQueryString(\"id\").get\n  SQL(\"SELECT * FROM t WHERE id = \" + id)\n}\n"),
+            ("Инъекция команд", "System.cmd", Language::Elixir,
+             "def run(params) do\n  host = params[\"host\"]\n  System.cmd(\"ping\", [host])\nend\n"),
+            ("SQL-инъекция", "Ecto raw query", Language::Elixir,
+             "def show(params) do\n  id = params[\"id\"]\n  Ecto.Adapters.SQL.query(Repo, \"SELECT * FROM t WHERE id = \" <> id)\nend\n"),
+        ];
+        let mut missed = Vec::new();
+        for (want, name, lang, code) in cases {
+            if !analyze(code, *lang).iter().any(|f| f.category == *want) {
+                missed.push(format!("{name} ({lang:?}) — expected {want}"));
+            }
+        }
+        assert!(missed.is_empty(), "not traced:\n  {}", missed.join("\n  "));
+    }
+
+    /// `exec` after a dot is not a shell. Go's `db.Exec` is a query and
+    /// JavaScript's `regex.exec` is a regular expression, yet both matched the
+    /// command sink — and because that heuristic is listed first, a Go SQL
+    /// injection was reported as command injection, with the wrong CWE and the
+    /// wrong advice ("pass the command as an argument list").
+    #[test]
+    fn dotted_exec_is_neither_a_command_nor_code() {
+        let go = "\
+func h(r *http.Request, db *sql.DB) {
+\tid := r.URL.Query().Get(\"id\")
+\tdb.Exec(\"DELETE FROM t WHERE id = \" + id)
+}
+";
+        let cats: Vec<&str> = analyze(go, Language::Go).iter().map(|f| f.category).collect();
+        assert!(cats.contains(&"SQL-инъекция"), "db.Exec is a query, got {cats:?}");
+        assert!(!cats.contains(&"Инъекция команд"), "db.Exec is not a shell, got {cats:?}");
+
+        let js = "\
+function a(req) {
+  const input = req.query.q;
+  const m = /^a/.exec(input);
+}
+";
+        assert!(
+            analyze(js, Language::JavaScript).is_empty(),
+            "a regex match is not an execution sink"
+        );
+    }
+
+    /// Go renders templates with `tpl.Execute(w, data)`. Matching `execute`
+    /// regardless of case turned every Go template render carrying user data
+    /// into a SQL injection; the list now spells the lowercase DB-API/JDBC
+    /// form, and .NET's capitalised entry points are named individually.
+    #[test]
+    fn go_template_render_is_not_a_query() {
+        let code = "func h(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get(\"name\")
+	tpl.Execute(w, name)
+}
+";
+        assert!(
+            !analyze(code, Language::Go).iter().any(|f| f.category == "SQL-инъекция"),
+            "rendering a template is not a query"
+        );
+    }
+
+    /// A query builder that binds its value is the safe form, in every
+    /// ecosystem. The first argument is a column name, not the query.
+    #[test]
+    fn query_builder_bound_values_stay_quiet() {
+        let knex = "\
+function a(req, knex) {
+  const name = req.query.name;
+  knex('users').where('name', name);
+}
+";
+        assert!(
+            !analyze(knex, Language::JavaScript).iter().any(|f| f.category == "SQL-инъекция"),
+            "a bound builder value is not an injection"
+        );
+
+        let ruby = "\
+def show(params)
+  name = params[:name]
+  User.where(name: name)
+end
+";
+        assert!(
+            !analyze(ruby, Language::Ruby).iter().any(|f| f.category == "SQL-инъекция"),
+            "hash conditions are not an injection"
+        );
     }
 
     // ------------------------------------------------------------ JVM and .NET
