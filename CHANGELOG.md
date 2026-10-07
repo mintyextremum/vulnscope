@@ -4,6 +4,68 @@ All notable changes to VulnScope are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-10-07
+
+The remaining heuristic languages join the data-flow engine, and three findings
+that carried the wrong category are corrected. A wrong category is worse than a
+missing finding: it hands the reader someone else's CWE and advice that does not
+apply.
+
+### Added
+
+- **Data-flow coverage for Ruby, Go, Scala and Elixir.** Probing them the way the
+  JVM was probed found eleven of twenty-one ordinary idioms producing nothing:
+  Rails reaches a database through its query builder, Go through the `*Context`
+  methods, Elixir through Ecto, and none of that looked like a sink.
+  - **Ruby** — `find_by_sql` and the raw-SQL builder calls (`where`, `order`,
+    `group`, `having` with a string), the metaprogramming entry points
+    (`public_send`, `instance_eval`, `class_eval`, `ERB.new`), and the `raw`
+    view helper.
+  - **Go** — `database/sql` in full (`QueryRow`, the `*Context` variants,
+    `NamedExec`), the `os` writers, and `template.HTML`.
+  - **Scala and Elixir** — Anorm's `SQL(…)`, `Ecto.Adapters.SQL.query`,
+    `System.cmd` and `:os.cmd`.
+
+### Fixed
+
+- **`db.Exec` in Go was reported as command injection.** The command sink
+  matched `exec` even with a dot in front, and that heuristic is listed before
+  SQL, so a Go SQL injection arrived with CWE-78 and the advice "pass the command
+  as an argument list". `exec` now counts only with nothing dotted before it; Go
+  is told apart by case (`.Exec`) and PHP by its arrow (`->exec`).
+- **`regex.exec(input)` in JavaScript was reported as command injection** — a
+  name collision and nothing more. A regular-expression match is now neither a
+  command nor code execution.
+- **Rendering a Go template was reported as SQL injection.** `execute` matched
+  regardless of case, so every `tpl.Execute(w, data)` carrying user data became
+  an injection. The sink list now spells the lowercase DB-API/JDBC form, and
+  .NET's capitalised entry points are named individually.
+- Argument parsing gave up when a sink pattern ended in a quote rather than a
+  parenthesis, which is what tells `where('name = …')` with raw SQL from
+  `where('name', value)` with a bound one.
+
+### Changed
+
+- The rule deciding which argument carries the query text is no longer a list of
+  PHP driver prefixes but a rule about shape: a connection, context or repository
+  is a bare handle (`$db`, `ctx`, `Repo`), while a query is a literal or a
+  concatenation. When the first argument is a handle and the second is not a
+  collection, both count. That covers Go's `*Context` methods and Ecto, which the
+  list would not have, and still excludes bind parameters — they follow the query
+  and arrive as a collection.
+
+### Deliberately not added
+
+Ruby's `send` (it is also `res.send` in Express and `socket.send`), Go's
+`w.Write` and `fmt.Fprintf` (indistinguishable from writing to a file or a
+buffer), and Scala's postfix `"cmd".!`. The first two are pinned by tests.
+
+### Engineering
+
+- 328 backend tests, up from 324.
+
+[1.3.0]: https://github.com/mintyextremum/vulnscope/releases/tag/v1.3.0
+
 ## [1.2.0] — 2026-09-19
 
 Java, Kotlin and C# join the data-flow engine — and, to make that worth
