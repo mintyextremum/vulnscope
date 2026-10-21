@@ -141,7 +141,7 @@ export function Icon({
     // words. Icons here are decorative — every one sits beside a text label, or
     // its button carries an aria-label. An icon that must be announced needs a
     // labelled control around it, not an exception here.
-    <span className={`material-symbols-outlined ${className}`} style={style} aria-hidden="true">
+    <span className={`material-symbols-rounded ${className}`} style={style} aria-hidden="true">
       {name}
     </span>
   );

@@ -74,6 +74,9 @@ those two answers. It also closes a security hole that every 1.x release had.
 - The code tab opens on the riskiest files, each at its worst line.
 - What's new, shown once after an update; the version badge in the title bar
   brings it back.
+- **An app icon of its own.** The executable, the installer, the taskbar and the
+  window all carried the stock Tauri logo; they now show the shield-and-lock mark
+  from the title bar, rendered from the same Material Symbols glyph.
 
 ### Changed
 
@@ -87,6 +90,10 @@ those two answers. It also closes a security hole that every 1.x release had.
   list of attack paths and the exports said "Reachable: No" on the flagship's own
   findings. The history's reachable count rises accordingly from this version on.
 - Every traced flow is titled with what it reaches ("SQL injection · …").
+- Icons are Material Symbols **Rounded**, and follow Material 3's convention: a
+  glyph fills when its control is the active one — the current tab, a toggle that
+  is on, the selected finding. Dashboard sections carry their icon in a tinted
+  chip, coloured by the kind of risk they are about.
 - The severity pills above the dashboard count what the dashboard counts —
   confirmed findings — and a click opens the findings of that severity.
 

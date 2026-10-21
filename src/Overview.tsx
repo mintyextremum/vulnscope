@@ -470,7 +470,7 @@ function RiskyFiles({ report, onOpenFile }: { report: ScanReport; onOpenFile: (p
   return (
     <section className="card risky-files">
       <div className="card-title">
-        <Icon name="priority_high" />
+        <Icon name="local_fire_department" />
         {t("С чего начать")}
         <span className="ap-sub">{t("файлы с наибольшим риском")}</span>
       </div>

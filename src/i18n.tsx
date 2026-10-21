@@ -342,6 +342,9 @@ export const EN: Record<string, string> = {
   "«Свернуть повторы» оставляет строку на причину с меткой ×N; остальные места — в карточке находки.":
     "“Collapse repeats” keeps one row per cause with a ×N mark; the other places are in the finding's detail.",
   "Только изменения (BETA)": "Changes only (BETA)",
+  "Новый облик": "A new look",
+  "Своя иконка приложения вместо стандартной, иконки Material Symbols Rounded — заполненные у активной вкладки и включённого переключателя, — и разделы дашборда с цветными метками.":
+    "An app icon of its own instead of the stock one, Material Symbols Rounded icons — filled on the active tab and a switched-on toggle — and dashboard sections with coloured marks.",
   "Проверка файлов, изменённых с последнего коммита, — правка до коммита за секунды.":
     "Scan the files changed since the last commit — check an edit before committing it, in seconds.",
   Безопасность: "Security",

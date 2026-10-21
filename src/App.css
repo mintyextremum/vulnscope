@@ -1,4 +1,4 @@
-@import "material-symbols/outlined.css";
+@import "material-symbols/rounded.css";
 @import "highlight.js/styles/github-dark.css";
 @import "./theme.css";
 
@@ -26,12 +26,32 @@ body {
   user-select: none;
 }
 
-.material-symbols-outlined {
+.material-symbols-rounded {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
   font-size: 20px;
   line-height: 1;
   user-select: none;
   flex-shrink: 0;
+  transition: font-variation-settings var(--t-fast) var(--ease);
+}
+
+/* Material 3's convention: an icon fills when its control is the one that is
+   on — the tab you are in, the toggle that is set, the row that is selected —
+   and stays outlined otherwise. The state reads from the glyph itself, not
+   only from a background colour. */
+.subtab.active > .material-symbols-rounded,
+.tab.active > .material-symbols-rounded,
+.seg-btn.active > .material-symbols-rounded,
+.chip.on > .material-symbols-rounded,
+.sev-pill.active > .material-symbols-rounded,
+.palette-item.active > .material-symbols-rounded,
+.tree-node.selected .material-symbols-rounded,
+.finding-item.selected .fi-top > .material-symbols-rounded,
+.tb-mark .material-symbols-rounded,
+.hero-mark .material-symbols-rounded,
+.wn-mark .material-symbols-rounded,
+.icon-fill {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
 button {
@@ -187,7 +207,7 @@ kbd,
   box-shadow: 0 2px 8px var(--a-ring);
 }
 
-.tb-mark .material-symbols-outlined {
+.tb-mark .material-symbols-rounded {
   font-size: 14px;
   color: var(--on-a);
 }
@@ -232,7 +252,7 @@ kbd,
   background: var(--a);
   flex-shrink: 0;
 }
-.wn-mark .material-symbols-outlined { color: var(--on-a); font-size: 26px; }
+.wn-mark .material-symbols-rounded { color: var(--on-a); font-size: 26px; }
 .wn-kicker {
   font-size: 10px;
   font-weight: var(--fw-bold);
@@ -243,7 +263,7 @@ kbd,
 .wn-title { margin: 2px 0 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); color: var(--t-1); }
 .wn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
 .wn-item { display: flex; gap: var(--sp-3); align-items: flex-start; }
-.wn-item > .material-symbols-outlined { color: var(--a); font-size: 20px; margin-top: 1px; flex-shrink: 0; }
+.wn-item > .material-symbols-rounded { color: var(--a); font-size: 20px; margin-top: 1px; flex-shrink: 0; }
 .wn-item-title { color: var(--t-1); font-weight: var(--fw-semi); font-size: var(--fs-base); }
 .wn-item-desc { color: var(--t-2); font-size: var(--fs-sm); line-height: var(--lh-base); margin-top: 2px; }
 .wn-foot {
@@ -330,7 +350,7 @@ kbd,
   cursor: not-allowed;
 }
 
-.btn .material-symbols-outlined {
+.btn .material-symbols-rounded {
   font-size: 16px;
 }
 
@@ -396,7 +416,7 @@ kbd,
 }
 
 .import-1c-item:hover { background: var(--s-3); }
-.import-1c-item .material-symbols-outlined { font-size: 17px; color: var(--t-4); }
+.import-1c-item .material-symbols-rounded { font-size: 17px; color: var(--t-4); }
 
 /* ------------------------------------------------- recent projects (launcher) */
 
@@ -478,7 +498,7 @@ kbd,
 .recent-item:hover .recent-forget { opacity: 1; }
 .recent-forget:hover { color: var(--crit); }
 .recent-forget:focus-visible { opacity: 1; }
-.recent-forget .material-symbols-outlined { font-size: 16px; }
+.recent-forget .material-symbols-rounded { font-size: 16px; }
 
 /* ------------------------------------------------------- folder drag & drop */
 
@@ -497,7 +517,7 @@ kbd,
   backdrop-filter: blur(2px);
   pointer-events: none;
 }
-.drop-overlay .material-symbols-outlined { font-size: 40px; color: var(--a); }
+.drop-overlay .material-symbols-rounded { font-size: 40px; color: var(--a); }
 .drop-title { color: var(--t-1); font-size: var(--fs-md); font-weight: var(--fw-med); }
 
 .i1c-name { font-weight: var(--fw-med); color: var(--t-1); white-space: nowrap; }
@@ -566,9 +586,9 @@ kbd,
 
 .export-item:hover { background: var(--s-5); color: var(--t-1); }
 
-.export-item .material-symbols-outlined { font-size: 17px; color: var(--t-4); }
-.export-item:hover .material-symbols-outlined { color: var(--a); }
-.btn-sm .material-symbols-outlined {
+.export-item .material-symbols-rounded { font-size: 17px; color: var(--t-4); }
+.export-item:hover .material-symbols-rounded { color: var(--a); }
+.btn-sm .material-symbols-rounded {
   font-size: 14px;
 }
 
@@ -669,7 +689,7 @@ kbd,
   }
 }
 
-.hero-mark .material-symbols-outlined {
+.hero-mark .material-symbols-rounded {
   font-size: 30px;
   color: var(--on-a);
 }
@@ -709,10 +729,29 @@ kbd,
   margin-bottom: var(--sp-4);
 }
 
-.card-title .material-symbols-outlined {
+.card-title .material-symbols-rounded {
   font-size: 17px;
   color: var(--t-3);
 }
+
+/* The section's own icon sits in a tinted chip — Material 3's header style —
+   so a dashboard of cards reads as named sections at a glance. Accent by
+   default; a section about a kind of risk takes that risk's tone. */
+.card-title > .material-symbols-rounded:first-child {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-2);
+  background: var(--chip-bg, var(--a-ghost));
+  color: var(--chip-fg, var(--a));
+  font-size: 18px;
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+.attack-paths { --chip-bg: var(--crit-bg); --chip-fg: var(--crit); }
+.risky-files { --chip-bg: var(--high-bg); --chip-fg: var(--high); }
+.fix-plan { --chip-bg: var(--ok-bg); --chip-fg: var(--ok); }
 
 .tabs {
   display: flex;
@@ -748,7 +787,7 @@ kbd,
   box-shadow: var(--e-1);
 }
 
-.tab .material-symbols-outlined {
+.tab .material-symbols-rounded {
   font-size: 17px;
 }
 
@@ -799,7 +838,7 @@ kbd,
   line-height: var(--lh-base);
 }
 
-.field-hint .material-symbols-outlined {
+.field-hint .material-symbols-rounded {
   font-size: 15px;
   margin-top: 1px;
 }
@@ -865,7 +904,7 @@ kbd,
   transform: scale(1.05);
 }
 
-.opt-box .material-symbols-outlined {
+.opt-box .material-symbols-rounded {
   font-size: 12px;
   color: var(--on-a);
   opacity: 0;
@@ -873,8 +912,8 @@ kbd,
   transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease-out);
 }
 
-.opt.checked .opt-box .material-symbols-outlined,
-.tool-check.checked .opt-box .material-symbols-outlined {
+.opt.checked .opt-box .material-symbols-rounded,
+.tool-check.checked .opt-box .material-symbols-rounded {
   opacity: 1;
   transform: none;
 }
@@ -1033,7 +1072,7 @@ kbd,
   margin-bottom: var(--sp-3);
 }
 
-.tools-note .material-symbols-outlined {
+.tools-note .material-symbols-rounded {
   font-size: 15px;
   color: var(--a);
   margin-top: 2px;
@@ -1233,7 +1272,7 @@ kbd,
   flex-shrink: 0;
 }
 
-.ps-dot .material-symbols-outlined {
+.ps-dot .material-symbols-rounded {
   font-size: 11px;
   color: var(--s-1);
 }
@@ -1421,7 +1460,7 @@ kbd,
   gap: 2px;
   color: var(--crit);
 }
-.pstat-alarm .pstat-val .material-symbols-outlined { font-size: 18px; }
+.pstat-alarm .pstat-val .material-symbols-rounded { font-size: 18px; }
 .pstat-alarm .pstat-key { color: var(--crit-hi); }
 
 .pstat-key {
@@ -1456,7 +1495,7 @@ kbd,
   white-space: nowrap;
 }
 
-.target-chip .material-symbols-outlined {
+.target-chip .material-symbols-rounded {
   font-size: 16px;
   color: var(--t-3);
 }
@@ -1488,7 +1527,7 @@ kbd,
   box-shadow: 0 0 0 1.5px currentColor;
 }
 
-.sev-pill .material-symbols-outlined {
+.sev-pill .material-symbols-rounded {
   font-size: 13px;
 }
 
@@ -1517,7 +1556,7 @@ kbd,
   font-variant-numeric: tabular-nums;
 }
 
-.meta-chip .material-symbols-outlined {
+.meta-chip .material-symbols-rounded {
   font-size: 13px;
 }
 
@@ -1565,7 +1604,7 @@ kbd,
   border-radius: 2px 2px 0 0;
 }
 
-.subtab .material-symbols-outlined {
+.subtab .material-symbols-rounded {
   font-size: 15px;
 }
 
@@ -1648,7 +1687,7 @@ kbd,
   flex-shrink: 0;
 }
 
-.panel-head .material-symbols-outlined {
+.panel-head .material-symbols-rounded {
   font-size: 14px;
 }
 
@@ -1667,7 +1706,7 @@ kbd,
   flex-shrink: 0;
 }
 
-.search-box .material-symbols-outlined {
+.search-box .material-symbols-rounded {
   position: absolute;
   left: 18px;
   top: 50%;
@@ -1867,16 +1906,16 @@ kbd,
   margin-bottom: var(--sp-1);
 }
 
-.fi-top .material-symbols-outlined {
+.fi-top .material-symbols-rounded {
   font-size: 14px;
   margin-top: 2px;
 }
 
-.fi-top.critical .material-symbols-outlined { color: var(--crit); }
-.fi-top.high .material-symbols-outlined { color: var(--high); }
-.fi-top.medium .material-symbols-outlined { color: var(--med); }
-.fi-top.low .material-symbols-outlined { color: var(--low); }
-.fi-top.info .material-symbols-outlined { color: var(--info); }
+.fi-top.critical .material-symbols-rounded { color: var(--crit); }
+.fi-top.high .material-symbols-rounded { color: var(--high); }
+.fi-top.medium .material-symbols-rounded { color: var(--med); }
+.fi-top.low .material-symbols-rounded { color: var(--low); }
+.fi-top.info .material-symbols-rounded { color: var(--info); }
 
 .fi-title {
   font-size: var(--fs-sm);
@@ -1941,7 +1980,7 @@ kbd,
   color: var(--t-4);
 }
 
-.list-empty .material-symbols-outlined {
+.list-empty .material-symbols-rounded {
   font-size: 36px;
   color: var(--ok);
   margin-bottom: var(--sp-2);
@@ -1953,7 +1992,7 @@ kbd,
 
 /* The green shield means "clean". A list emptied by a filter is not clean, so
    it must not borrow that signal. */
-.list-empty.filtered .material-symbols-outlined {
+.list-empty.filtered .material-symbols-rounded {
   color: var(--t-4);
 }
 
@@ -2068,7 +2107,7 @@ kbd,
   align-items: center;
 }
 
-.lf-search > .material-symbols-outlined {
+.lf-search > .material-symbols-rounded {
   position: absolute;
   left: var(--sp-2);
   font-size: 16px;
@@ -2112,7 +2151,7 @@ kbd,
   color: var(--t-2);
 }
 
-.lf-clear .material-symbols-outlined {
+.lf-clear .material-symbols-rounded {
   font-size: 14px;
 }
 
@@ -2149,15 +2188,15 @@ kbd,
   color: var(--t-1);
 }
 
-.chip .material-symbols-outlined {
+.chip .material-symbols-rounded {
   font-size: 15px;
 }
 
 /* The file the list is narrowed to. Long paths are shown by basename, so the
    chip stays a chip; the trailing × is what dismisses the narrowing. */
 .chip-file { max-width: 210px; }
-.chip-file .material-symbols-outlined:last-child { font-size: 14px; opacity: 0.7; }
-.chip-file:hover .material-symbols-outlined:last-child { opacity: 1; }
+.chip-file .material-symbols-rounded:last-child { font-size: 14px; opacity: 0.7; }
+.chip-file:hover .material-symbols-rounded:last-child { opacity: 1; }
 
 .chip-n {
   font-variant-numeric: tabular-nums;
@@ -2203,7 +2242,7 @@ kbd,
     border-color var(--t-fast) var(--ease);
 }
 
-.af-chip > span:not(.material-symbols-outlined) {
+.af-chip > span:not(.material-symbols-rounded) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2214,25 +2253,25 @@ kbd,
   border-color: var(--t-4);
 }
 
-.af-chip .material-symbols-outlined {
+.af-chip .material-symbols-rounded {
   font-size: 14px;
 }
 
 /* The leading glyph carries the severity colour; the trailing × dims until hover
    so the chip reads as a label first, a remove control second. */
-.af-chip .material-symbols-outlined:last-child {
+.af-chip .material-symbols-rounded:last-child {
   opacity: 0.6;
 }
 
-.af-chip:hover .material-symbols-outlined:last-child {
+.af-chip:hover .material-symbols-rounded:last-child {
   opacity: 1;
 }
 
-.af-chip.sev-critical > .material-symbols-outlined:first-child { color: var(--crit); }
-.af-chip.sev-high > .material-symbols-outlined:first-child { color: var(--high); }
-.af-chip.sev-medium > .material-symbols-outlined:first-child { color: var(--med); }
-.af-chip.sev-low > .material-symbols-outlined:first-child { color: var(--low); }
-.af-chip.sev-info > .material-symbols-outlined:first-child { color: var(--info); }
+.af-chip.sev-critical > .material-symbols-rounded:first-child { color: var(--crit); }
+.af-chip.sev-high > .material-symbols-rounded:first-child { color: var(--high); }
+.af-chip.sev-medium > .material-symbols-rounded:first-child { color: var(--med); }
+.af-chip.sev-low > .material-symbols-rounded:first-child { color: var(--low); }
+.af-chip.sev-info > .material-symbols-rounded:first-child { color: var(--info); }
 
 .af-right {
   display: inline-flex;
@@ -2322,7 +2361,7 @@ kbd,
   margin-bottom: var(--sp-3);
 }
 
-.detail-sev .material-symbols-outlined { font-size: 13px; }
+.detail-sev .material-symbols-rounded { font-size: 13px; }
 .detail-sev.critical { background: var(--crit-bg); color: var(--crit); }
 .detail-sev.high { background: var(--high-bg); color: var(--high); }
 .detail-sev.medium { background: var(--med-bg); color: var(--med); }
@@ -2357,7 +2396,7 @@ kbd,
   transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 .loc-reveal:hover { color: var(--t-1); background: var(--s-3); }
-.loc-reveal .material-symbols-outlined { font-size: 16px; }
+.loc-reveal .material-symbols-rounded { font-size: 16px; }
 
 .detail-loc {
   display: inline-flex;
@@ -2380,8 +2419,8 @@ kbd,
   color: var(--a);
 }
 
-.detail-loc .material-symbols-outlined { font-size: 14px; }
-.detail-loc span:not(.material-symbols-outlined) {
+.detail-loc .material-symbols-rounded { font-size: 14px; }
+.detail-loc span:not(.material-symbols-rounded) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2407,7 +2446,7 @@ kbd,
   margin-bottom: var(--sp-3);
 }
 
-.detail-section h3 .material-symbols-outlined { font-size: 14px; }
+.detail-section h3 .material-symbols-rounded { font-size: 14px; }
 
 .detail-section p {
   font-size: var(--fs-md);
@@ -2474,11 +2513,11 @@ kbd,
   font-weight: var(--fw-med);
 }
 
-.corroborated-badge .material-symbols-outlined { font-size: 12px; }
+.corroborated-badge .material-symbols-rounded { font-size: 12px; }
 
 /* git blame attribution in the finding's meta grid */
 .blame-val { display: inline-flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
-.blame-val .material-symbols-outlined { font-size: 14px; color: var(--t-3); }
+.blame-val .material-symbols-rounded { font-size: 14px; color: var(--t-3); }
 .blame-commit {
   font-family: var(--mono);
   font-size: var(--fs-xs);
@@ -2523,7 +2562,7 @@ kbd,
   color: var(--t-4);
 }
 
-.code-head .material-symbols-outlined { font-size: 13px; }
+.code-head .material-symbols-rounded { font-size: 13px; }
 
 .code-lines {
   overflow-x: auto;
@@ -2639,7 +2678,7 @@ kbd,
 }
 
 .ref-link:hover { background: var(--s-3); }
-.ref-link .material-symbols-outlined { font-size: 14px; flex-shrink: 0; }
+.ref-link .material-symbols-rounded { font-size: 14px; flex-shrink: 0; }
 
 /* CWE codes in the classification grid link out to their MITRE definition. */
 .cwe-links { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); }
@@ -2654,7 +2693,7 @@ kbd,
   transition: opacity var(--t-fast) var(--ease);
 }
 .cwe-link:hover { text-decoration: underline; }
-.cwe-link .material-symbols-outlined { font-size: 13px; opacity: 0.65; }
+.cwe-link .material-symbols-rounded { font-size: 13px; opacity: 0.65; }
 
 .detail-empty {
   flex: 1;
@@ -2667,7 +2706,7 @@ kbd,
   font-size: var(--fs-base);
 }
 
-.detail-empty .material-symbols-outlined {
+.detail-empty .material-symbols-rounded {
   font-size: 44px;
   opacity: 0.3;
 }
@@ -2787,7 +2826,7 @@ kbd,
   font-size: var(--fs-base);
 }
 
-.viewer-error .material-symbols-outlined {
+.viewer-error .material-symbols-rounded {
   font-size: 32px;
   color: var(--high);
 }
@@ -2823,7 +2862,7 @@ kbd,
   border-color: var(--t-4);
 }
 
-.viewer-edit-btn .material-symbols-outlined {
+.viewer-edit-btn .material-symbols-rounded {
   font-size: 14px;
 }
 
@@ -2865,7 +2904,7 @@ kbd,
   white-space: nowrap;
 }
 
-.viewer-edit-hint .material-symbols-outlined {
+.viewer-edit-hint .material-symbols-rounded {
   font-size: 14px;
   flex-shrink: 0;
 }
@@ -2912,7 +2951,7 @@ kbd,
   border-bottom: 1px solid var(--line);
 }
 
-.recheck-banner .material-symbols-outlined {
+.recheck-banner .material-symbols-rounded {
   font-size: 16px;
 }
 
@@ -2948,7 +2987,7 @@ kbd,
   opacity: 1;
 }
 
-.recheck-dismiss .material-symbols-outlined {
+.recheck-dismiss .material-symbols-rounded {
   font-size: 15px;
 }
 
@@ -3005,7 +3044,7 @@ kbd,
   font-size: var(--fs-sm);
   line-height: var(--lh-base);
 }
-.scope-note .material-symbols-outlined { color: var(--a); font-size: 18px; flex-shrink: 0; }
+.scope-note .material-symbols-rounded { color: var(--a); font-size: 18px; flex-shrink: 0; }
 
 /* An empty panel says what its emptiness means, quietly. */
 .ov-empty {
@@ -3016,7 +3055,7 @@ kbd,
   font-size: var(--fs-sm);
   margin: var(--sp-1) 0 0;
 }
-.ov-empty .material-symbols-outlined { font-size: 17px; color: var(--ok); }
+.ov-empty .material-symbols-rounded { font-size: 17px; color: var(--ok); }
 
 /* A button that reads as an inline link. */
 .link-btn {
@@ -3043,10 +3082,10 @@ kbd,
 }
 
 /* Each grade paints itself from one severity token family. */
-.tone-ok { --tone: var(--ok); --tone-bg: var(--ok-bg); }
-.tone-med { --tone: var(--med); --tone-bg: var(--med-bg); }
-.tone-high { --tone: var(--high); --tone-bg: var(--high-bg); }
-.tone-crit { --tone: var(--crit); --tone-bg: var(--crit-bg); }
+.tone-ok { --tone: var(--ok); --tone-bg: var(--ok-bg); --tone-ring: var(--ok-ring); }
+.tone-med { --tone: var(--med); --tone-bg: var(--med-bg); --tone-ring: var(--med-bg); }
+.tone-high { --tone: var(--high); --tone-bg: var(--high-bg); --tone-ring: var(--high-ring); }
+.tone-crit { --tone: var(--crit); --tone-bg: var(--crit-bg); --tone-ring: var(--crit-ring); }
 
 .sc-head {
   display: flex;
@@ -3078,6 +3117,8 @@ kbd,
   stroke: var(--tone);
   stroke-width: 9;
   stroke-linecap: round;
+  /* A soft halo in the grade's colour: the ring is the screen's verdict. */
+  filter: drop-shadow(0 0 6px var(--tone-ring));
   transition: stroke-dasharray 0.9s var(--ease-out);
 }
 
@@ -3140,7 +3181,7 @@ kbd,
   line-height: var(--lh-base);
   max-width: 420px;
 }
-.score-limit .material-symbols-outlined { font-size: 15px; color: var(--tone); flex-shrink: 0; }
+.score-limit .material-symbols-rounded { font-size: 15px; color: var(--tone); flex-shrink: 0; }
 
 /* The stats row sits at the bottom when the card is stretched beside the plan. */
 .score-card .sc-stats { margin-top: auto; }
@@ -3179,7 +3220,7 @@ kbd,
   transition: filter var(--t-fast) var(--ease);
 }
 .sc-reach:hover { filter: brightness(1.15); }
-.sc-reach .material-symbols-outlined { font-size: 15px; color: var(--tone); }
+.sc-reach .material-symbols-rounded { font-size: 15px; color: var(--tone); }
 
 .sc-why-toggle {
   margin-left: auto;
@@ -3196,7 +3237,7 @@ kbd,
   cursor: pointer;
 }
 .sc-why-toggle:hover { background: var(--s-2); color: var(--t-1); }
-.sc-why-toggle .material-symbols-outlined { font-size: 16px; }
+.sc-why-toggle .material-symbols-rounded { font-size: 16px; }
 
 /* The arithmetic behind the number. */
 .score-why {
@@ -3244,7 +3285,7 @@ kbd,
   font-size: var(--fs-sm);
 }
 
-.score-clean .material-symbols-outlined { font-size: 16px; }
+.score-clean .material-symbols-rounded { font-size: 16px; }
 
 @media (max-width: 620px) {
   .sc-head { flex-direction: column; align-items: flex-start; }
@@ -3324,7 +3365,7 @@ kbd,
 }
 .fp-where { font-family: var(--mono); }
 .fp-reach { display: inline-flex; align-items: center; gap: 2px; }
-.fp-reach .material-symbols-outlined { font-size: 13px; color: var(--crit); }
+.fp-reach .material-symbols-rounded { font-size: 13px; color: var(--crit); }
 
 /* What the step buys: points, then the grade it leads to. */
 .fp-gain {
@@ -3378,7 +3419,7 @@ kbd,
   color: var(--t-2);
   font-size: var(--fs-sm);
 }
-.fp-empty .material-symbols-outlined { color: var(--ok); font-size: 20px; }
+.fp-empty .material-symbols-rounded { color: var(--ok); font-size: 20px; }
 
 /* ============================================================ dynamics */
 
@@ -3398,7 +3439,7 @@ kbd,
   color: var(--t-3);
   font-size: var(--fs-sm);
 }
-.dyn-first .material-symbols-outlined { color: var(--t-4); font-size: 18px; }
+.dyn-first .material-symbols-rounded { color: var(--t-4); font-size: 18px; }
 
 /* ========================================================== scan facts */
 
@@ -3418,7 +3459,7 @@ kbd,
   border-radius: var(--r-2);
   background: var(--s-2);
 }
-.sf-fact .material-symbols-outlined { grid-row: 1 / 3; align-self: center; font-size: 18px; color: var(--t-3); }
+.sf-fact .material-symbols-rounded { grid-row: 1 / 3; align-self: center; font-size: 18px; color: var(--t-3); }
 .sf-val {
   color: var(--t-1);
   font-size: var(--fs-md);
@@ -3458,7 +3499,7 @@ kbd,
   font-size: var(--fs-xs);
   line-height: var(--lh-base);
 }
-.sf-notes .material-symbols-outlined { font-size: 15px; color: var(--t-3); flex-shrink: 0; margin-top: 1px; }
+.sf-notes .material-symbols-rounded { font-size: 15px; color: var(--t-3); flex-shrink: 0; margin-top: 1px; }
 
 /* ================================================================== report */
 
@@ -3585,7 +3626,7 @@ kbd,
 .rep-dyn-cell b { font-size: var(--fs-lg); color: var(--t-1); }
 .rep-dyn-cell.bad b { color: var(--crit); }
 .rep-dyn-cell.good b { color: var(--ok); }
-.rep-dyn-cell .material-symbols-outlined { font-size: 17px; }
+.rep-dyn-cell .material-symbols-rounded { font-size: 17px; }
 .rep-dyn-when { margin-left: auto; font-size: var(--fs-xs); color: var(--t-4); }
 .rep-verdict { margin: var(--sp-2) 0 0; color: var(--t-2); font-size: var(--fs-sm); }
 
@@ -3786,7 +3827,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   margin: 0 0 var(--sp-3);
 }
 
-.help-h2 .material-symbols-outlined { font-size: 20px; color: var(--a); }
+.help-h2 .material-symbols-rounded { font-size: 20px; color: var(--a); }
 
 .help-intro {
   color: var(--t-2);
@@ -3875,7 +3916,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   transition: background 0.12s, color 0.12s;
 }
 .ap-more:hover { background: var(--s-2); color: var(--t-1); }
-.ap-more .material-symbols-outlined { font-size: 16px; }
+.ap-more .material-symbols-rounded { font-size: 16px; }
 
 /* ------------------------------------------------ riskiest files ("start here") */
 
@@ -3944,7 +3985,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
-.rf-reach .material-symbols-outlined { font-size: 14px; }
+.rf-reach .material-symbols-rounded { font-size: 14px; }
 .rf-share {
   position: relative;
   min-width: 38px;
@@ -3991,7 +4032,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   white-space: nowrap;
 }
 
-.ap-entry .material-symbols-outlined { font-size: 15px; color: var(--t-3); }
+.ap-entry .material-symbols-rounded { font-size: 15px; color: var(--t-3); }
 
 .ap-arrow { color: var(--t-3); font-size: 18px; flex-shrink: 0; }
 
@@ -4015,7 +4056,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   white-space: nowrap;
 }
 
-.ap-xfile .material-symbols-outlined { font-size: 12px; }
+.ap-xfile .material-symbols-rounded { font-size: 12px; }
 
 .ap-where {
   grid-column: 2;
@@ -4117,7 +4158,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   line-height: var(--lh-base);
 }
 
-.update-bar .material-symbols-outlined {
+.update-bar .material-symbols-rounded {
   font-size: 16px;
   color: var(--info);
 }
@@ -4158,7 +4199,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   line-height: var(--lh-base);
 }
 
-.warn-box .material-symbols-outlined {
+.warn-box .material-symbols-rounded {
   font-size: 16px;
   color: var(--med);
   margin-top: 1px;
@@ -4178,7 +4219,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   box-shadow: inset 0 0 0 1px var(--crit-ring);
 }
 
-.error-banner .material-symbols-outlined { color: var(--crit); font-size: 17px; margin-top: 1px; }
+.error-banner .material-symbols-rounded { color: var(--crit); font-size: 17px; margin-top: 1px; }
 
 .skip-row {
   display: flex;
@@ -4192,7 +4233,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 
 .skip-row:hover { background: var(--s-3); }
 
-.skip-row .material-symbols-outlined {
+.skip-row .material-symbols-rounded {
   font-size: 14px;
   color: var(--t-4);
 }
@@ -4243,7 +4284,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   font-size: var(--fs-md);
 }
 
-.rules-title .material-symbols-outlined {
+.rules-title .material-symbols-rounded {
   color: var(--a);
   font-size: 18px;
 }
@@ -4402,7 +4443,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 .rule-main .sev-medium { color: var(--med); }
 .rule-main .sev-low { color: var(--low); }
 .rule-main .sev-info { color: var(--info); }
-.rule-main > .material-symbols-outlined { font-size: 16px; }
+.rule-main > .material-symbols-rounded { font-size: 16px; }
 
 .rule-id {
   font-family: var(--mono);
@@ -4662,7 +4703,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   color: var(--t-1);
 }
 
-.show-more .material-symbols-outlined { font-size: 16px; }
+.show-more .material-symbols-rounded { font-size: 16px; }
 
 .install-out {
   margin-top: var(--sp-3);
@@ -4683,7 +4724,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 .install-out.ok .io-head { background: var(--ok-bg); color: var(--ok); }
 .install-out.fail .io-head { background: var(--crit-bg); color: var(--crit); }
 
-.io-head .material-symbols-outlined { font-size: 15px; }
+.io-head .material-symbols-rounded { font-size: 15px; }
 
 .io-head code {
   font-family: var(--mono);
@@ -4771,7 +4812,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   color: var(--crit);
 }
 
-.field-error .material-symbols-outlined { font-size: 13px; }
+.field-error .material-symbols-rounded { font-size: 13px; }
 
 .field.has-error .input {
   border-color: var(--crit);
@@ -4875,7 +4916,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   color: var(--ok);
 }
 
-.preview-summary .material-symbols-outlined { font-size: 16px; }
+.preview-summary .material-symbols-rounded { font-size: 16px; }
 
 .preview-line {
   display: flex;
@@ -4935,7 +4976,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   text-align: center;
 }
 
-.empty-state .material-symbols-outlined {
+.empty-state .material-symbols-rounded {
   font-size: 44px;
   color: var(--t-4);
   opacity: 0.5;
@@ -4984,7 +5025,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   animation: toastIn var(--t-base) var(--ease-out);
 }
 
-.toast .material-symbols-outlined { color: var(--ok); font-size: 17px; }
+.toast .material-symbols-rounded { color: var(--ok); font-size: 17px; }
 
 @keyframes toastIn {
   from { opacity: 0; transform: translate(-50%, 8px); }
@@ -5046,7 +5087,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   flex-shrink: 0;
 }
 
-.palette-input .material-symbols-outlined {
+.palette-input .material-symbols-rounded {
   font-size: 18px;
   color: var(--t-4);
 }
@@ -5098,7 +5139,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   background: var(--on-a-wash);
 }
 
-.palette-item .material-symbols-outlined {
+.palette-item .material-symbols-rounded {
   font-size: 17px;
 }
 
@@ -5244,9 +5285,9 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   color: var(--t-1);
 }
 
-.delta-stat .material-symbols-outlined { font-size: 16px; }
-.delta-stat.bad b, .delta-stat.bad .material-symbols-outlined { color: var(--crit); }
-.delta-stat.good b, .delta-stat.good .material-symbols-outlined { color: var(--ok); }
+.delta-stat .material-symbols-rounded { font-size: 16px; }
+.delta-stat.bad b, .delta-stat.bad .material-symbols-rounded { color: var(--crit); }
+.delta-stat.good b, .delta-stat.good .material-symbols-rounded { color: var(--ok); }
 
 /* Compact multi-scan trend on the dashboard; opens the full report on click. */
 .trend-strip {
@@ -5284,9 +5325,9 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   color: var(--t-3);
   white-space: nowrap;
 }
-.trend-strip-delta .material-symbols-outlined { font-size: 16px; }
-.trend-strip-delta.good, .trend-strip-delta.good .material-symbols-outlined { color: var(--ok); }
-.trend-strip-delta.bad, .trend-strip-delta.bad .material-symbols-outlined { color: var(--crit); }
+.trend-strip-delta .material-symbols-rounded { font-size: 16px; }
+.trend-strip-delta.good, .trend-strip-delta.good .material-symbols-rounded { color: var(--ok); }
+.trend-strip-delta.bad, .trend-strip-delta.bad .material-symbols-rounded { color: var(--crit); }
 
 /* The code tab's first screen: the riskiest files, one click each. */
 .code-start-list {
@@ -5370,7 +5411,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   letter-spacing: 0.03em;
 }
 
-.tag.combo .material-symbols-outlined {
+.tag.combo .material-symbols-rounded {
   font-size: 12px;
 }
 
@@ -5428,7 +5469,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   letter-spacing: 0.3px;
 }
 
-.cs-xfile .material-symbols-outlined { font-size: 12px; }
+.cs-xfile .material-symbols-rounded { font-size: 12px; }
 
 /* The classified entry point ("HTTP request", "CLI argument") on the source step. */
 .cs-entry {
@@ -5461,7 +5502,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   letter-spacing: 0.03em;
 }
 
-.tag.flow .material-symbols-outlined { font-size: 12px; }
+.tag.flow .material-symbols-rounded { font-size: 12px; }
 
 /* A finding proven reachable by the taint engine — the highest-signal class. */
 .tag.reach {
@@ -5474,7 +5515,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   letter-spacing: 0.03em;
 }
 
-.tag.reach .material-symbols-outlined { font-size: 12px; }
+.tag.reach .material-symbols-rounded { font-size: 12px; }
 
 /* The data-flow diagram: steps on a vertical rail, a coloured marker per role,
    connected top to bottom — the path reads at a glance as a route from the
@@ -5526,7 +5567,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   margin-top: 2px;
 }
 
-.fn-marker .material-symbols-outlined { font-size: 15px; }
+.fn-marker .material-symbols-rounded { font-size: 15px; }
 
 .role-source { --tone: var(--a); }
 .role-mid { --tone: var(--t-4); }
@@ -5620,7 +5661,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   margin-bottom: var(--sp-3);
 }
 
-.supp-note .material-symbols-outlined { font-size: 15px; }
+.supp-note .material-symbols-rounded { font-size: 15px; }
 
 .supp-form {
   padding: var(--sp-3);
@@ -5753,7 +5794,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   cursor: default;
 }
 
-.tr-nocolor .material-symbols-outlined { font-size: 14px; }
+.tr-nocolor .material-symbols-rounded { font-size: 14px; }
 
 .tr-label {
   display: flex;
@@ -5799,7 +5840,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
 }
 
 .tr-reset:hover { background: var(--s-5); color: var(--t-1); }
-.tr-reset .material-symbols-outlined { font-size: 14px; }
+.tr-reset .material-symbols-rounded { font-size: 14px; }
 
 /* ---------------------------------------------- tools card, loading */
 
@@ -5953,7 +5994,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   gap: var(--sp-1);
 }
 
-.set-tabs .seg-btn .material-symbols-outlined { font-size: 15px; }
+.set-tabs .seg-btn .material-symbols-rounded { font-size: 15px; }
 
 .set-search {
   display: flex;
@@ -5965,7 +6006,7 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   background: var(--s-2);
 }
 
-.set-search .material-symbols-outlined {
+.set-search .material-symbols-rounded {
   font-size: 16px;
   color: var(--t-3);
 }
