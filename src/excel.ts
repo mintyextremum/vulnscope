@@ -1,6 +1,6 @@
 import type { ScanReport, Finding, Severity, Staff1c } from "./types";
 import type { TFn } from "./i18n";
-import type { SecurityScore } from "./score";
+import { planStepTitle, type SecurityScore } from "./score.ts";
 import { resolveResponsible, responsibleBreakdown } from "./responsible.ts";
 import { formatStamp } from "./datetime.ts";
 
@@ -16,8 +16,9 @@ import { formatStamp } from "./datetime.ts";
  *
  * Like `xml1c.ts` and `score.ts`, this module pulls in no runtime *value* from
  * the app (labels are inlined, score/staff arrive as parameters), so the export
- * audit loads it under Node's type stripping without a bundler. Its one runtime
- * import, `./responsible`, is itself value-free and loads the same way.
+ * audit loads it under Node's type stripping without a bundler. Its runtime
+ * imports — `./responsible`, and `./score` for the plan's wording — are
+ * themselves import-free and load the same way.
  */
 
 const SEVERITY_ORDER: Severity[] = ["critical", "high", "medium", "low", "info"];
@@ -98,14 +99,26 @@ export function toExcel(
   summary.push(kv(t("Строк кода"), report.linesScanned));
   summary.push(row([])); // spacer
   summary.push(row([th(t("Уровень")), th(t("Количество"))]));
+  // Counted over the same findings as the total above and the findings sheet:
+  // the scan's own tally includes BETA, and a sheet whose rows do not add up
+  // to its total is a sheet nobody trusts.
   for (const s of SEVERITY_ORDER) {
-    summary.push(row([cell(t(SEVERITY_LABEL[s])), cell(report.counts[s])]));
+    const n = confirmed.filter((f) => !f.suppressed && f.severity === s).length;
+    summary.push(row([cell(t(SEVERITY_LABEL[s])), cell(n)]));
   }
   summary.push(row([]));
   summary.push(row([th(t("Динамика с прошлого скана")), th("")]));
   summary.push(kv(t("Новых"), report.delta.newCount));
   summary.push(kv(t("Исправлено"), report.delta.fixedCount));
   summary.push(kv(t("Без изменений"), report.delta.unchangedCount));
+  if (score && (score.plan ?? []).length > 0) {
+    summary.push(row([]));
+    summary.push(row([th(t("План исправлений")), th(t("Оценка после"))]));
+    if (score.limit) summary.push(row([cell(t(score.limit.reason, { n: score.limit.value })), cell("")]));
+    score.plan.forEach((step, i) => {
+      summary.push(row([cell(`${i + 1}. ${planStepTitle(step, t)}`), cell(`${Math.round(step.scoreAfter)} (${step.gradeAfter})`)]));
+    });
+  }
 
   // ---- Sheet 2: Findings -------------------------------------------------
   const findings: string[] = [];

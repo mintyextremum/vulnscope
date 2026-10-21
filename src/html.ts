@@ -3,6 +3,7 @@ import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
 import { responsibleBreakdown } from "./responsible.ts";
 import { formatStamp } from "./datetime.ts";
+import { computeScore, planStepTitle } from "./score.ts";
 
 /**
  * Self-contained HTML export.
@@ -102,6 +103,35 @@ export function toHtml(report: ScanReport, t: TFn, note?: string, staff: Staff1c
       ? `<p class="ok">✓ ${esc(t("Находок нет"))}</p>`
       : "";
 
+  // The score and the plan; not for a filtered subset (see markdown.ts).
+  const score = note ? null : computeScore(report);
+  const byId = new Map(report.findings.map((f) => [f.id, f]));
+  const scoreBlock = score
+    ? `<div class="score"><b>${score.grade}</b> ${Math.round(score.score)}/100 · ${esc(t(score.label))}${
+        score.limit ? `<div class="limit">${esc(t(score.limit.reason, { n: score.limit.value }))}</div>` : ""
+      }</div>`
+    : "";
+  const planSection =
+    score && score.plan.length > 0
+      ? `<section>
+        <h2>${esc(t("План исправлений"))}</h2>
+        <table class="resp plan">
+          <thead><tr><th>#</th><th>${esc(t("Что сделать"))}</th><th>${esc(t("Где"))}</th><th>${esc(
+            t("Мест"),
+          )}</th><th>${esc(t("Оценка после"))}</th></tr></thead>
+          <tbody>${score.plan
+            .map((step, i) => {
+              const f = byId.get(step.findingId);
+              const where = step.files === 1 && f ? `<code>${esc(f.file)}</code>` : esc(t("файлов: {n}", { n: step.files }));
+              return `<tr><td>${i + 1}</td><td>${esc(planStepTitle(step, t))}</td><td>${where}</td><td>${
+                step.count + step.alsoCloses
+              }</td><td>${Math.round(step.scoreAfter)} (${step.gradeAfter})</td></tr>`;
+            })
+            .join("")}</tbody>
+        </table>
+      </section>`
+      : "";
+
   const chips = SEVERITY_ORDER.filter((s) => report.counts[s] > 0)
     .map((s) => chip(s, report.counts[s]))
     .join(" ");
@@ -164,6 +194,10 @@ export function toHtml(report: ScanReport, t: TFn, note?: string, staff: Staff1c
   table.resp th { text-align: left; color: #62636c; font-weight: 600; padding: 4px 14px 4px 0; border-bottom: 1px solid #e6e6ea; }
   table.resp td { padding: 4px 14px 4px 0; border-bottom: 1px solid #f0f0f2; font-variant-numeric: tabular-nums; }
   table.resp td:not(:first-child), table.resp th:not(:first-child) { text-align: right; }
+  table.plan td:nth-child(2), table.plan th:nth-child(2), table.plan td:nth-child(3), table.plan th:nth-child(3) { text-align: left; }
+  .score { margin-top: 14px; font-size: 15px; }
+  .score b { font-size: 22px; margin-right: 6px; }
+  .limit { color: #62636c; font-size: 13px; margin-top: 2px; }
   .sup { color: #62636c; font-size: 13px; font-style: italic; }
   .warn { background: #fff4e5; border: 1px solid #ffd8a8; border-radius: 6px; padding: 10px 14px; }
   .ok { color: #2b8a3e; font-size: 16px; }
@@ -177,7 +211,7 @@ export function toHtml(report: ScanReport, t: TFn, note?: string, staff: Staff1c
     table.resp td { border-color: #232326; }
     .card { background: #1c1c1f; }
     .chip, code, .tag { background: #26262a; color: #c4c4c8; }
-    .target, .summary, .meta, .sup, .tag, .n, footer { color: #9a9aa2; }
+    .target, .summary, .meta, .sup, .tag, .n, footer, .limit { color: #9a9aa2; }
     .rec { background: #16241a; color: #c8e6c9; }
     .warn { background: #2a2213; border-color: #4a3a1a; color: #f0d9a8; }
   }
@@ -199,8 +233,10 @@ export function toHtml(report: ScanReport, t: TFn, note?: string, staff: Staff1c
       })
     )}</div>
     <div class="chips">${chips}</div>
+    ${scoreBlock}
   </header>
   ${empty}
+  ${planSection}
   ${authorSection}
   ${sections}
   ${suppressedSection}

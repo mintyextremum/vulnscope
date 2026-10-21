@@ -28,7 +28,7 @@
  *
  * Usage: npm run audit:score
  */
-import { computeScore, rootCause, isReachable } from "../src/score.ts";
+import { computeScore, rootCause, isReachable, highestVersion } from "../src/score.ts";
 
 function report(findings, over = {}) {
   const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
@@ -165,6 +165,15 @@ check(advisories.causes === 1 && advisories.plan.length === 1 && advisories.plan
   "advisories against one package version must be one cause and one plan step");
 check(advisories.plan[0].package?.fixedVersion === "4.17.21" && advisories.plan[0].severity === "critical",
   "a dependency step must carry the fix version and its worst severity");
+const lowFix = { ...pkg, fixedVersion: "4.17.9" };
+const highFix = { ...pkg, fixedVersion: "4.17.12" };
+const twoFixes = score([
+  finding("critical", { ruleId: "GHSA-a", package: lowFix, source: "osv" }),
+  finding("high", { ruleId: "GHSA-b", package: highFix, source: "osv" }),
+]);
+check(twoFixes.plan[0].package?.fixedVersion === "4.17.12",
+  `one upgrade must clear every advisory: name the highest fix (numerically), got ${twoFixes.plan[0].package?.fixedVersion}`);
+check(highestVersion(["1.10.0", "1.9.3", null]) === "1.10.0" && highestVersion([null]) === null, "version order is numeric");
 check(rootCause(finding("low", { ruleId: "X", source: "semgrep" })) !== rootCause(finding("low", { ruleId: "X", source: "bandit" })),
   "the same rule id from two engines is two causes");
 const sure = score([finding("medium")]);

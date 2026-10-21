@@ -2,6 +2,7 @@ import type { Finding, ScanReport, Severity, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import type { TFn } from "./i18n";
 import { responsibleBreakdown } from "./responsible.ts";
+import { computeScore, planStepTitle } from "./score.ts";
 
 /**
  * Markdown export.
@@ -110,6 +111,30 @@ export function toMarkdown(report: ScanReport, t: TFn, note?: string, staff: Sta
     }),
     ""
   );
+
+  // The score and the plan — not for a filtered subset, whose "score" would
+  // describe whatever the filter happened to leave.
+  const score = note ? null : computeScore(report);
+  if (score) {
+    out.push(
+      `**${report.changedOnly ? t("Оценка изменений") : t("Оценка защищённости")}: ${Math.round(score.score)}/100 (${score.grade}) — ${t(score.label)}**`,
+      "",
+    );
+    if (score.limit) out.push(`> ${t(score.limit.reason, { n: score.limit.value })}`, "");
+    if (score.plan.length > 0) {
+      out.push(`## ${t("План исправлений")}`, "");
+      out.push(`| # | ${t("Что сделать")} | ${t("Где")} | ${t("Мест")} | ${t("Оценка после")} |`, "| ---: | --- | --- | ---: | ---: |");
+      const byId = new Map(report.findings.map((f) => [f.id, f]));
+      score.plan.forEach((step, i) => {
+        const f = byId.get(step.findingId);
+        const where = step.files === 1 && f ? `\`${f.file}\`` : t("файлов: {n}", { n: step.files });
+        out.push(
+          `| ${i + 1} | ${cell(planStepTitle(step, t))} | ${where} | ${step.count + step.alsoCloses} | ${Math.round(step.scoreAfter)} (${step.gradeAfter}) |`,
+        );
+      });
+      out.push("");
+    }
+  }
 
   // Severity summary table — only rows that have findings.
   out.push(`## ${t("Сводка")}`, "");

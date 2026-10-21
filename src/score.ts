@@ -168,6 +168,24 @@ export interface PlanStep {
   findingId: string;
 }
 
+/**
+ * What a plan step asks the user to do, in words — the same wording on the
+ * dashboard, in the printed report and in the exports. `t` translates the
+ * Russian source; this module stays free of runtime imports.
+ */
+export function planStepTitle(step: PlanStep, t: (s: string, vars?: Record<string, string | number>) => string): string {
+  if (step.package) {
+    return step.package.fixedVersion
+      ? t("Обновить {name} до {version}", { name: step.package.name, version: step.package.fixedVersion })
+      : t("Заменить {name} {version} — исправленной версии нет", {
+          name: step.package.name,
+          version: step.package.version,
+        });
+  }
+  if (step.ruleId === "VS-FLOW") return t("Разорвать путь данных: {category}", { category: t(step.category) });
+  return t(step.title);
+}
+
 export interface SecurityScore {
   /** 0–100; 100 is a clean project. */
   score: number;
@@ -348,6 +366,26 @@ function evaluate(t: Totals): { score: number; raw: number; limit: ScoreLimit | 
   return { score, raw, limit, presence: p };
 }
 
+/**
+ * The highest of several version strings, compared segment by segment as
+ * numbers where both are numeric ("4.17.21" > "4.17.9"), as text otherwise.
+ */
+export function highestVersion(versions: (string | null)[]): string | null {
+  const parts = (v: string) => v.replace(/^[v=]/, "").split(/[.+-]/);
+  const cmp = (a: string, b: string): number => {
+    const x = parts(a);
+    const y = parts(b);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      const p = x[i] ?? "0";
+      const q = y[i] ?? "0";
+      const d = /^\d+$/.test(p) && /^\d+$/.test(q) ? Number(p) - Number(q) : p.localeCompare(q);
+      if (d !== 0) return d;
+    }
+    return 0;
+  };
+  return versions.reduce<string | null>((best, v) => (v && (!best || cmp(v, best) > 0) ? v : best), null);
+}
+
 /** How many plan steps are worth showing; the rest is the long tail. */
 const PLAN_STEPS = 8;
 
@@ -428,7 +466,14 @@ function buildPlan(causes: Cause[]): PlanStep[] {
       reachable: cause.findings.filter(isReachable).length,
       alsoCloses: closes,
       package: pkg
-        ? { name: pkg.name, version: pkg.version, ecosystem: pkg.ecosystem, fixedVersion: pkg.fixedVersion }
+        ? {
+            name: pkg.name,
+            version: pkg.version,
+            ecosystem: pkg.ecosystem,
+            // One upgrade has to clear every advisory of the cause, so the
+            // version to name is the highest any of them needs.
+            fixedVersion: highestVersion(cause.findings.map((f) => f.package?.fixedVersion ?? null)),
+          }
         : null,
       gain: round1(score - current),
       scoreAfter: score,

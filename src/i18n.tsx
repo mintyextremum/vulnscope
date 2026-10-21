@@ -308,6 +308,10 @@ export const EN: Record<string, string> = {
   "Критические риски": "Critical risks",
   "Серьёзные риски": "Serious risks",
   // Dashboard 2.0
+  "Что сделать": "What to do",
+  Где: "Where",
+  Мест: "Places",
+  "Оценка после": "Score after",
   "Только изменения": "Changes only",
   "Файлы, изменённые с последнего коммита, и новые — проверка правки до коммита. Нужен git-репозиторий":
     "Files changed since the last commit, and new ones — check an edit before committing it. Needs a git repository",

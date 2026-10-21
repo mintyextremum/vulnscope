@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ScanReport, Finding, Severity, HistoryPoint, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import { Icon, formatNumber, formatDuration } from "./components";
-import { computeScore, GRADE_TONE } from "./score";
+import { computeScore, isReachable, planStepTitle, GRADE_TONE } from "./score";
 import { responsibleBreakdown } from "./responsible.ts";
 import { useT, LangContext } from "./i18n";
 
@@ -73,7 +73,7 @@ export function ReportScreen({
     (acc, s) => ((acc[s] = confirmed.filter((f) => f.severity === s).length), acc),
     {} as Record<Severity, number>
   );
-  const reachable = confirmed.filter((f) => f.extra?.onDataPath).length;
+  const reachable = confirmed.filter(isReachable).length;
   const secrets = confirmed.filter((f) => f.source === "secrets").length;
   const vulnDeps = confirmed.filter((f) => f.package != null).length;
   const flows = report.findings.filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed);
@@ -143,6 +143,7 @@ export function ReportScreen({
   );
 
   const tone = score ? GRADE_TONE[score.grade] : "";
+  const byId = useMemo(() => new Map(report.findings.map((f) => [f.id, f])), [report.findings]);
   const worst = [...confirmed]
     .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
     .slice(0, 40);
@@ -191,6 +192,9 @@ export function ReportScreen({
             <div className="rep-sub">
               {t("Сканирование")}: {dateStr(report.finishedAt || report.startedAt)}
             </div>
+            {report.changedOnly && (
+              <div className="rep-sub">{t("Проверены только файлы, изменённые с последнего коммита")}</div>
+            )}
           </div>
           {score && (
             <div className={`rep-score tone-${tone}`}>
@@ -216,6 +220,45 @@ export function ReportScreen({
           {tile(t("Путей атаки"), formatNumber(flows.length))}
           {tile(t("Файлов проверено"), formatNumber(report.filesScanned))}
         </div>
+
+        {/* What to fix first, with what each step is worth — the dashboard's
+            plan, on paper, so the report hands over a work order and not
+            only a verdict. */}
+        {score && score.plan.length > 0 && (
+          <>
+            <h2 className="rep-h2">{t("План исправлений")}</h2>
+            {score.limit && (
+              <p className="rep-verdict">{t(score.limit.reason, { n: score.limit.value })}</p>
+            )}
+            <table className="rep-table">
+              <thead>
+                <tr>
+                  <th className="rep-num-col">#</th>
+                  <th>{t("Что сделать")}</th>
+                  <th>{t("Где")}</th>
+                  <th className="rep-num-col">{t("Мест")}</th>
+                  <th className="rep-num-col">{t("Оценка после")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {score.plan.map((step, i) => {
+                  const f = byId.get(step.findingId);
+                  return (
+                    <tr key={step.key}>
+                      <td className="rep-num-col">{i + 1}</td>
+                      <td>{planStepTitle(step, t)}</td>
+                      <td>{step.files === 1 && f ? f.file : t("файлов: {n}", { n: step.files })}</td>
+                      <td className="rep-num-col">{step.count + step.alsoCloses}</td>
+                      <td className="rep-num-col">
+                        {Math.round(step.scoreAfter)} ({step.gradeAfter})
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
 
         {/* Dynamics since last scan */}
         <h2 className="rep-h2">{t("Динамика с прошлого скана")}</h2>

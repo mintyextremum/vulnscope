@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Finding, HistoryPoint, ScanReport, Severity } from "./types";
 import { SEVERITY_LABEL, SEVERITY_ORDER, severityCounted } from "./types";
 import { Announce, Icon, LtrPath, SeverityBar, formatBytes, formatDuration, formatNumber } from "./components";
-import { computeScore, findingRisk, isReachable, GRADE_TONE, type PlanStep, type SecurityScore } from "./score";
+import { computeScore, findingRisk, isReachable, planStepTitle, GRADE_TONE, type SecurityScore } from "./score";
 import { LangContext, translate, useT, type Lang, type TFn } from "./i18n";
 
 /**
@@ -261,20 +261,6 @@ function ScoreCard({
 
 // ---------------------------------------------------------------- fix plan
 
-/** What a step asks the user to do, in words. */
-function stepTitle(step: PlanStep, t: TFn): string {
-  if (step.package) {
-    return step.package.fixedVersion
-      ? t("Обновить {name} до {version}", { name: step.package.name, version: step.package.fixedVersion })
-      : t("Заменить {name} {version} — исправленной версии нет", {
-          name: step.package.name,
-          version: step.package.version,
-        });
-  }
-  if (step.ruleId === "VS-FLOW") return t("Разорвать путь данных: {category}", { category: t(step.category) });
-  return t(step.title);
-}
-
 /**
  * "What do I fix first?", answered by the score itself. Each step is the root
  * cause whose fix buys the most points given the steps above it, and its
@@ -340,7 +326,7 @@ function FixPlan({
                 <span className="fp-n">{i + 1}</span>
                 <span className={`sev-dot ${step.severity}`} />
                 <span className="fp-main">
-                  <span className="fp-title">{stepTitle(step, t)}</span>
+                  <span className="fp-title">{planStepTitle(step, t)}</span>
                   <span className="fp-meta">
                     <span className="fp-where">{where}</span>
                     {step.count > 1 && <span>{t("мест: {n}", { n: step.count })}</span>}
