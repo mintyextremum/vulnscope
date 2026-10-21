@@ -75,6 +75,12 @@ them is a valid report:
    signing key whose leak means arbitrary code on every install.
 4. **Telemetry is off and cannot be switched on.** Scanner telemetry and
    provider-side verification of discovered secrets are forced off.
+5. **A scanned folder cannot run code through git.** A folder can carry its own
+   `.git/config`, and git runs programs named there (`core.fsmonitor`, diff and
+   textconv drivers). Every process VulnScope starts — and everything those
+   start — gets an override above the repository's config, and git calls into a
+   scanned folder run hardened. Enforced by a test that reproduces the attack
+   against the real git (`a_scanned_repository_cannot_run_its_fsmonitor`).
 
 ## Supported versions
 
@@ -83,5 +89,5 @@ single-maintainer project, please upgrade before reporting.
 
 | Version | Supported |
 |---|---|
-| 1.3.x | Yes |
-| < 1.3 | No |
+| 2.0.x | Yes |
+| < 2.0 | No |

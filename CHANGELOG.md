@@ -4,6 +4,124 @@ All notable changes to VulnScope are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] — 2026-10-21 · Thunderbolt
+
+A major release. The data-flow engine now reads statements instead of lines and
+understands functions and framework parameters in every language it covers; the
+security score was rebuilt so that its verdict is one you can defend, and it now
+comes with a plan that says what to fix first; the dashboard was redesigned around
+those two answers. It also closes a security hole that every 1.x release had.
+
+### Security
+
+- **A scanned folder could run a command through git.** The blame step, on by
+  default since 1.0, ran `git ls-files` and `git blame` inside the scanned folder,
+  and both execute the program named in that folder's `.git/config` under
+  `core.fsmonitor`. A folder carrying its own `.git` — an unpacked archive of
+  someone else's project, say — therefore ran its author's command the moment it
+  was scanned. Every process VulnScope starts now receives `core.fsmonitor=false`
+  through `GIT_CONFIG_COUNT`, which outranks the repository's config and reaches
+  grandchildren too (Semgrep lists files with git); git calls into a scanned folder
+  also run hardened, and blame runs without textconv drivers. A test reproduces
+  the attack against the real git, with an unprotected control run, so it checks
+  what git actually does. This is now design commitment 5 in SECURITY.md.
+
+### Added
+
+- **The engine reads statements.** A query split over three lines, arguments in a
+  column, a call chain with a leading dot, a template literal spanning lines — all
+  are joined into one statement, and the finding still points at the real line.
+- **Functions in Java, C#, Kotlin, Scala, Ruby, Elixir and Perl**, alongside
+  Python, JavaScript/TypeScript, PHP and Go: one method's variables no longer leak
+  into the next, and calls to helpers resolve through their summaries.
+- **Framework parameters are sources.** `@RequestParam`/`@PathVariable` in
+  Spring, JAX-RS, `[FromQuery]`/`[FromBody]` in ASP.NET, `@Query`/`@Body` in
+  NestJS, `Query()`/`Annotated[…]` and route paths in FastAPI and Flask. Such
+  handlers were skipped before the engine read a line, having no `request` in
+  them. A path parameter typed `int`, `uuid` and the like is not a source.
+- **Destructuring and unpacking** — `const { id } = req.query`, Python and Ruby
+  tuple unpacking, Go's `value, err :=` — give every bound name the right-hand
+  side's taint.
+- **Score 2.0.**
+  - The worst finding sets honest limits: only high and critical findings can
+    reach F; a critical vulnerability keeps the score at C or below, one reachable
+    from input at D or below. F without a critical reads "serious risks".
+  - Findings are grouped by root cause — a rule, a package version, or for traced
+    flows the kind of sink — and repeats weigh less each time (n of them weigh
+    like 1 + log₂ n).
+  - A finding from a low-confidence rule weighs half, a medium one three quarters.
+- **Fix plan** on the dashboard, in the printed report and in the Markdown, HTML
+  and Excel exports: the causes whose fixes raise the score the most, greedily,
+  with the score and grade after each step. A fix changes the whole line, so a
+  step also clears other rules' findings on the same lines; for a package it names
+  the highest version any of its advisories needs.
+- **"Why this score?"** opens the arithmetic: each severity's share of the risk,
+  the repeat discount, the multipliers, the limit and the score without it.
+- **Collapse repeats** in the findings list: one row per root cause with ×N, and
+  the other places listed in the finding's detail.
+- **Changes only (BETA)**: scan only the files changed since the last commit. The
+  cross-file pre-pass still reads the whole project; the scan neither compares
+  with nor writes to the history, and its score is the score of the changes.
+- The code tab opens on the riskiest files, each at its worst line.
+- What's new, shown once after an update; the version badge in the title bar
+  brings it back.
+
+### Changed
+
+- **The dashboard** leads with the score card and the fix plan side by side,
+  then attack paths and the riskiest files (now with each file's share of the
+  project's risk), then one card for the change since the last scan. The six
+  number tiles and the separate severity card repeated what the header already
+  showed and are replaced by a compact "About the scan" at the end.
+- **Traced data flows are marked reachable.** Only pattern findings lying on a
+  flow were marked before, so the management report said "0 reachable" next to a
+  list of attack paths and the exports said "Reachable: No" on the flagship's own
+  findings. The history's reachable count rises accordingly from this version on.
+- Every traced flow is titled with what it reaches ("SQL injection · …").
+- The severity pills above the dashboard count what the dashboard counts —
+  confirmed findings — and a click opens the findings of that severity.
+
+### Fixed
+
+- `.env` was shown as `env.` and `.env:3` as `env:3.`: paths truncated from the
+  left were also reordered by the bidi algorithm. Six places.
+- Every fresh report opened the Findings tab narrowed to the first finding's file
+  ("1/5").
+- A suppressed finding made a fresh report read "26/27" and "1 hidden", with a
+  reset that could not bring it back.
+- Skip reasons on the Skipped tab were not translated, and two sentences were
+  written straight into the markup, half Russian in the English interface.
+- Settings stayed on "Loading settings…" forever when reading them failed; a
+  failed save now rolls back with a message instead of showing a value the
+  scanner would not use.
+- The command palette stretched to its full height with three commands; "Reset
+  filters" there left the reachable toggle, the author and the file in place.
+- Excel's summary sheet counted severities including BETA while its total and its
+  findings sheet did not.
+- The help screen claimed 38 languages; there are 37.
+
+### Performance
+
+- The engine is faster than 1.3.0 despite doing more: 2.22 s against 2.36 s on
+  3,122 files from `node_modules` (best of five), with identical findings — zero
+  new false positives. A line with nothing tainted and no source is now skipped
+  outright, and text without quotes or slashes skips the literal scanner.
+
+### Engineering
+
+- 351 backend tests, up from 328.
+- The score audit checks the limits, the repeat discount, confidence and
+  monotonicity on thousands of random reports, and replays every fix plan —
+  removing findings the way a fix would — to check each promised score.
+- The localization audit now also catches text written directly into JSX, the
+  score's labels, and the release note.
+- `npm run dev` in a plain browser runs against a simulated backend built on
+  Tauri's IPC mock, with a demo project covering every surface of the interface.
+  It works around a bug in `@tauri-apps/api` 2.11's mock (unlisten sends
+  `eventId`, the mock reads `id`).
+
+[2.0.0]: https://github.com/mintyextremum/vulnscope/releases/tag/v2.0.0
+
 ## [1.3.0] — 2026-10-07
 
 The remaining heuristic languages join the data-flow engine, and three findings
