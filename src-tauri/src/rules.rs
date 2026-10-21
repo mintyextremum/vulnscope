@@ -4744,7 +4744,9 @@ pub static HEURISTICS: &[Heuristic] = &[
         // PHP's file API and, more importantly, its include family: a tainted
         // path in `include`/`require` is local or remote file inclusion, the
         // most damaging form this category takes. Those are keywords, not
-        // calls, so they carry no parenthesis requirement.
+        // calls, so they carry no parenthesis requirement — but they must be
+        // followed by a path: a parenthesis, a quote or a PHP variable. A bare
+        // word matched JavaScript's `INCLUDE` constants and every `require`.
         //
         // JVM: `new File(…)` (bare `File(…)` in Kotlin), the stream and
         // reader/writer constructors, and NIO's `Files.*`. The `File(` form
@@ -4752,7 +4754,7 @@ pub static HEURISTICS: &[Heuristic] = &[
         // `new File([blob], name)`, which builds a blob and touches no path.
         // .NET: the static `File.*` family, `FileStream`/`StreamReader`/
         // `StreamWriter`, and `Directory.*` listing and deletion.
-        sink: r"(?i)(?:\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink|file_get_contents|file_put_contents|unlink|scandir|opendir|FileOutputStream|FileReader|FileWriter|RandomAccessFile|FileStream|StreamReader|StreamWriter)\s*\(|\b(?:include|require)(?:_once)?\b|\bFile\s*\(\s*[^\[\s)]|\bFiles\.(?:readAllBytes|readAllLines|readString|lines|newInputStream|newOutputStream|newBufferedReader|newBufferedWriter|write|writeString|copy|move|delete|deleteIfExists)\s*\(|\bFile\.(?:ReadAll\w*|WriteAll\w*|Open\w*|Append\w*|Delete|Copy|Move|Replace|Create\w*)\s*\(|\bDirectory\.(?:GetFiles|EnumerateFiles|Delete)\s*\(|\bos\.(?:WriteFile|Create|Remove|RemoveAll|OpenFile)\s*\()",
+        sink: r"(?i)(?:\b(?:open|fopen|readFile(?:Sync)?|createReadStream|File\.(?:read|open|new)|FileInputStream|Paths\.get|sendFile|send_file|readlink|file_get_contents|file_put_contents|unlink|scandir|opendir|FileOutputStream|FileReader|FileWriter|RandomAccessFile|FileStream|StreamReader|StreamWriter)\s*\(|\b(?:include|require)(?:_once)?\s*(?:\(|[\x22'$])|\bFile\s*\(\s*[^\[\s)]|\bFiles\.(?:readAllBytes|readAllLines|readString|lines|newInputStream|newOutputStream|newBufferedReader|newBufferedWriter|write|writeString|copy|move|delete|deleteIfExists)\s*\(|\bFile\.(?:ReadAll\w*|WriteAll\w*|Open\w*|Append\w*|Delete|Copy|Move|Replace|Create\w*)\s*\(|\bDirectory\.(?:GetFiles|EnumerateFiles|Delete)\s*\(|\bos\.(?:WriteFile|Create|Remove|RemoveAll|OpenFile)\s*\()",
         cwe: &["CWE-22"],
     },
     Heuristic {

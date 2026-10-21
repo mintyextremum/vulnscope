@@ -20,9 +20,12 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-/// How far a source and its sink may sit apart. Most functions are well under
-/// this; the cap stops a long file from chaining unrelated code across scopes.
-const WINDOW: u32 = 80;
+/// How far a source and its sink may sit apart. Scopes are bounded by function
+/// signatures, which every heuristic language now has, so this only has to stop
+/// a runaway in a very long top-level script. It used to be 80 — the only fence
+/// between methods in languages without scoping — and a legacy function longer
+/// than that lost every flow that crossed its middle.
+const WINDOW: u32 = 400;
 /// Cap findings per file so a pathological file cannot flood the report.
 const MAX_FLOWS: usize = 20;
 /// How many times to recompute function summaries. Each pass lets a call learn
@@ -83,6 +86,12 @@ impl TaintFlow {
 
 /// A Russian label for where untrusted data enters, from the source line.
 fn classify_entry(code: &str) -> &'static str {
+    // A bound handler parameter or a route path is request data by definition,
+    // whatever the parameter happens to be called — `@RequestParam String input`
+    // is not standard input.
+    if PARAM_SOURCE_RE.is_match(code) || ROUTE_RE.is_match(code) {
+        return "HTTP-запрос";
+    }
     let c = code.to_lowercase();
     if c.contains("argv") || c.contains("sys.argv") {
         "аргумент командной строки"
@@ -362,27 +371,117 @@ fn contains_word(hay: &str, word: &str) -> bool {
 /// sanitiser is *called*. Sink and source patterns still read the raw line:
 /// `header("Location: …")` and `php://input` live inside strings by nature.
 fn mask_strings(s: &str) -> String {
+    scan_text(s, ScanOpts { strings: true, aligned: false }).0
+}
+
+/// [`mask_strings`] plus whether the text ends inside a string allowed to run
+/// onto the next line — what the statement joiner needs.
+fn scan_strings(s: &str) -> (String, bool) {
+    scan_text(s, ScanOpts { strings: true, aligned: false })
+}
+
+/// The text with only regex-literal contents blanked. Sources are matched on
+/// this: a source pattern can legitimately sit inside a string (`php://input`,
+/// `$_SERVER['HTTP_…']`) but never inside a regular expression — and
+/// `match: /@(return|param)/` was read as a request parameter.
+fn mask_regex(s: &str) -> String {
+    scan_text(s, ScanOpts { strings: false, aligned: true }).0
+}
+
+/// What a scan blanks out.
+#[derive(Clone, Copy)]
+struct ScanOpts {
+    /// String-literal contents (interpolation always stays, as code).
+    strings: bool,
+    /// One output character per input character: `$name` is not doubled. Needed
+    /// to ask whether a given position is code.
+    aligned: bool,
+}
+
+/// The scanner behind every masking helper. Regex literals are always blanked;
+/// string contents when asked. Also reports whether the text ends inside a
+/// string allowed to span lines — a backtick template or raw string, or a
+/// Python triple-quoted string.
+///
+/// Triple quotes are one delimiter: treating `"""` as an empty string followed
+/// by an opening quote lost the `f` prefix, so the `{id}` inside
+/// `f"""SELECT … {id}"""` was masked away as plain text.
+///
+/// A `/` opens a regex literal only where an operand is expected — after
+/// `( , = : [ ! & | ? { } ; ~` or at the start — and only when it closes on the
+/// same line. `a / b` stays a division in every language, and without this a
+/// `//` inside `/^https?:\/\//` read as a comment and cut the statement short.
+fn scan_text(s: &str, o: ScanOpts) -> (String, bool) {
+    // No quote and no slash: no literal can start, the text is all code.
+    if !s.contains(['"', '\'', '`', '/']) {
+        return (s.to_string(), false);
+    }
     let chars: Vec<char> = s.chars().collect();
     let mut out = String::with_capacity(s.len());
+    let mut open_multiline = false;
+    let mut last_code: Option<char> = None;
     let mut i = 0;
     while i < chars.len() {
         let quote = chars[i];
+        if quote == '/' {
+            let next = chars.get(i + 1).copied();
+            if next != Some('/') && next != Some('*') && regex_may_start(last_code) {
+                if let Some(close) = regex_end(&chars, i + 1) {
+                    out.push('/');
+                    for _ in i + 1..close {
+                        out.push(' ');
+                    }
+                    out.push('/');
+                    i = close + 1;
+                    last_code = Some('/');
+                    continue;
+                }
+            }
+        }
         if quote != '"' && quote != '\'' && quote != '`' {
             out.push(quote);
+            if !quote.is_whitespace() {
+                last_code = Some(quote);
+            }
             i += 1;
             continue;
         }
         let braces = interpolating_prefix(&chars[..i]);
-        out.push(quote);
-        i += 1;
-        while i < chars.len() && chars[i] != quote {
+        let triple = chars.get(i + 1) == Some(&quote) && chars.get(i + 2) == Some(&quote);
+        let width = if triple { 3 } else { 1 };
+        for _ in 0..width {
+            out.push(quote);
+        }
+        i += width;
+        let closes_at = |k: usize| -> bool {
+            if triple {
+                chars.get(k) == Some(&quote)
+                    && chars.get(k + 1) == Some(&quote)
+                    && chars.get(k + 2) == Some(&quote)
+            } else {
+                chars.get(k) == Some(&quote)
+            }
+        };
+        let mut closed = false;
+        while i < chars.len() {
+            if closes_at(i) {
+                closed = true;
+                break;
+            }
             let ch = chars[i];
             let next = chars.get(i + 1).copied();
             if ch == '\\' {
                 // An escape consumes the next character, quote included.
-                out.push(' ');
-                if next.is_some() {
+                if o.strings {
                     out.push(' ');
+                    if next.is_some() {
+                        out.push(' ');
+                    }
+                } else {
+                    out.push(ch);
+                    if let Some(n) = next {
+                        out.push(n);
+                    }
                 }
                 i += 2;
                 continue;
@@ -391,7 +490,7 @@ fn mask_strings(s: &str) -> String {
                 // `{{` is an escaped literal brace in an f-string or C# `$"…"`.
                 // Consuming only the first would leave the second looking like
                 // an interpolation opener, and `{{id}}` would read as `{id}`.
-                out.push_str("  ");
+                out.push_str(if o.strings { "  " } else { "{{" });
                 i += 2;
                 continue;
             }
@@ -421,10 +520,11 @@ fn mask_strings(s: &str) -> String {
                 continue;
             }
             if ch == '$' && next.is_some_and(|n| n.is_ascii_alphabetic() || n == '_') {
-                // `$name` is emitted twice: as `$name` for PHP and Perl, whose
-                // variables carry the sigil, and as bare `name` for Kotlin,
-                // Scala and Groovy, whose do not. No language has both spellings
-                // of one variable, so neither reading can match the wrong one.
+                // `$name` is emitted twice when not aligned: as `$name` for PHP
+                // and Perl, whose variables carry the sigil, and as bare `name`
+                // for Kotlin, Scala and Groovy, whose do not. No language has
+                // both spellings of one variable, so neither reading can match
+                // the wrong one.
                 let mut j = i + 1;
                 while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
                     j += 1;
@@ -432,20 +532,247 @@ fn mask_strings(s: &str) -> String {
                 let name: String = chars[i + 1..j].iter().collect();
                 out.push('$');
                 out.push_str(&name);
-                out.push(' ');
-                out.push_str(&name);
+                if o.strings && !o.aligned {
+                    out.push(' ');
+                    out.push_str(&name);
+                }
                 i = j;
                 continue;
             }
-            out.push(' ');
+            out.push(if o.strings { ' ' } else { ch });
             i += 1;
         }
-        if i < chars.len() {
-            out.push(chars[i]);
-            i += 1;
+        if closed {
+            for _ in 0..width {
+                out.push(quote);
+            }
+            i += width;
+        } else if triple || quote == '`' {
+            open_multiline = true;
         }
+        last_code = Some(quote);
+    }
+    (out, open_multiline)
+}
+
+fn regex_may_start(prev: Option<char>) -> bool {
+    // Spelled as a match: `Option::is_none_or` needs Rust 1.82, and the crate
+    // promises 1.77.
+    match prev {
+        None => true,
+        Some(p) => "(,=:[!&|?{};~".contains(p),
+    }
+}
+
+/// Where the regex literal whose body starts at `from` closes: the next
+/// unescaped `/` outside a `[…]` class. `None` — not a regex after all.
+fn regex_end(chars: &[char], from: usize) -> Option<usize> {
+    let mut class = false;
+    let mut i = from;
+    while i < chars.len() {
+        match chars[i] {
+            '\\' => {
+                i += 2;
+                continue;
+            }
+            '[' => class = true,
+            ']' => class = false,
+            '/' if !class => return (i > from).then_some(i),
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// The first match of `re` that begins in code. A sink written inside a string
+/// or a regex literal is text — the log line `"calling system("` is not a call
+/// to `system`. Only the match's first non-blank character is tested, so
+/// `header("Location: …")`, whose second half lives in a string by nature,
+/// still counts.
+fn first_match_in_code<'t>(text: &'t str, re: &Regex) -> Option<regex::Match<'t>> {
+    let mut found = re.find_iter(text).peekable();
+    found.peek()?;
+    let code: Vec<char> = scan_text(text, ScanOpts { strings: true, aligned: true }).0.chars().collect();
+    found.find(|m| {
+        let lead = m.as_str().chars().take_while(|c| c.is_whitespace()).count();
+        let ci = text[..m.start()].chars().count() + lead;
+        match (text[m.start()..].chars().nth(lead), code.get(ci)) {
+            (Some(orig), Some(masked)) => orig == *masked,
+            _ => false,
+        }
+    })
+}
+
+/// Longest statement the joiner assembles. A runaway — a parenthesis the scan
+/// misread — stops here instead of swallowing the rest of the file.
+const MAX_JOIN: usize = 40;
+
+/// Physical lines folded into logical statements.
+///
+/// The engine reads one line at a time, and formatters do not write one
+/// statement per line: black, prettier and gofmt all break a long call, so
+/// `cur.execute(` sat on one line and the tainted `+ uid` on the next, and
+/// neither line alone was a flow. Every probe of a formatted call came back
+/// empty.
+///
+/// A statement continues while a parenthesis or bracket is open (and, in
+/// Python, a brace — there it is never a block), while a backtick or
+/// triple-quoted string is open, after a trailing `\`, after a trailing binary
+/// operator, or when the next line opens a fluent chain with `.`. The joined
+/// text goes on the statement's first line and its other lines become empty, so
+/// every index, function range and reported line number stays where it was.
+fn join_continuations<'a>(lines: &[&'a str], lang: Language) -> Vec<std::borrow::Cow<'a, str>> {
+    use std::borrow::Cow;
+    let n = lines.len();
+    let mut out: Vec<Cow<'a, str>> = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        if rules::is_comment_line(lines[i], lang) {
+            out.push(Cow::Borrowed(lines[i]));
+            i += 1;
+            continue;
+        }
+        // Most lines are complete statements: they are borrowed, not copied.
+        if i + 1 >= n || !continues(lines[i], lines[i + 1], lang) {
+            out.push(Cow::Borrowed(lines[i]));
+            i += 1;
+            continue;
+        }
+        let mut joined = lines[i].trim_end().to_string();
+        let mut j = i;
+        while j + 1 < n && j + 1 - i < MAX_JOIN && continues(&joined, lines[j + 1], lang) {
+            j += 1;
+            let next = lines[j].trim();
+            if !next.is_empty() {
+                joined.push(' ');
+                joined.push_str(next);
+            }
+        }
+        out.push(Cow::Owned(joined));
+        out.extend((i + 1..=j).map(|_| Cow::Borrowed("")));
+        i = j + 1;
     }
     out
+}
+
+/// Whether the statement in `joined` runs on into `next`.
+fn continues(joined: &str, next: &str, lang: Language) -> bool {
+    // Fast path: most lines are complete statements. With brackets balanced by
+    // a raw count, no multi-line string opener, no trailing operator and no
+    // continuation leading the next line, nothing can continue, and the string
+    // scan is skipped. A raw count can be fooled only by a string holding an
+    // unbalanced bracket — that costs a join, the behaviour before joining
+    // existed, and never produces a wrong one.
+    let python = lang == Language::Python;
+    let raw_depth: i32 = joined
+        .chars()
+        .map(|c| match c {
+            '(' | '[' => 1,
+            ')' | ']' => -1,
+            '{' if python => 1,
+            '}' if python => -1,
+            _ => 0,
+        })
+        .sum();
+    let tail = joined.trim_end();
+    let lead = next.trim_start();
+    let maybe = raw_depth != 0
+        || joined.contains('`')
+        || joined.contains("\"\"\"")
+        || joined.contains("'''")
+        || tail.ends_with(|c: char| "+=>\\.&|-".contains(c))
+        || lead.starts_with(|c: char| ".+&|?".contains(c));
+    if !maybe {
+        return false;
+    }
+    let (code, open_string) = scan_strings(joined);
+    if open_string {
+        return true;
+    }
+    let code = strip_trailing_comment(&code, lang);
+    let mut depth = 0i32;
+    for c in code.chars() {
+        match c {
+            '(' | '[' => depth += 1,
+            ')' | ']' => depth -= 1,
+            '{' if python => depth += 1,
+            '}' if python => depth -= 1,
+            _ => {}
+        }
+    }
+    let t = code.trim_end();
+    // A line ending in `{` opens a block. Joining across it folded a whole
+    // callback into one line — `app.get('/u', (req, res) => {` keeps its
+    // parenthesis open until `});`, so every Express handler, every `describe`
+    // and every promise chain became a single statement and nothing inside it
+    // was an assignment any more. Python is the exception: there a brace is
+    // always a dict or a set.
+    if !python && t.ends_with('{') {
+        return false;
+    }
+    if depth > 0 {
+        return true;
+    }
+    if t.is_empty() {
+        return false;
+    }
+    if t.ends_with('\\') || ends_with_operator(t) {
+        return true;
+    }
+    // A line opening with `.` or `?.` continues a fluent chain; a leading
+    // binary operator continues an expression split before it.
+    let nt = next.trim_start();
+    (nt.starts_with('.') && !nt.starts_with(".."))
+        || nt.starts_with("?.")
+        || nt.starts_with("+ ")
+        || nt.starts_with("&& ")
+        || nt.starts_with("|| ")
+}
+
+/// A binary operator no statement can end on. `++` is a statement on its own,
+/// a trailing `.` after a digit is a float literal, `..` a range or spread,
+/// and `?` is left out because Ruby and Elixir name predicates with it. A
+/// trailing `,` is left out too: inside a call or an array the open bracket
+/// already continues the statement, and anywhere else it is the member of an
+/// object literal — joining those folded a whole grammar table into one line.
+fn ends_with_operator(t: &str) -> bool {
+    if t.ends_with("++") || t.ends_with("--") {
+        return false;
+    }
+    if t.ends_with("&&") || t.ends_with("||") || t.ends_with("=>") || t.ends_with("->") {
+        return true;
+    }
+    match t.chars().last() {
+        Some('+') | Some('=') => true,
+        Some('.') => {
+            let prev = t.chars().rev().nth(1);
+            !t.ends_with("..") && prev.is_some_and(|p| !p.is_ascii_digit())
+        }
+        _ => false,
+    }
+}
+
+/// `code` (already string-masked) without a trailing line comment, so an
+/// operator or bracket inside the comment cannot extend the statement. `//`
+/// is not a comment in Python (floor division) or Perl (defined-or); `#` is
+/// not one in the C family, and `#{` is Ruby interpolation.
+fn strip_trailing_comment(code: &str, lang: Language) -> &str {
+    let hash = matches!(
+        lang,
+        Language::Python | Language::Ruby | Language::Perl | Language::Elixir | Language::Php
+    );
+    let slashes = !matches!(lang, Language::Python | Language::Perl);
+    let bytes = code.as_bytes();
+    for (k, &b) in bytes.iter().enumerate() {
+        if slashes && b == b'/' && bytes.get(k + 1) == Some(&b'/') {
+            return &code[..k];
+        }
+        if hash && b == b'#' && bytes.get(k + 1) != Some(&b'{') {
+            return &code[..k];
+        }
+    }
+    code
 }
 
 /// Whether a string opening right after `before` takes `{…}` interpolation: a
@@ -520,10 +847,7 @@ fn call_args_from(text: &str, from: usize) -> Option<Vec<String>> {
 /// `mysql_query($sql, $link)`, which the pair covers too. A call whose closing
 /// parenthesis is on another line falls back to the whole line: missing a
 /// bind parameter is the cheaper mistake than missing an injection.
-fn sql_query_text<'a>(text: &'a str, sink: &Regex) -> std::borrow::Cow<'a, str> {
-    let Some(m) = sink.find(text) else {
-        return std::borrow::Cow::Borrowed(text);
-    };
+fn sql_query_text<'a>(text: &'a str, m: regex::Match<'a>) -> std::borrow::Cow<'a, str> {
     // The argument list opens at the last parenthesis inside the match, not
     // necessarily at its end: `.where('` carries the opening quote that tells a
     // raw-SQL builder call from a bound one.
@@ -645,10 +969,15 @@ struct Reached<'a> {
 type OnSink<'a> =
     dyn FnMut(&TaintVar, &'static str, &'static [&'static str], Severity, Vec<FlowStep>) + 'a;
 
-/// Only these languages get function-scoping and interprocedural tracing: their
-/// signatures are keyword-led (`def`/`function`/`func`) or an arrow assignment,
-/// so a definition can never be mistaken for a call. Everything else keeps the
-/// original whole-file behaviour — a smaller claim, but never a false one.
+/// Every heuristic language now gets function scoping and interprocedural
+/// tracing. Most define functions with a keyword (`def`, `function`, `func`,
+/// `fun`, `sub`), so a definition can never be mistaken for a call. Java and C#
+/// lead with a type instead, which is why they were left out — and why, until
+/// now, a variable tainted in one method could meet a sink in the next, with
+/// only an 80-line window between them. They are admitted on a stricter test:
+/// a return type that is not a statement keyword, and nothing after the
+/// parameter list but a block, `throws`, `=>` or a C# `where` clause. A call
+/// statement ends in `;` or an operator and fails it.
 pub(crate) fn scoped(lang: Language) -> bool {
     matches!(
         lang,
@@ -659,26 +988,202 @@ pub(crate) fn scoped(lang: Language) -> bool {
             | Language::Tsx
             | Language::Go
             | Language::Php
+            | Language::Java
+            | Language::Kotlin
+            | Language::CSharp
+            | Language::Scala
+            | Language::Ruby
+            | Language::Elixir
+            | Language::Perl
     )
 }
 
-/// Signature matchers, tried per line. Each captures (name, params). Kept
-/// keyword-anchored so a call like `run(x)` is never read as a definition.
-static SIGNATURES: Lazy<Vec<Regex>> = Lazy::new(|| {
-    [
-        // Python / any `def name(...)`.
-        r"^\s*(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)",
-        // JS / TS / PHP `function name(...)`.
-        r"^\s*(?:export\s+)?(?:public\s+|private\s+|protected\s+|static\s+)*(?:async\s+)?function\s*\*?\s*(\w+)\s*\(([^)]*)\)",
-        // Go `func name(...)`, optional receiver.
-        r"^\s*func\s+(?:\([^)]*\)\s*)?(\w+)\s*\(([^)]*)\)",
-        // JS / TS arrow assigned to a name.
-        r"^\s*(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(([^)]*)\)\s*=>",
-    ]
-    .iter()
-    .map(|p| Regex::new(p).expect("bad signature pattern"))
-    .collect()
+/// What may follow a parameter list for the line to be a definition.
+#[derive(Clone, Copy)]
+enum Tail {
+    /// Anything — the head is keyword-led already.
+    Any,
+    /// A JS arrow: `=>` after an optional return annotation.
+    Arrow,
+    /// A JS/TS method: a block after an optional return annotation.
+    Block,
+    /// A Java/C# member: optional `throws`, then a block, `=>`, a `where`
+    /// clause, a `: base(…)` chain, or nothing at all (Allman style).
+    Member,
+}
+
+struct SigHead {
+    re: Regex,
+    tail: Tail,
+}
+
+fn heads(src: &[(&str, Tail)]) -> Vec<SigHead> {
+    src.iter()
+        .map(|(p, tail)| SigHead {
+            re: Regex::new(p).expect("bad signature pattern"),
+            tail: *tail,
+        })
+        .collect()
+}
+
+/// Signature heads per language. Group `name` is the function; a head that
+/// ends on `(` has its parameter list read by balance, not by `[^)]*` — which
+/// stopped at the first `)` and lost every parameter after
+/// `@RequestParam(name = "id")` or `def f(x=g())`.
+static PY_HEADS: Lazy<Vec<SigHead>> =
+    Lazy::new(|| heads(&[(r"^\s*(?:async\s+)?def\s+(?P<name>\w+)\s*\(", Tail::Any)]));
+
+static JS_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[
+        (r"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*(?P<name>\w+)\s*(?:<[^>(]*>)?\s*\(", Tail::Any),
+        (r"^\s*(?:export\s+)?(?:const|let|var)\s+(?P<name>\w+)\s*(?::[^=]+)?=\s*(?:async\s+)?\(", Tail::Arrow),
+        (r"^\s*(?:(?:public|private|protected|static|readonly|override)\s+)*(?P<name>\w+)\s*(?::[^=]+)?=\s*(?:async\s+)?\(", Tail::Arrow),
+        // Class and object methods. Without a keyword, so a block must follow;
+        // `if (…) {` and friends are rejected by name.
+        (r"^\s*(?:(?:public|private|protected|static|async|override|get|set)\s+)*\*?\s*(?P<name>\w+)\s*(?:<[^>(]*>)?\s*\(", Tail::Block),
+    ])
 });
+
+static PHP_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[(
+        r"^\s*(?:(?:public|private|protected|static|final|abstract)\s+)*function\s*&?\s*(?P<name>\w+)\s*\(",
+        Tail::Any,
+    )])
+});
+
+static GO_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[(r"^\s*func\s+(?:\([^)]*\)\s*)?(?P<name>\w+)\s*(?:\[[^\]]*\])?\s*\(", Tail::Any)])
+});
+
+static JVM_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[
+        (
+            r"^\s*(?:@\w+(?:\([^)]*\))?\s+|\[[^\]]*\]\s*)*(?:(?:public|private|protected|internal|static|final|abstract|synchronized|native|default|async|override|virtual|sealed|extern|unsafe|partial|readonly|new|strictfp)\s+)*(?:<[^>]+>\s+)?(?P<rt>[\w.]+(?:<[^()]*>)?(?:\[\])*\??)\s+(?P<name>\w+)\s*(?:<[^>()]*>)?\s*\(",
+            Tail::Member,
+        ),
+        // Constructors: an access modifier and a capitalised name, no type.
+        (
+            r"^\s*(?:@\w+(?:\([^)]*\))?\s+|\[[^\]]*\]\s*)*(?:public|private|protected|internal)\s+(?P<name>[A-Z]\w*)\s*\(",
+            Tail::Member,
+        ),
+    ])
+});
+
+static KOTLIN_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[(
+        r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|private|protected|internal|override|open|suspend|inline|operator|infix|tailrec|abstract|final|external)\s+)*fun\s+(?:<[^>]+>\s*)?(?:[\w.]+\.)?(?P<name>\w+)\s*\(",
+        Tail::Any,
+    )])
+});
+
+static SCALA_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[
+        (r"^\s*(?:(?:override|private|protected|final|implicit|inline|lazy)\s+)*def\s+(?P<name>\w+)\s*(?:\[[^\]]*\])?\s*\(", Tail::Any),
+        (r"^\s*(?:(?:override|private|protected|final|implicit|inline|lazy)\s+)*def\s+(?P<name>\w+)", Tail::Any),
+    ])
+});
+
+static RUBY_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[
+        (r"^\s*def\s+(?:self\.)?(?P<name>\w+[?!]?)\s*\(", Tail::Any),
+        (r"^\s*def\s+(?:self\.)?(?P<name>\w+[?!]?)", Tail::Any),
+    ])
+});
+
+static ELIXIR_HEADS: Lazy<Vec<SigHead>> = Lazy::new(|| {
+    heads(&[
+        (r"^\s*defp?\s+(?P<name>\w+[?!]?)\s*\(", Tail::Any),
+        (r"^\s*defp?\s+(?P<name>\w+[?!]?)", Tail::Any),
+    ])
+});
+
+static PERL_HEADS: Lazy<Vec<SigHead>> =
+    Lazy::new(|| heads(&[(r"^\s*sub\s+(?P<name>\w+)", Tail::Any)]));
+
+fn heads_for(lang: Language) -> &'static [SigHead] {
+    match lang {
+        Language::Python => &PY_HEADS,
+        Language::JavaScript | Language::TypeScript | Language::Jsx | Language::Tsx => &JS_HEADS,
+        Language::Php => &PHP_HEADS,
+        Language::Go => &GO_HEADS,
+        Language::Java | Language::CSharp => &JVM_HEADS,
+        Language::Kotlin => &KOTLIN_HEADS,
+        Language::Scala => &SCALA_HEADS,
+        Language::Ruby => &RUBY_HEADS,
+        Language::Elixir => &ELIXIR_HEADS,
+        Language::Perl => &PERL_HEADS,
+        _ => &[],
+    }
+}
+
+/// Words that open a statement, never a definition, wherever a name is read.
+const CONTROL: &[&str] = &[
+    "if", "for", "while", "switch", "catch", "return", "new", "throw", "else", "using", "lock",
+    "foreach", "fixed", "synchronized", "try", "do", "when", "typeof", "sizeof", "nameof",
+    "function", "with", "await", "yield", "case", "default", "base", "this", "super", "assert",
+    "elif", "unless", "until", "match",
+];
+
+/// Words that can stand where a Java/C# return type would, and make the line a
+/// statement: `return foo(x)`, `new Foo(x)`, `await bar(y)`.
+const RT_CONTROL: &[&str] = &[
+    "return", "new", "throw", "else", "await", "yield", "case", "using", "lock", "goto", "delete",
+    "typeof", "in", "is", "as", "if", "do", "var", "assert", "sizeof", "out", "ref", "let", "const",
+];
+
+/// The return annotation may hold `>` — `: Promise<User> =>` is the commonest
+/// shape there is — so only `=` ends it, which is where `=>` begins.
+static ARROW_TAIL: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^\s*(?::[^=]+)?\s*=>").expect("bad arrow tail"));
+static BLOCK_TAIL: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^\s*(?::[^{;=]+)?\s*\{").expect("bad block tail"));
+static MEMBER_TAIL: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^\s*(?:throws\s+[\w.,\s]+?)?\s*(?:\{.*|=>.*|where\s.*|:\s*(?:base|this)\s*\(.*)?$")
+        .expect("bad member tail")
+});
+
+fn tail_ok(tail: Tail, rest: &str) -> bool {
+    match tail {
+        Tail::Any => true,
+        Tail::Arrow => ARROW_TAIL.is_match(rest),
+        Tail::Block => BLOCK_TAIL.is_match(rest),
+        Tail::Member => MEMBER_TAIL.is_match(rest),
+    }
+}
+
+/// The text inside the parenthesis that opens just before `from`, and the
+/// index right after its closing partner — quote-aware, so a `)` in a default
+/// string does not end the list. `None` when it does not close on this line.
+fn paren_group(text: &str, from: usize) -> Option<(&str, usize)> {
+    let tail = text.get(from..)?;
+    let mut depth = 1i32;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    for (idx, ch) in tail.char_indices() {
+        if let Some(q) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' | '`' => quote = Some(ch),
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((&tail[..idx], from + idx + ch.len_utf8()));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
 
 /// A call `name(args)` anywhere in a line: the callee name and the raw argument
 /// list. Used to resolve a call against the file's own functions.
@@ -686,11 +1191,35 @@ static CALL_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(\w+)\s*\(([^)]*)\)").expect("bad call pattern"));
 
 /// `(name, params)` if this line begins a function definition, else `None`.
-fn signature_of(text: &str) -> Option<(String, String)> {
-    for re in SIGNATURES.iter() {
-        if let Some(c) = re.captures(text) {
-            return Some((c[1].to_string(), c.get(2).map_or("", |m| m.as_str()).to_string()));
+fn signature_of(text: &str, lang: Language) -> Option<(String, String)> {
+    for head in heads_for(lang) {
+        let Some(c) = head.re.captures(text) else { continue };
+        let Some(name) = c.name("name").map(|m| m.as_str()) else { continue };
+        if CONTROL.contains(&name) {
+            continue;
         }
+        if c.name("rt").is_some_and(|rt| RT_CONTROL.contains(&rt.as_str())) {
+            continue;
+        }
+        let end = c.get(0).map_or(0, |m| m.end());
+        let (params, rest) = if text[..end].ends_with('(') {
+            match paren_group(text, end) {
+                Some((inner, after)) => (inner.to_string(), &text[after..]),
+                // The list does not close on this logical line: whatever this
+                // is, the joiner could not assemble it as a definition.
+                None => continue,
+            }
+        } else if lang == Language::Ruby {
+            // `def show params, obj` — Ruby needs no parentheses.
+            let list = text[end..].split(['#', ';']).next().unwrap_or("").trim();
+            (list.to_string(), "")
+        } else {
+            (String::new(), &text[end..])
+        };
+        if !tail_ok(head.tail, rest) {
+            continue;
+        }
+        return Some((name.to_string(), params));
     }
     None
 }
@@ -699,13 +1228,20 @@ fn indent_of(line: &str) -> usize {
     line.len() - line.trim_start().len()
 }
 
-/// The body line range of the function whose signature is at `sig`. Python is
-/// delimited by indentation; the brace languages by balancing `{}` from the
-/// signature. Brace counting ignores strings and comments — a heuristic that at
-/// worst clips the body, never invents a flow.
+/// The body line range of the function whose signature is at `sig`. Python,
+/// Ruby and Elixir are delimited by indentation (`end` sits at the signature's
+/// own indent); the brace languages by balancing `{}`, counted on string-masked
+/// text so a `"{"` literal cannot shift the end. A heuristic that at worst clips
+/// the body, never invents a flow.
 fn body_range(lines: &[&str], sig: usize, lang: Language) -> std::ops::Range<usize> {
     let n = lines.len();
-    if lang == Language::Python {
+    let indented = match lang {
+        Language::Python | Language::Ruby | Language::Elixir => true,
+        // Braced, or — since Scala 3 — indented: whichever the signature uses.
+        Language::Scala => !mask_strings(lines[sig]).contains('{'),
+        _ => false,
+    };
+    if indented {
         let indent = indent_of(lines[sig]);
         let mut j = sig + 1;
         while j < n {
@@ -721,25 +1257,62 @@ fn body_range(lines: &[&str], sig: usize, lang: Language) -> std::ops::Range<usi
         }
         return (sig + 1)..j;
     }
-    // Brace languages: run to the line that closes the opening brace.
+    // The block opens on the signature line or — Allman style, the norm in C#
+    // and PSR-12 PHP — alone at the start of the next one. A signature with
+    // neither (an abstract or interface method, a Kotlin or C# expression body)
+    // has no block and an empty body. It used to run to the end of the file, so
+    // every later function's sinks were credited to it.
+    let mut start = sig;
+    if brace_delta(lines[sig]).1 == 0 {
+        let mut k = sig + 1;
+        while k < n && lines[k].trim().is_empty() {
+            k += 1;
+        }
+        if k < n && lines[k].trim_start().starts_with('{') {
+            start = k;
+        } else {
+            return (sig + 1)..(sig + 1);
+        }
+    }
     let mut depth: i32 = 0;
     let mut opened = false;
-    let mut j = sig;
+    let mut j = start;
     while j < n {
-        for ch in lines[j].chars() {
-            if ch == '{' {
-                depth += 1;
-                opened = true;
-            } else if ch == '}' {
-                depth -= 1;
-            }
-        }
+        let (delta, opens) = brace_delta(lines[j]);
+        depth += delta;
+        opened |= opens > 0;
         if opened && depth <= 0 {
             return (sig + 1)..(j + 1);
         }
         j += 1;
     }
     (sig + 1)..n
+}
+
+/// The net `{`/`}` balance of a line and how many it opens, ignoring braces in
+/// string and regex literals. Masking is the expensive part, and a line with no
+/// quote and no slash cannot contain a literal, so it is counted raw. Function
+/// bodies nest, so every line is counted once per enclosing function — this
+/// check is what keeps that cheap.
+fn brace_delta(line: &str) -> (i32, i32) {
+    let count = |text: &str| {
+        let mut delta = 0;
+        let mut opens = 0;
+        for ch in text.chars() {
+            if ch == '{' {
+                delta += 1;
+                opens += 1;
+            } else if ch == '}' {
+                delta -= 1;
+            }
+        }
+        (delta, opens)
+    };
+    if line.contains(['"', '\'', '`', '/']) {
+        count(&mask_strings(line))
+    } else {
+        count(line)
+    }
 }
 
 /// Extracts each parameter's variable name from a raw parameter list, tolerant
@@ -749,28 +1322,81 @@ fn body_range(lines: &[&str], sig: usize, lang: Language) -> std::ops::Range<usi
 fn param_names(params: &str, lang: Language) -> Vec<String> {
     split_top_commas(params)
         .into_iter()
-        .filter_map(|p| {
-            let p = p.split('=').next().unwrap_or("").trim();
-            if p.is_empty() {
-                return None;
-            }
-            if lang == Language::Php {
-                // `$name`, optionally with a type before it.
-                let idx = p.find('$')?;
-                let rest = &p[idx + 1..];
-                let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
-                return (!name.is_empty()).then(|| format!("${name}"));
-            }
-            // `name: Type` (TS): the name is before the colon.
-            if let Some(colon) = p.find(':') {
-                return first_ident(&p[..colon]);
-            }
-            // Across the scoped languages the variable name comes first: Go is
-            // `name type`, and JS/Python parameters are a bare identifier. (The
-            // C-family `type name` order is not among the scoped languages.)
-            first_ident(p)
-        })
+        .filter_map(|raw| param_name(&raw, lang))
         .collect()
+}
+
+/// One parameter's variable name. Annotations and attributes go first —
+/// `@RequestParam(name = "id") String id` would otherwise split on the `=`
+/// inside the annotation and lose the name entirely.
+fn param_name(raw: &str, lang: Language) -> Option<String> {
+    let stripped = strip_decorations(raw, lang);
+    let p = before_top_level_eq(&stripped).trim();
+    if p.is_empty() {
+        return None;
+    }
+    if lang == Language::Php {
+        // `$name`, optionally with a type before it.
+        let idx = p.find('$')?;
+        let rest = &p[idx + 1..];
+        let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+        return (!name.is_empty()).then(|| format!("${name}"));
+    }
+    // `name: Type` (TypeScript, Kotlin, Scala, Python, Ruby keywords): the name
+    // is the last word before the colon — after a `vararg` or `implicit`.
+    if let Some(colon) = p.find(':') {
+        return last_ident(&p[..colon]);
+    }
+    // Java and C# write `Type name`; Go, JS, Python and Ruby put the name first.
+    if matches!(lang, Language::Java | Language::CSharp) {
+        return last_ident(p);
+    }
+    first_ident(p)
+}
+
+static ANNOTATION_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"@\w+(?:\.\w+)*(?:\s*\((?:[^()]|\([^()]*\))*\))?").expect("bad annotation pattern")
+});
+static ATTRIBUTE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\[[^\]]*\]").expect("bad attribute pattern"));
+
+fn strip_decorations(raw: &str, lang: Language) -> String {
+    if lang == Language::Php {
+        return raw.to_string();
+    }
+    let s = ANNOTATION_RE.replace_all(raw, " ");
+    if lang == Language::CSharp {
+        ATTRIBUTE_RE.replace_all(&s, " ").into_owned()
+    } else {
+        s.into_owned()
+    }
+}
+
+/// `s` up to its first `=` that is not inside brackets or a string — the
+/// default value of a parameter, but not the `=` inside `f(a=b)`.
+fn before_top_level_eq(s: &str) -> &str {
+    let mut depth = 0i32;
+    let mut quote: Option<char> = None;
+    for (idx, ch) in s.char_indices() {
+        if let Some(q) = quote {
+            if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' | '`' => quote = Some(ch),
+            '(' | '[' | '{' | '<' => depth += 1,
+            ')' | ']' | '}' | '>' => depth -= 1,
+            '=' if depth <= 0 => return &s[..idx],
+            _ => {}
+        }
+    }
+    s
+}
+
+fn last_ident(s: &str) -> Option<String> {
+    idents_in(s).into_iter().last()
 }
 
 fn first_ident(s: &str) -> Option<String> {
@@ -850,7 +1476,7 @@ fn functions(lines: &[&str], lang: Language) -> Vec<Func> {
         if rules::is_comment_line(line, lang) {
             continue;
         }
-        if let Some((name, params)) = signature_of(line) {
+        if let Some((name, params)) = signature_of(line, lang) {
             out.push(Func {
                 name,
                 params: param_names(&params, lang),
@@ -860,6 +1486,158 @@ fn functions(lines: &[&str], lang: Language) -> Vec<Func> {
         }
     }
     out
+}
+
+/// Binds `lhs` to whatever `rhs` carries: a narrowed taint after a sanitiser,
+/// a fresh one from a source, a callee's returned taint, a propagated one, or
+/// nothing at all.
+#[allow(clippy::too_many_arguments)]
+fn assign(
+    lhs: String,
+    rhs: &str,
+    line: u32,
+    code: &str,
+    tainted: &mut HashMap<String, TaintVar>,
+    funcs_by_name: &HashMap<String, usize>,
+    summaries: &[Summary],
+    externals: &HashMap<String, Summary>,
+) {
+    // A sanitiser is a call and a variable is a reference — neither is the
+    // text of a string. `msg = "failed to escape: " + id` used to count
+    // as sanitising `id`, because the word sat inside the literal.
+    let code_rhs = mask_strings(rhs);
+    if let Some(cats) = sanitized_categories(&code_rhs) {
+        // The value is safe for `cats` and unchanged for everything else, so
+        // the taint is narrowed rather than dropped. Carrying the underlying
+        // chain forward is what lets a later SQL sink still report a flow
+        // that only ever passed an HTML escaper.
+        // The value being sanitised is either a variable already tracked or
+        // — far more common in real code — a source written inline, as in
+        // `$safe = htmlspecialchars($_GET['id'])`. Both must survive the
+        // narrowing, or the partially-sanitised flow is lost exactly where
+        // it matters most.
+        let carried = tainted
+            .iter()
+            .filter(|(name, _)| contains_word(&code_rhs, name))
+            .map(|(_, v)| v.clone())
+            .min_by_key(|v| v.source_line())
+            .map(|mut v| {
+                v.steps.push(FlowStep {
+                    line,
+                    code: code.to_string(),
+                    role: FlowRole::Propagation,
+                    file: None,
+                });
+                v
+            })
+            .or_else(|| {
+                (SOURCE_RE.is_match(rhs) && SOURCE_RE.is_match(&mask_regex(rhs))).then(|| TaintVar {
+                    steps: vec![FlowStep {
+                        line,
+                        code: code.to_string(),
+                        role: FlowRole::Source,
+                        file: None,
+                    }],
+                    origin_param: None,
+                    cleared: BTreeSet::new(),
+                })
+            });
+        match carried {
+            Some(mut v) => {
+                v.cleared.extend(cats);
+                if ALL_CATEGORIES.iter().all(|c| v.cleared.contains(c)) {
+                    // Nothing left to report on: drop it, so the map does
+                    // not grow with values that can never sink again.
+                    tainted.remove(&lhs);
+                } else {
+                    tainted.insert(lhs, v);
+                }
+            }
+            // A sanitiser applied to something untracked introduces nothing.
+            None => {
+                tainted.remove(&lhs);
+            }
+        }
+    } else if SOURCE_RE.is_match(rhs) && SOURCE_RE.is_match(&mask_regex(rhs)) {
+        tainted.insert(
+            lhs,
+            TaintVar {
+                steps: vec![FlowStep { line, code: code.to_string(), role: FlowRole::Source, file: None }],
+                origin_param: None,
+                cleared: BTreeSet::new(),
+            },
+        );
+    } else if let Some(effect) =
+        resolve_call(rhs, line, code, tainted, funcs_by_name, summaries, externals)
+    {
+        // The rhs passes a tainted value to a function defined in this file,
+        // so its summary — not a surface substring match — decides the taint.
+        // This is what makes a user-defined sanitiser actually clear taint.
+        match effect {
+            CallEffect::Returns(v) => tainted.insert(lhs, v),
+            CallEffect::Consumed => tainted.remove(&lhs),
+        };
+    } else if let Some(mut v) = tainted
+        .iter()
+        .filter(|(name, _)| contains_word(&code_rhs, name))
+        .map(|(_, v)| v.clone())
+        .min_by_key(|v| v.source_line())
+    {
+        v.steps.push(FlowStep { line, code: code.to_string(), role: FlowRole::Propagation, file: None });
+        tainted.insert(lhs, v);
+    } else {
+        tainted.remove(&lhs);
+    }
+}
+
+/// JS/TS object destructuring: `const { id, name: alias, ...rest } = req.query`.
+static DESTRUCT_OBJ_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^\s*(?:export\s+)?(?:const|let|var)\s*\{([^}]*)\}\s*(?::[^=]+)?=\s*([^=].*)$")
+        .expect("bad object-destructuring pattern")
+});
+/// JS/TS array destructuring: `const [a, , b] = …`.
+static DESTRUCT_ARR_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^\s*(?:const|let|var)\s*\[([^\]]*)\]\s*=\s*([^=].*)$")
+        .expect("bad array-destructuring pattern")
+});
+/// A bare name list: Python and Ruby unpacking, Go's `body, err := …`.
+static NAME_LIST_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^\s*(?:var\s+)?((?:\*?[A-Za-z_]\w*\s*,\s*)+\*?[A-Za-z_]\w*)\s*(?::=|=)\s*([^=].*)$")
+        .expect("bad name-list pattern")
+});
+
+/// Names bound by a multiple assignment, and its right-hand side. A Go error or
+/// `ok` flag and the blank `_` never carry the value, so they are left out.
+fn multi_assign(text: &str) -> Option<(Vec<String>, &str)> {
+    let (pattern, caps) = if let Some(c) = DESTRUCT_OBJ_RE.captures(text) {
+        ("obj", c)
+    } else if let Some(c) = DESTRUCT_ARR_RE.captures(text) {
+        ("arr", c)
+    } else {
+        ("list", NAME_LIST_RE.captures(text)?)
+    };
+    let inner = caps.get(1)?.as_str();
+    let rhs = caps.get(2)?.as_str();
+    let names: Vec<String> = split_top_commas(inner)
+        .into_iter()
+        .filter_map(|part| {
+            let part = part.trim().trim_start_matches("...").trim_start_matches('*');
+            let part = before_top_level_eq(part).trim();
+            if pattern == "obj" {
+                if let Some(colon) = part.find(':') {
+                    // `key: alias` binds the alias; a nested pattern is skipped.
+                    let alias = part[colon + 1..].trim();
+                    if alias.starts_with('{') || alias.starts_with('[') {
+                        return None;
+                    }
+                    return first_ident(alias);
+                }
+            }
+            first_ident(part)
+        })
+        .filter(|n| !matches!(n.as_str(), "_" | "err" | "ok"))
+        .collect();
+    (!names.is_empty()).then_some((names, rhs))
 }
 
 /// Processes one line of code against the current taint map: checks whether a
@@ -879,6 +1657,14 @@ fn process_line(
     on_sink: &mut OnSink,
     on_return: &mut dyn FnMut(&TaintVar),
 ) {
+    // With nothing tainted, every sink, call and propagation below needs a
+    // tracked value and finds none: the only thing a line can still do is
+    // introduce a source. Most lines of most files are in that state, and an
+    // assignment's right-hand side is part of the line, so testing the whole
+    // line for a source is a safe filter.
+    if tainted.is_empty() && !SOURCE_RE.is_match(text) {
+        return;
+    }
     let trimmed = text.trim();
     let code: String = trimmed.chars().take(200).collect();
 
@@ -888,9 +1674,9 @@ fn process_line(
 
     // 1a) Direct sink: a dangerous call on this very line.
     for s in sinks {
-        if !s.re.is_match(text) {
+        let Some(sink_match) = first_match_in_code(text, &s.re) else {
             continue;
-        }
+        };
         // Only values still dangerous *for this sink's category* count. A value
         // that passed an HTML escaper is skipped at an XSS sink and still
         // reported at a SQL one — the whole point of scoping sanitisers.
@@ -898,7 +1684,7 @@ fn process_line(
         // For SQL, only the query text: a value passed beside the query as a
         // bind parameter is the fix, not the bug.
         let scope = if s.category == CAT_SQL {
-            sql_query_text(text, &s.re)
+            sql_query_text(text, sink_match)
         } else {
             std::borrow::Cow::Borrowed(text)
         };
@@ -929,99 +1715,21 @@ fn process_line(
     let _ = sunk;
 
     // 2) Assignment: introduce, propagate through a variable or a returning
-    //    call, or clear the taint.
+    //    call, or clear the taint. Several names bound at once — destructuring,
+    //    unpacking, Go's `value, err :=` — each take the right-hand side's taint.
+    if let Some((names, rhs)) = multi_assign(text) {
+        for name in names {
+            assign(name, rhs, line, &code, tainted, funcs_by_name, summaries, externals);
+        }
+        return;
+    }
     if let Some(caps) = ASSIGN_RE.captures(text) {
         let lhs = caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
         let rhs = caps.get(2).map(|m| m.as_str()).unwrap_or("");
         if lhs.is_empty() {
             return;
         }
-        // A sanitiser is a call and a variable is a reference — neither is the
-        // text of a string. `msg = "failed to escape: " + id` used to count
-        // as sanitising `id`, because the word sat inside the literal.
-        let code_rhs = mask_strings(rhs);
-        if let Some(cats) = sanitized_categories(&code_rhs) {
-            // The value is safe for `cats` and unchanged for everything else, so
-            // the taint is narrowed rather than dropped. Carrying the underlying
-            // chain forward is what lets a later SQL sink still report a flow
-            // that only ever passed an HTML escaper.
-            // The value being sanitised is either a variable already tracked or
-            // — far more common in real code — a source written inline, as in
-            // `$safe = htmlspecialchars($_GET['id'])`. Both must survive the
-            // narrowing, or the partially-sanitised flow is lost exactly where
-            // it matters most.
-            let carried = tainted
-                .iter()
-                .filter(|(name, _)| contains_word(&code_rhs, name))
-                .map(|(_, v)| v.clone())
-                .min_by_key(|v| v.source_line())
-                .map(|mut v| {
-                    v.steps.push(FlowStep {
-                        line,
-                        code: code.clone(),
-                        role: FlowRole::Propagation,
-                        file: None,
-                    });
-                    v
-                })
-                .or_else(|| {
-                    SOURCE_RE.is_match(rhs).then(|| TaintVar {
-                        steps: vec![FlowStep {
-                            line,
-                            code: code.clone(),
-                            role: FlowRole::Source,
-                            file: None,
-                        }],
-                        origin_param: None,
-                        cleared: BTreeSet::new(),
-                    })
-                });
-            match carried {
-                Some(mut v) => {
-                    v.cleared.extend(cats);
-                    if ALL_CATEGORIES.iter().all(|c| v.cleared.contains(c)) {
-                        // Nothing left to report on: drop it, so the map does
-                        // not grow with values that can never sink again.
-                        tainted.remove(&lhs);
-                    } else {
-                        tainted.insert(lhs, v);
-                    }
-                }
-                // A sanitiser applied to something untracked introduces nothing.
-                None => {
-                    tainted.remove(&lhs);
-                }
-            }
-        } else if SOURCE_RE.is_match(rhs) {
-            tainted.insert(
-                lhs,
-                TaintVar {
-                    steps: vec![FlowStep { line, code, role: FlowRole::Source, file: None }],
-                    origin_param: None,
-                    cleared: BTreeSet::new(),
-                },
-            );
-        } else if let Some(effect) =
-            resolve_call(rhs, line, &code, tainted, funcs_by_name, summaries, externals)
-        {
-            // The rhs passes a tainted value to a function defined in this file,
-            // so its summary — not a surface substring match — decides the taint.
-            // This is what makes a user-defined sanitiser actually clear taint.
-            match effect {
-                CallEffect::Returns(v) => tainted.insert(lhs, v),
-                CallEffect::Consumed => tainted.remove(&lhs),
-            };
-        } else if let Some(mut v) = tainted
-            .iter()
-            .filter(|(name, _)| contains_word(&code_rhs, name))
-            .map(|(_, v)| v.clone())
-            .min_by_key(|v| v.source_line())
-        {
-            v.steps.push(FlowStep { line, code, role: FlowRole::Propagation, file: None });
-            tainted.insert(lhs, v);
-        } else {
-            tainted.remove(&lhs);
-        }
+        assign(lhs, rhs, line, &code, tainted, funcs_by_name, summaries, externals);
         return;
     }
 
@@ -1311,7 +2019,9 @@ pub(crate) fn collect_exports(content: &str, lang: Language, rel: &str) -> Vec<(
     if sinks.is_empty() {
         return Vec::new();
     }
-    let lines: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let raw: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let logical = join_continuations(&raw, lang);
+    let lines: Vec<&str> = logical.iter().map(|l| l.as_ref()).collect();
     let funcs = functions(&lines, lang);
     let funcs_by_name: HashMap<String, usize> =
         funcs.iter().enumerate().map(|(i, f)| (f.name.clone(), i)).collect();
@@ -1349,6 +2059,79 @@ pub(crate) fn collect_exports(content: &str, lang: Language, rel: &str) -> Vec<(
         .collect()
 }
 
+/// Request data bound straight to a handler argument. A framework that does
+/// the binding never calls anything a line-based source pattern can see —
+/// `request.getParameter` simply does not appear in a Spring controller — so
+/// every modern handler looked clean however its argument was used.
+static PARAM_SOURCE_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(concat!(
+        // Spring MVC and JAX-RS.
+        r"@(?:RequestParam|PathVariable|RequestBody|RequestHeader|CookieValue|MatrixVariable|RequestPart|ModelAttribute|QueryParam|PathParam|FormParam|HeaderParam|CookieParam|BeanParam)\b",
+        // ASP.NET Core model binding.
+        r"|\[\s*From(?:Query|Route|Body|Form|Header)\b",
+        // NestJS.
+        r"|@(?:Query|Param|Body|Headers|Req)\s*\(",
+        // FastAPI, as a default or inside `Annotated[...]`.
+        r"|=\s*(?:Query|Path|Body|Form|Header|Cookie|File)\s*\(",
+        r"|Annotated\s*\[[^\]]*\b(?:Query|Path|Body|Form|Header|Cookie|File)\s*\(",
+    ))
+    .expect("bad parameter-source pattern")
+});
+
+/// A Flask or FastAPI route decorator and its path.
+static ROUTE_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?m)^\s*@[\w.]+\.(?:route|get|post|put|patch|delete|api_route|websocket)\s*\(\s*[rbuf]?["']([^"']*)["']"#)
+        .expect("bad route pattern")
+});
+static FLASK_VAR_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"<(?:(\w+):)?(\w+)>").expect("bad flask placeholder"));
+static FASTAPI_VAR_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\{(\w+)(?::\w+)?\}").expect("bad fastapi placeholder"));
+
+/// Path placeholders of a route decorator on this line: `(name, converter)`.
+fn route_placeholders(text: &str) -> Option<Vec<(String, Option<String>)>> {
+    let path = ROUTE_RE.captures(text)?.get(1)?.as_str();
+    let mut out: Vec<(String, Option<String>)> = FLASK_VAR_RE
+        .captures_iter(path)
+        .map(|c| (c[2].to_string(), c.get(1).map(|m| m.as_str().to_string())))
+        .collect();
+    out.extend(FASTAPI_VAR_RE.captures_iter(path).map(|c| (c[1].to_string(), None)));
+    Some(out)
+}
+
+/// A path segment parsed into a number or an id cannot carry a payload:
+/// Flask's `<int:id>` and FastAPI's `id: int` reject anything else before the
+/// handler runs.
+const SAFE_PATH_TYPES: &[&str] =
+    &["int", "float", "bool", "uuid", "UUID", "uuid.UUID", "datetime", "date", "Decimal"];
+
+fn annotated_type(raw: &str) -> Option<&str> {
+    let before_default = before_top_level_eq(raw);
+    let colon = before_default.find(':')?;
+    Some(before_default[colon + 1..].trim())
+}
+
+/// The handler parameters that carry request data, by name.
+fn parameter_sources(params: &str, routes: &[(String, Option<String>)], lang: Language) -> Vec<String> {
+    split_top_commas(params)
+        .into_iter()
+        .filter_map(|raw| {
+            let name = param_name(&raw, lang)?;
+            if PARAM_SOURCE_RE.is_match(&raw) {
+                return Some(name);
+            }
+            let (_, converter) = routes.iter().find(|(n, _)| *n == name)?;
+            if converter.as_deref().is_some_and(|c| SAFE_PATH_TYPES.contains(&c)) {
+                return None;
+            }
+            if annotated_type(&raw).is_some_and(|t| SAFE_PATH_TYPES.contains(&t)) {
+                return None;
+            }
+            Some(name)
+        })
+        .collect()
+}
+
 /// Traces user-controlled data through `content` and returns every source→sink
 /// flow found, following calls into the file's own functions. Deterministic:
 /// the same input always yields the same flows. The single-file entry point;
@@ -1365,8 +2148,14 @@ pub(crate) fn analyze_with(
     lang: Language,
     externals: &HashMap<String, Summary>,
 ) -> Vec<TaintFlow> {
-    // Cheap gate: no source indicator anywhere → nothing to trace.
-    if !rules::content_has_taint(content) {
+    // Cheap gate: no source indicator anywhere → nothing to trace. A handler
+    // whose input arrives as a bound parameter carries no `request` at all, so
+    // the parameter annotations and route decorators count as indicators too —
+    // without them a Spring controller was skipped before it was read.
+    if !rules::content_has_taint(content)
+        && !PARAM_SOURCE_RE.is_match(content)
+        && !ROUTE_RE.is_match(content)
+    {
         return Vec::new();
     }
 
@@ -1375,7 +2164,9 @@ pub(crate) fn analyze_with(
         return Vec::new();
     }
 
-    let lines: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let raw: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let logical = join_continuations(&raw, lang);
+    let lines: Vec<&str> = logical.iter().map(|l| l.as_ref()).collect();
 
     // Function summaries, resolved to a fixpoint so a helper that calls another
     // helper still learns the whole chain regardless of definition order. The
@@ -1404,6 +2195,11 @@ pub(crate) fn analyze_with(
     // signature so one function's variables never bleed into the next.
     let mut tainted: HashMap<String, TaintVar> = HashMap::new();
     let mut flows: Vec<TaintFlow> = Vec::new();
+    // Path placeholders of the route decorator above the next `def`, and the
+    // decorator itself — it becomes part of the source step, so the finding
+    // shows which URL feeds the parameter.
+    let mut routes: Vec<(String, Option<String>)> = Vec::new();
+    let mut route_text = String::new();
 
     for (idx, &text) in lines.iter().enumerate() {
         if flows.len() >= MAX_FLOWS {
@@ -1413,9 +2209,40 @@ pub(crate) fn analyze_with(
         if trimmed.is_empty() || rules::is_comment_line(text, lang) {
             continue;
         }
-        if scoped(lang) && signature_of(text).is_some() {
-            tainted.clear();
-            continue;
+        if scoped(lang) {
+            if let Some((_, params)) = signature_of(text, lang) {
+                tainted.clear();
+                let sig_code: String = trimmed.chars().take(200).collect();
+                let code = if route_text.is_empty() {
+                    sig_code
+                } else {
+                    format!("{route_text} {sig_code}").chars().take(200).collect()
+                };
+                for name in parameter_sources(&params, &routes, lang) {
+                    tainted.insert(
+                        name,
+                        TaintVar {
+                            steps: vec![FlowStep {
+                                line: (idx + 1) as u32,
+                                code: code.clone(),
+                                role: FlowRole::Source,
+                                file: None,
+                            }],
+                            origin_param: None,
+                            cleared: BTreeSet::new(),
+                        },
+                    );
+                }
+                routes.clear();
+                route_text.clear();
+                continue;
+            }
+            if lang == Language::Python {
+                if let Some(found) = route_placeholders(text) {
+                    routes = found;
+                    route_text = trimmed.to_string();
+                }
+            }
         }
         let line = (idx + 1) as u32;
         let mut on_sink = |v: &TaintVar,
@@ -1489,7 +2316,9 @@ pub fn analyze_leaks(content: &str, lang: Language) -> Vec<TaintFlow> {
     if !SECRET_SOURCE_RE.is_match(content) {
         return Vec::new();
     }
-    let lines: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let raw: Vec<&str> = content.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let logical = join_continuations(&raw, lang);
+    let lines: Vec<&str> = logical.iter().map(|l| l.as_ref()).collect();
     let mut tainted: HashMap<String, TaintVar> = HashMap::new();
     let mut flows: Vec<TaintFlow> = Vec::new();
 
@@ -1501,7 +2330,7 @@ pub fn analyze_leaks(content: &str, lang: Language) -> Vec<TaintFlow> {
         if trimmed.is_empty() || rules::is_comment_line(text, lang) {
             continue;
         }
-        if scoped(lang) && signature_of(text).is_some() {
+        if scoped(lang) && signature_of(text, lang).is_some() {
             tainted.clear();
             continue;
         }
@@ -1637,14 +2466,22 @@ def run():
         assert!(contains_word("a = user + 1", "user"));
     }
 
+    /// The window is a fence against runaways in very long top-level scripts.
+    /// It used to be 80 lines; with function scoping in every heuristic
+    /// language it no longer has to stand between methods, so a long legacy
+    /// function keeps its flows.
     #[test]
     fn out_of_window_flow_is_dropped() {
-        let mut code = String::from("cmd = request.args.get('q')\n");
-        for _ in 0..90 {
-            code.push_str("noop = 1\n");
-        }
-        code.push_str("os.system(cmd)\n");
-        assert!(analyze(&code, Language::Python).is_empty());
+        let flow_at = |gap: u32| {
+            let mut code = String::from("cmd = request.args.get('q')\n");
+            for _ in 0..gap {
+                code.push_str("noop = 1\n");
+            }
+            code.push_str("os.system(cmd)\n");
+            analyze(&code, Language::Python)
+        };
+        assert!(flow_at(WINDOW + 10).is_empty(), "beyond the window");
+        assert!(!flow_at(120).is_empty(), "120 lines apart used to be lost at 80");
     }
 
     #[test]
@@ -1789,6 +2626,387 @@ function show(req) {
 }
 ";
         assert!(analyze(code, Language::JavaScript).is_empty(), "bleach.clean should sanitize");
+    }
+
+    // ------------------------------------------------- Thunderbolt engine
+
+    fn sql(code: &str, lang: Language) -> bool {
+        analyze(code, lang).iter().any(|f| f.category == "SQL-инъекция")
+    }
+
+    /// Formatters break long calls; a flow split across them is still a flow.
+    /// Every one of these came back empty before statements were joined.
+    #[test]
+    fn formatted_calls_are_one_statement() {
+        let cases: &[(&str, Language, &str)] = &[
+            ("black", Language::Python,
+             "def a(request, cur):\n    uid = request.args.get('id')\n    cur.execute(\n        \"SELECT * FROM t WHERE id = \" + uid\n    )\n"),
+            ("prettier template", Language::JavaScript,
+             "function a(req, db) {\n  const id = req.query.id;\n  db.query(\n    `SELECT * FROM t WHERE id = ${id}`\n  );\n}\n"),
+            ("parenthesised assignment", Language::Python,
+             "def a(request, cur):\n    q = (\n        \"SELECT * FROM t WHERE id = \" + request.args.get('id')\n    )\n    cur.execute(q)\n"),
+            ("trailing +", Language::Java,
+             "void a(HttpServletRequest request, Statement stmt) throws Exception {\n  String sql = \"SELECT * FROM t WHERE id = \" +\n      request.getParameter(\"id\");\n  stmt.executeQuery(sql);\n}\n"),
+            ("fluent chain", Language::JavaScript,
+             "function a(req, knex) {\n  const id = req.query.id;\n  return knex\n    .raw(\"SELECT * FROM t WHERE id = \" + id);\n}\n"),
+            ("triple-quoted f-string", Language::Python,
+             "def a(request, cur):\n    uid = request.args.get('id')\n    cur.execute(f\"\"\"\n        SELECT * FROM t\n        WHERE id = {uid}\n    \"\"\")\n"),
+        ];
+        for (name, lang, code) in cases {
+            assert!(sql(code, *lang), "{name}: a formatted call lost its flow");
+        }
+    }
+
+    /// A line ending in `{` opens a block. Joining across it once folded every
+    /// Express handler into a single statement, and the assignment inside the
+    /// callback stopped being one.
+    #[test]
+    fn callback_bodies_keep_their_statements() {
+        let express = "\
+app.get('/u', (req, res) => {
+  const id = req.query.id;
+  db.query(\"SELECT * FROM t WHERE id = \" + id);
+});
+";
+        assert!(sql(express, Language::JavaScript), "Express handler body");
+
+        let promise = "\
+function a(req, db) {
+  load().then((row) => {
+    const id = req.query.id;
+    db.query(\"SELECT * FROM t WHERE id = \" + id);
+  });
+}
+";
+        assert!(sql(promise, Language::JavaScript), "promise callback body");
+    }
+
+    #[test]
+    fn joiner_leaves_complete_statements_alone() {
+        let joined = |src: &str, lang: Language| -> Vec<String> {
+            let lines: Vec<&str> = src.lines().collect();
+            join_continuations(&lines, lang).into_iter().map(|l| l.into_owned()).collect()
+        };
+        // `i++` is a statement, not a dangling `+`.
+        assert_eq!(joined("i++\nfoo()", Language::Go)[1], "foo()");
+        // Ruby blocks end in `|x|`; predicates end in `?`.
+        assert_eq!(joined("items.each do |x|\n  run(x)\nend", Language::Ruby)[1], "  run(x)");
+        assert_eq!(joined("if user.admin?\n  grant\nend", Language::Ruby)[1], "  grant");
+        // A float literal ends in `.`.
+        assert_eq!(joined("x = 1.\ny = 2", Language::Python)[1], "y = 2");
+        // A comment's trailing comma or parenthesis does not swallow code.
+        assert_eq!(joined("// note, see (here\nfoo()", Language::JavaScript)[1], "foo()");
+        assert_eq!(joined("x = 1  # see (here\ny = 2", Language::Python)[1], "y = 2");
+        // Line numbers survive: the statement sits on its first line.
+        let j = joined("a(\n  b,\n  c\n)\nd()", Language::JavaScript);
+        assert_eq!(j[0], "a( b, c )");
+        assert!(j[1].is_empty() && j[2].is_empty() && j[3].is_empty());
+        assert_eq!(j[4], "d()");
+    }
+
+    /// Request data bound straight to a handler argument, in each framework.
+    #[test]
+    fn bound_parameters_are_sources() {
+        let cases: &[(&str, Language, &str)] = &[
+            ("Spring @RequestParam", Language::Java,
+             "@GetMapping(\"/u\")\npublic String a(@RequestParam(name = \"id\") String id, Statement stmt) throws Exception {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id);\n  return \"ok\";\n}\n"),
+            ("Spring @PathVariable", Language::Java,
+             "@GetMapping(\"/u/{id}\")\npublic String a(@PathVariable String id, Statement stmt) throws Exception {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id);\n  return \"ok\";\n}\n"),
+            ("JAX-RS @QueryParam", Language::Java,
+             "@GET\npublic Response a(@QueryParam(\"id\") String id, Statement stmt) throws Exception {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id);\n  return null;\n}\n"),
+            ("Kotlin Spring", Language::Kotlin,
+             "@GetMapping(\"/u\")\nfun a(@RequestParam id: String, stmt: Statement): String {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id)\n  return \"ok\"\n}\n"),
+            ("ASP.NET [FromQuery]", Language::CSharp,
+             "public IActionResult A([FromQuery] string id, SqlConnection conn)\n{\n  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = \" + id, conn);\n  return Ok();\n}\n"),
+            ("ASP.NET [FromRoute]", Language::CSharp,
+             "public IActionResult A([FromRoute] string id, SqlConnection conn) {\n  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = \" + id, conn);\n  return Ok();\n}\n"),
+            ("NestJS @Query", Language::TypeScript,
+             "async find(@Query('id') id: string) {\n  return this.db.query(\"SELECT * FROM t WHERE id = \" + id);\n}\n"),
+            ("FastAPI Query()", Language::Python,
+             "@app.get('/u')\ndef a(id: str = Query(...), cur=Depends(db)):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + id)\n"),
+            ("FastAPI Annotated", Language::Python,
+             "@app.get('/u')\ndef a(id: Annotated[str, Query()], cur=Depends(db)):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + id)\n"),
+            ("FastAPI path", Language::Python,
+             "@app.get('/u/{id}')\ndef a(id: str, cur=Depends(db)):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + id)\n"),
+            ("Flask route", Language::Python,
+             "@app.route('/u/<id>')\ndef a(id):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + id)\n"),
+        ];
+        for (name, lang, code) in cases {
+            assert!(sql(code, *lang), "{name}: a bound parameter was not a source");
+        }
+    }
+
+    /// The finding says where the data came from — a bound parameter is an
+    /// HTTP request whatever it is called.
+    #[test]
+    fn bound_parameters_are_labelled_http() {
+        let code = "@GetMapping(\"/u\")\npublic String a(@RequestParam String input, Statement stmt) throws Exception {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + input);\n  return \"ok\";\n}\n";
+        let flows = analyze(code, Language::Java);
+        assert_eq!(flows.first().map(|f| f.entry_kind()), Some("HTTP-запрос"));
+    }
+
+    /// A path segment converted to a number before the handler runs carries no
+    /// payload, and a parameter no route mentions is not request data.
+    #[test]
+    fn typed_and_unbound_parameters_are_not_sources() {
+        let cases: &[(&str, &str)] = &[
+            ("Flask <int:id>", "@app.route('/u/<int:id>')\ndef a(id):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + str(id))\n"),
+            ("FastAPI id: int", "@app.get('/u/{id}')\ndef a(id: int, cur=Depends(db)):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + str(id))\n"),
+            ("unrouted helper", "def helper(id, cur):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + id)\n"),
+            ("FastAPI Depends", "@app.get('/u')\ndef a(cur=Depends(db), id: str = Depends(current_id)):\n    cur.execute(\"SELECT * FROM t WHERE id = \" + id)\n"),
+        ];
+        for (name, code) in cases {
+            assert!(!sql(code, Language::Python), "{name} was treated as request data");
+        }
+    }
+
+    /// Methods are scopes now in every heuristic language: a variable tainted in
+    /// one method is not the variable of the same name in the next.
+    #[test]
+    fn methods_are_scopes_in_every_language() {
+        let cases: &[(&str, Language, &str)] = &[
+            ("Java", Language::Java,
+             "void a(HttpServletRequest request) {\n  String id = request.getParameter(\"id\");\n  log(id);\n}\n\nvoid b(Statement stmt, String id) throws Exception {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id);\n}\n"),
+            ("C# Allman", Language::CSharp,
+             "public void A(HttpRequest Request)\n{\n  var id = Request.Query[\"id\"];\n  Log(id);\n}\n\npublic void B(SqlConnection conn, string id)\n{\n  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = \" + id, conn);\n}\n"),
+            ("Kotlin", Language::Kotlin,
+             "fun a(request: HttpServletRequest) {\n  val id = request.getParameter(\"id\")\n  log(id)\n}\n\nfun b(stmt: Statement, id: String) {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id)\n}\n"),
+            ("Ruby", Language::Ruby,
+             "def a(params)\n  id = params[:id]\n  log(id)\nend\n\ndef b(id)\n  User.find_by_sql(\"SELECT * FROM users WHERE id = #{id}\")\nend\n"),
+        ];
+        for (name, lang, code) in cases {
+            assert!(!sql(code, *lang), "{name}: taint leaked from one method into the next");
+        }
+    }
+
+    /// With functions found, a helper that sinks its argument is traced from the
+    /// caller — interprocedural analysis reaches the JVM, .NET and Ruby.
+    #[test]
+    fn helpers_are_followed_in_jvm_dotnet_and_ruby() {
+        let cases: &[(&str, Language, &str)] = &[
+            ("Java", Language::Java,
+             "void find(Statement stmt, String id) throws Exception {\n  stmt.executeQuery(\"SELECT * FROM t WHERE id = \" + id);\n}\n\nvoid handle(HttpServletRequest request, Statement stmt) throws Exception {\n  String id = request.getParameter(\"id\");\n  find(stmt, id);\n}\n"),
+            ("C#", Language::CSharp,
+             "private void Find(SqlConnection conn, string id)\n{\n  var cmd = new SqlCommand(\"SELECT * FROM t WHERE id = \" + id, conn);\n}\n\npublic void Handle(HttpRequest Request, SqlConnection conn)\n{\n  var id = Request.Query[\"id\"];\n  Find(conn, id);\n}\n"),
+            ("Ruby", Language::Ruby,
+             "def find(id)\n  User.find_by_sql(\"SELECT * FROM users WHERE id = #{id}\")\nend\n\ndef show(params)\n  id = params[:id]\n  find(id)\nend\n"),
+        ];
+        for (name, lang, code) in cases {
+            assert!(sql(code, *lang), "{name}: the helper's sink was not reached");
+        }
+    }
+
+    /// Java and C# lead with a type, so a call must never read as a definition:
+    /// that would clear the taint mid-method and lose the flow.
+    #[test]
+    fn jvm_calls_are_not_definitions() {
+        for line in [
+            "return foo(x);",
+            "new Foo(x);",
+            "await Bar(y);",
+            "else if (x) {",
+            "Foo.bar(x);",
+            "int y = foo(x);",
+            "throw new IllegalStateException(e);",
+            "assert check(x);",
+            "var cmd = new SqlCommand(sql, conn);",
+            "if (x) {",
+            "foreach (var x in xs) {",
+            "using (var c = Open()) {",
+            "public record Point(int X, int Y);",
+        ] {
+            assert!(signature_of(line, Language::Java).is_none(), "Java read a call as a definition: {line}");
+            assert!(signature_of(line, Language::CSharp).is_none(), "C# read a call as a definition: {line}");
+        }
+        for (line, name) in [
+            ("public String a(@RequestParam(name = \"id\") String id) throws Exception {", "a"),
+            ("void run()", "run"),
+            ("public <T> T get(Class<T> type) {", "get"),
+            ("public Map<String, List<Integer>> index() {", "index"),
+            ("public UserService(UserRepository repo) {", "UserService"),
+            ("int Add(int a, int b) => a + b;", "Add"),
+            ("public async Task<IActionResult> Get([FromQuery] string id)", "Get"),
+            ("@Override public void close() {", "close"),
+        ] {
+            let got = signature_of(line, Language::Java)
+                .or_else(|| signature_of(line, Language::CSharp))
+                .map(|(n, _)| n);
+            assert_eq!(got.as_deref(), Some(name), "missed definition: {line}");
+        }
+    }
+
+    /// JavaScript calls that end in a block are callbacks, not methods.
+    #[test]
+    fn js_callbacks_are_not_methods() {
+        for line in [
+            "app.get('/u', (req, res) => {",
+            "describe('x', () => {",
+            "useEffect(() => {",
+            "if (ready) {",
+            "for (const x of xs) {",
+            "items.forEach((x) => {",
+        ] {
+            assert!(signature_of(line, Language::JavaScript).is_none(), "{line}");
+        }
+        for (line, name) in [
+            ("async find(req, res) {", "find"),
+            ("handle = async (req) => {", "handle"),
+            ("export const load = (id: string): Promise<User> => {", "load"),
+            ("constructor(private readonly db: Db) {", "constructor"),
+        ] {
+            assert_eq!(signature_of(line, Language::TypeScript).map(|(n, _)| n).as_deref(), Some(name), "{line}");
+        }
+    }
+
+    /// A signature with no block has an empty body. It used to run to the end of
+    /// the file, crediting every later function's sinks to an abstract method.
+    #[test]
+    fn signatures_without_a_block_have_empty_bodies() {
+        let java = ["abstract void f(String id);", "void g(String x) {", "  run(x);", "}"];
+        assert_eq!(body_range(&java, 0, Language::Java), 1..1);
+        assert_eq!(body_range(&java, 1, Language::Java), 2..4);
+
+        let kotlin = ["fun f(x: Int) = x + 1", "fun g() {", "  h()", "}"];
+        assert_eq!(body_range(&kotlin, 0, Language::Kotlin), 1..1);
+
+        let csharp = ["public void A()", "{", "  B();", "}", "public void C() {}"];
+        assert_eq!(body_range(&csharp, 0, Language::CSharp), 1..4, "Allman brace on the next line");
+
+        let ruby = ["def a(x)", "  b(x)", "end", "def c", "end"];
+        assert_eq!(body_range(&ruby, 0, Language::Ruby), 1..2);
+    }
+
+    #[test]
+    fn destructuring_and_unpacking_carry_taint() {
+        let cases: &[(&str, Language, &str)] = &[
+            ("JS object", Language::JavaScript,
+             "function a(req, db) {\n  const { id } = req.query;\n  db.query(\"SELECT * FROM t WHERE id = \" + id);\n}\n"),
+            ("JS alias", Language::JavaScript,
+             "function a(req, db) {\n  const { id: userId, ...rest } = req.params;\n  db.query(\"SELECT * FROM t WHERE id = \" + userId);\n}\n"),
+            ("JS array", Language::JavaScript,
+             "function a(req, db) {\n  const [first, second] = req.body.ids;\n  db.query(\"SELECT * FROM t WHERE id = \" + second);\n}\n"),
+            ("Python unpacking", Language::Python,
+             "def a(request, cur):\n    a, b = request.args.get('a'), request.args.get('b')\n    cur.execute(\"SELECT * FROM t WHERE id = \" + b)\n"),
+            ("Go value, err", Language::Go,
+             "func h(r *http.Request, db *sql.DB) {\n\tbody, err := io.ReadAll(r.Body)\n\tdb.Query(\"SELECT * FROM t WHERE x = \" + string(body))\n}\n"),
+            ("Ruby parallel", Language::Ruby,
+             "def show(params)\n  a, b = params[:a], params[:b]\n  User.find_by_sql(\"SELECT * FROM users WHERE id = #{b}\")\nend\n"),
+        ];
+        for (name, lang, code) in cases {
+            assert!(sql(code, *lang), "{name}: the destructured name lost its taint");
+        }
+    }
+
+    #[test]
+    fn multiple_assignment_skips_error_and_blank_names() {
+        let (names, rhs) = multi_assign("body, err := io.ReadAll(r.Body)").expect("Go pair");
+        assert_eq!(names, vec!["body".to_string()]);
+        assert_eq!(rhs, "io.ReadAll(r.Body)");
+        let (names, _) = multi_assign("_, ok := m[k]").unwrap_or_default();
+        assert!(names.is_empty(), "blank and ok bind nothing");
+        assert!(multi_assign("a == b").is_none());
+        assert!(multi_assign("for a, b in pairs:").is_none());
+    }
+
+    #[test]
+    fn parameter_names_follow_each_language() {
+        for (raw, lang, want) in [
+            ("@RequestParam(name = \"id\") String id", Language::Java, "id"),
+            ("final List<String> names", Language::Java, "names"),
+            ("[FromQuery] string id = \"x\"", Language::CSharp, "id"),
+            ("@RequestParam id: String", Language::Kotlin, "id"),
+            ("vararg ids: Int", Language::Kotlin, "ids"),
+            ("@Query('id') id: string", Language::TypeScript, "id"),
+            ("id: str = Query(...)", Language::Python, "id"),
+            ("id string", Language::Go, "id"),
+            ("id:", Language::Ruby, "id"),
+            ("implicit ec: ExecutionContext", Language::Scala, "ec"),
+        ] {
+            assert_eq!(param_name(raw, lang).as_deref(), Some(want), "{raw}");
+        }
+    }
+
+    /// Found by running the engine over 3,122 files of real JavaScript: a
+    /// highlight.js grammar produced a path-traversal "flow" out of four
+    /// unrelated defects, each pinned below.
+    #[test]
+    fn regex_literals_are_not_code() {
+        // `//` inside a regex is not a comment, and its parentheses are text.
+        let m = mask_strings("url.replace(/^https?:\\/\\//, '')");
+        assert!(!m.contains("//"), "{m}");
+        assert_eq!(m.matches('(').count(), m.matches(')').count(), "{m}");
+        // Division stays division, in every language.
+        assert_eq!(mask_strings("x = a / b / c"), "x = a / b / c");
+        assert_eq!(mask_strings("y = (a + b) / 2"), "y = (a + b) / 2");
+        // A URL regex inside a call must not keep the statement open.
+        let lines = ["s = url.replace(/^https?:\\/\\//, '');", "db.query(q);"];
+        let joined = join_continuations(&lines, Language::JavaScript);
+        assert_eq!(joined[1], "db.query(q);", "joined past a regex literal");
+    }
+
+    #[test]
+    fn sources_inside_regex_literals_do_not_count() {
+        let code = "\
+function a(db) {
+  const re = /@(return|param)/;
+  db.query(\"SELECT * FROM t WHERE x = \" + re);
+}
+";
+        assert!(!sql(code, Language::JavaScript), "a regex mentioning `param` became request data");
+    }
+
+    #[test]
+    fn sinks_inside_strings_are_text() {
+        let code = "\
+def a(request, log):
+    host = request.args.get('h')
+    log.info(\"calling system(\" + host + \")\")
+";
+        assert!(analyze(code, Language::Python).is_empty(), "a log message is not a command");
+
+        // A sink half-inside a string by nature still counts.
+        let php = "\
+<?php
+function go() {
+  $next = $_GET['next'];
+  header(\"Location: \" . $next);
+}
+";
+        assert!(
+            analyze(php, Language::Php).iter().any(|f| f.category == "Открытый редирект"),
+            "header('Location: …') begins in code"
+        );
+    }
+
+    #[test]
+    fn object_literal_members_stay_separate() {
+        let lines = ["const o = {", "  a: req.query.a,", "  b: 2,", "};"];
+        let joined = join_continuations(&lines, Language::JavaScript);
+        assert_eq!(joined[1], "  a: req.query.a,");
+        assert_eq!(joined[2], "  b: 2,");
+    }
+
+    #[test]
+    fn include_needs_a_path() {
+        let js = "\
+function a(req) {
+  const id = req.query.id;
+  const modes = [INCLUDE, id];
+}
+";
+        assert!(analyze(js, Language::JavaScript).is_empty(), "a constant named INCLUDE is not inclusion");
+
+        let php = "\
+<?php
+function render() {
+  $page = $_GET['page'];
+  include $page . '.php';
+}
+";
+        assert!(
+            analyze(php, Language::Php).iter().any(|f| f.category == "Path traversal"),
+            "PHP inclusion of a variable is still found"
+        );
     }
 
     // ------------------------------------------- Ruby, Go, Scala and Elixir
