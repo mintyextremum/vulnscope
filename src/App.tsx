@@ -7,7 +7,6 @@ import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialo
 import "./App.css";
 import {
   Finding,
-  HistoryPoint,
   ScanOptions,
   ScanPhase,
   ScanProgress,
@@ -16,7 +15,6 @@ import {
   Severity,
   SEVERITY_LABEL,
   SEVERITY_ORDER,
-  severityCounted,
   SEVERITY_SYMBOL,
   RecentTarget,
   Staff1c,
@@ -38,11 +36,11 @@ import {
   Icon,
   LtrPath,
   ProgressRing,
-  SeverityBar,
 } from "./components";
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
-import { computeScore, findingRisk, type SecurityScore, type Grade } from "./score";
+import { computeScore, isReachable, GRADE_TONE, type Grade } from "./score";
+import { Overview } from "./Overview";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
 import { toExcel } from "./excel";
@@ -151,23 +149,8 @@ export default function App() {
   const [listW, setListW] = useStoredWidth("vs.listW", 360);
 
   useEffect(() => {
-    // Dev preview: outside Tauri the backend commands reject, so load a sample
-    // report to make the results UI visible.
-    //
-    // The import is dynamic on purpose. A static one kept the fixture in the
-    // production bundle even though this branch is dead there: the module builds
-    // its findings by calling a helper, and rollup cannot prove those calls are
-    // side-effect free, so it keeps them — strings and all. `import.meta.env.DEV`
-    // is inlined as false, so the whole branch, this import included, is dropped.
-    if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
-      void import("./demo").then(({ DEMO_REPORT, DEMO_SETTINGS }) => {
-        setReport(DEMO_REPORT);
-        setSettings(DEMO_SETTINGS);
-        setSelectedFinding(DEMO_REPORT.findings[0] ?? null);
-        setScreen("results");
-      });
-      return;
-    }
+    // In a plain browser during development, main.tsx stands in a simulated
+    // backend (devbackend.ts), so these calls are answered the same way.
     invoke<ToolsInfo>("get_tools")
       .then((info) => {
         setTools(info);
@@ -741,7 +724,7 @@ export default function App() {
   const matchesNonSeverity = useCallback(
     (f: Finding) => {
       if (onlyNew && !f.isNew) return false;
-      if (onlyReachable && !f.extra?.onDataPath) return false;
+      if (onlyReachable && !isReachable(f)) return false;
       return matchesBase(f);
     },
     [onlyNew, onlyReachable, matchesBase]
@@ -759,15 +742,24 @@ export default function App() {
    * selected file, and the non-severity filters — so the bar agrees with the
    * list under it instead of quoting project totals at it.
    *
-   * Only on the tabs that have a list or a tree. The overview prints the scan's
-   * own totals in the dashboard, and a different number in the bar directly
-   * above it would simply read as a bug.
+   * Elsewhere they show what the dashboard counts — confirmed findings that
+   * need attention. The scan's own tally includes BETA, and quoting it above a
+   * dashboard that does not put "5 critical" over "4".
    */
+  const pillTotals = useMemo((): Record<Severity, number> => {
+    const out = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    for (const f of report?.findings ?? []) {
+      if (f.suppressed || (tab === "beta") !== !!f.extra?.experimental) continue;
+      out[f.severity]++;
+    }
+    return out;
+  }, [report, tab]);
+
   const sevPillCounts = useMemo((): Record<Severity, number> => {
     const empty = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     if (!report) return empty;
     const scoped = tab === "findings" || tab === "beta" || tab === "code";
-    if (!scoped) return report.counts;
+    if (!scoped) return pillTotals;
     const out = { ...empty };
     for (const f of report.findings) {
       if ((tab === "beta") !== !!f.extra?.experimental) continue;
@@ -776,7 +768,7 @@ export default function App() {
       out[f.severity]++;
     }
     return out;
-  }, [report, tab, selectedFile, matchesNonSeverity]);
+  }, [report, tab, selectedFile, matchesNonSeverity, pillTotals]);
 
   /**
    * Counts for the two "only X" chips, scoped the same way the severity pills
@@ -798,8 +790,8 @@ export default function App() {
       if (!matchesSearch(f)) continue;
       if (f.suppressed) suppressedCount++;
       if (!matchesBase(f)) continue;
-      if (f.isNew && (!onlyReachable || f.extra?.onDataPath)) newCount++;
-      if (f.extra?.onDataPath && (!onlyNew || f.isNew)) reachableCount++;
+      if (f.isNew && (!onlyReachable || isReachable(f))) newCount++;
+      if (isReachable(f) && (!onlyNew || f.isNew)) reachableCount++;
     }
     return { newCount, reachableCount, suppressedCount };
   }, [report, tab, selectedFile, sevFilter, matchesSearch, matchesBase, onlyNew, onlyReachable]);
@@ -831,13 +823,28 @@ export default function App() {
     [report, selectedFile]
   );
 
+  // What each tab holds before anything narrows it. Suppressed findings are out
+  // of view by default — the user's earlier decision, not a filter — so they
+  // count only while shown. Counting them anyway put "26/27" on a fresh report
+  // and "скрыто 1" over the list, with a reset that could never bring it back.
   const confirmedCount = useMemo(
-    () => (report ? report.findings.filter((f) => !f.extra?.experimental).length : 0),
-    [report]
+    () =>
+      report
+        ? report.findings.filter((f) => !f.extra?.experimental && (showSuppressed || !f.suppressed)).length
+        : 0,
+    [report, showSuppressed]
   );
+  /** Whether the BETA tab exists at all — suppressed ones still need a way back. */
   const betaCount = useMemo(
     () => (report ? report.findings.filter((f) => f.extra?.experimental).length : 0),
     [report]
+  );
+  const betaTotal = useMemo(
+    () =>
+      report
+        ? report.findings.filter((f) => f.extra?.experimental && (showSuppressed || !f.suppressed)).length
+        : 0,
+    [report, showSuppressed]
   );
 
   // What each tab holds in the current view — the filters and the picked file
@@ -982,6 +989,9 @@ export default function App() {
       total: report
         ? report.findings.filter((f) => {
             if ((tab === "beta") !== !!f.extra?.experimental) return false;
+            // Hidden by the user's own earlier decision, not by a filter: the
+            // reset this count offers would not bring them back.
+            if (f.suppressed && !showSuppressed) return false;
             if (selectedFile && (tab === "findings" || tab === "beta"))
               return f.file === selectedFile;
             return true;
@@ -1283,7 +1293,7 @@ export default function App() {
         icon: "my_location",
         when:
           screen === "results" &&
-          (report?.findings.some((f) => f.extra?.onDataPath && !f.suppressed && !f.extra?.experimental) ?? false),
+          (report?.findings.some((f) => isReachable(f) && !f.suppressed && !f.extra?.experimental) ?? false),
         run: () => setOnlyReachable((v) => !v),
       },
       {
@@ -1677,7 +1687,7 @@ export default function App() {
             <div className="sev-pills">
               {SEVERITY_ORDER.map((s) => {
                 const n = sevPillCounts[s];
-                const all = report.counts[s];
+                const all = pillTotals[s];
                 // Say so when the pill is counting a narrowed view, or the
                 // number silently stops meaning "in this project".
                 const title =
@@ -1694,7 +1704,15 @@ export default function App() {
                     className={`sev-pill ${s} ${n === 0 ? "zero" : ""} ${
                       sevFilter.has(s) ? "active" : ""
                     } ${n !== all ? "scoped" : ""}`}
-                    onClick={() => toggleSev(s)}
+                    onClick={() => {
+                      // Off the list tabs a severity filter changes nothing on
+                      // screen; take the click as "show me those".
+                      if (tab === "overview" || tab === "skipped") {
+                        resetFilters();
+                        setSevFilter(new Set([s]));
+                        setTab("findings");
+                      } else toggleSev(s);
+                    }}
                     title={title}
                   >
                     <Icon name={SEVERITY_SYMBOL[s]} />
@@ -1757,8 +1775,8 @@ export default function App() {
                 <Icon name="science" />
                 {t("Экспериментальные")}
                 <span className="tag beta">BETA</span>
-                <span className={`count ${shownBeta !== betaCount ? "narrowed" : ""}`}>
-                  {shownBeta !== betaCount ? `${shownBeta}/${betaCount}` : betaCount}
+                <span className={`count ${shownBeta !== betaTotal ? "narrowed" : ""}`}>
+                  {shownBeta !== betaTotal ? `${shownBeta}/${betaTotal}` : betaTotal}
                 </span>
               </button>
             )}
@@ -1783,14 +1801,28 @@ export default function App() {
             <Overview
               report={report}
               onOpenFinding={(f) => {
+                // Opened from the dashboard, the finding must actually be in the
+                // list: a filter left on from earlier would hide it, and the
+                // detail panel would silently jump to something else.
+                resetFilters();
+                setTab(f.extra?.experimental ? "beta" : "findings");
                 setSelectedFinding(f);
-                setSelectedFile(null);
-                setTab("findings");
               }}
               onOpenReport={() => goto("report")}
               onOpenFile={(path) => {
+                resetFilters();
                 setSelectedFile(path);
                 setSelectedFinding(null);
+                setTab("findings");
+              }}
+              onShowReachable={() => {
+                resetFilters();
+                setOnlyReachable(true);
+                setTab("findings");
+              }}
+              onShowSuppressed={() => {
+                resetFilters();
+                setShowSuppressed(true);
                 setTab("findings");
               }}
             />
@@ -2377,603 +2409,6 @@ function ScanningScreen({ progress, plan }: { progress: ScanProgress | null; pla
         <div className="pstat">
           <div className="pstat-val">{formatDuration(elapsed)}</div>
           <div className="pstat-key">{t("Прошло")}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- overview
-
-/** Translates a backend engine name, handling the parameterised custom-rules one. */
-function engineLabel(e: string, t: TFn): string {
-  const m = /^Свои правила \((\d+)\)$/.exec(e);
-  if (m) return t("Свои правила ({n})", { n: m[1] });
-  return t(e);
-}
-
-/** One sentence describing how the scan ended, for the screen-reader summary. */
-function scanSummary(report: ScanReport, lang: Lang): string {
-  const t: TFn = (s, v) => translate(lang, s, v);
-  if (report.cancelled) {
-    return t("Сканирование отменено, результаты неполные. Отсутствие находок не означает, что код чист.");
-  }
-  const total = SEVERITY_ORDER.reduce((n, s) => n + report.counts[s], 0);
-  if (total === 0) {
-    return t("Сканирование завершено. Находок нет. Проверено файлов: {files}.", {
-      files: report.filesScanned,
-    });
-  }
-  // Russian inflects the severity word by count; English does not, so it just
-  // takes the number and the translated label.
-  const breakdown = SEVERITY_ORDER.filter((s) => report.counts[s] > 0)
-    .map((s) =>
-      lang === "en"
-        ? `${report.counts[s]} ${translate(lang, SEVERITY_LABEL[s]).toLowerCase()}`
-        : severityCounted(report.counts[s], s)
-    )
-    .join(", ");
-  const parts = [t("Сканирование завершено. Найдено {total}: {breakdown}.", { total, breakdown })];
-  if (report.delta.previousScanAt && (report.delta.newCount > 0 || report.delta.fixedCount > 0)) {
-    parts.push(
-      t("С прошлого скана: {new} новых, {fixed} исправлено.", {
-        new: report.delta.newCount,
-        fixed: report.delta.fixedCount,
-      })
-    );
-  }
-  if (report.suppressedCount > 0) {
-    parts.push(t("Подавлено: {n}.", { n: report.suppressedCount }));
-  }
-  return parts.join(" ");
-}
-
-/** Maps a grade to the severity-token family it should be painted in. */
-const GRADE_TONE: Record<Grade, string> = {
-  A: "ok",
-  B: "ok",
-  C: "med",
-  D: "high",
-  F: "crit",
-};
-
-/**
- * The dashboard's headline: one animated ring that turns the whole report into a
- * 0–100 security score and an A–F grade, with the factor breakdown beside it.
- * The number that makes the report a verdict, not a list.
- */
-function ScoreHero({ score }: { score: SecurityScore }) {
-  const t = useT();
-  const tone = GRADE_TONE[score.grade];
-  const R = 52;
-  const C = 2 * Math.PI * R;
-  const dash = (score.score / 100) * C;
-
-  return (
-    <div className={`score-hero tone-${tone}`}>
-      <div className="score-ring-wrap">
-        <svg className="score-ring" viewBox="0 0 120 120" role="img" aria-label={`${score.score} / 100`}>
-          <circle className="score-track" cx="60" cy="60" r={R} />
-          <circle
-            className="score-arc"
-            cx="60"
-            cy="60"
-            r={R}
-            style={{ strokeDasharray: `${dash} ${C}` }}
-          />
-        </svg>
-        <div className="score-center">
-          <div className="score-grade">{score.grade}</div>
-          {/* The bare number under the grade read as a stray digit; the scale is
-              what makes "1" mean something. Same text the ring already announces. */}
-          <div className="score-num">
-            {Math.round(score.score)}
-            <span className="score-num-max">/100</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="score-body">
-        <div className="score-title">{t("Оценка защищённости")}</div>
-        <div className="score-label">{t(score.label)}</div>
-        {score.reachable > 0 && (
-          <div className="score-reach" title={t("Учитываются подтверждённые находки; BETA и подавленные не входят. Достижимые по потоку данных весят больше.")}>
-            <Icon name="my_location" />
-            {t("{n} на пути данных", { n: String(score.reachable) })}
-          </div>
-        )}
-        <div className="score-factors">
-          {score.factors.map((f) => (
-            <span key={f.severity} className={`score-factor ${f.severity}`} title={`−${f.penalty}`}>
-              <span className={`sev-dot ${f.severity}`} />
-              {t(SEVERITY_LABEL[f.severity])}
-              <b>{f.count}</b>
-            </span>
-          ))}
-          {score.factors.length === 0 && (
-            <span className="score-clean">
-              <Icon name="verified_user" />
-              {t("Подтверждённых находок нет")}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Attack paths — the flagship made actionable.
- *
- * The score says "how bad"; this says "here are the exact routes an attacker
- * takes". The traced data-flows, ranked worst-first (severity, then whether the
- * chain crosses a file, then its length), each shown as a one-line
- * entry → sink summary you can click straight into. A grade plus its receipts.
- */
-function AttackPaths({
-  report,
-  onOpenFinding,
-}: {
-  report: ScanReport;
-  onOpenFinding: (f: Finding) => void;
-}) {
-  const t = useT();
-  // Ranked once: the title's count and the list are the same set, so counting
-  // the flows separately could only ever disagree with what is shown.
-  const all = useMemo(() => {
-    const sevRank: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-    return report.findings
-      .filter((f) => f.ruleId === "VS-FLOW" && !f.suppressed)
-      .map((f) => {
-        const flow = f.extra?.flow ?? [];
-        const crosses = flow.some((s) => s.file && s.file !== f.file);
-        return { f, flow, crosses, steps: flow.length };
-      })
-      .sort(
-        (a, b) =>
-          sevRank[a.f.severity] - sevRank[b.f.severity] ||
-          Number(b.crosses) - Number(a.crosses) ||
-          b.steps - a.steps
-      );
-  }, [report.findings]);
-
-  const TOP = 6;
-  const [expanded, setExpanded] = useState(false);
-  // The panel headlined "Пути атаки 20" while showing six, with no way to the
-  // rest — the flagship's highest-signal output, unreachable. Expanding scrolls
-  // inside the panel so a flow-heavy project cannot swallow the dashboard.
-  const paths = expanded ? all : all.slice(0, TOP);
-
-  if (all.length === 0) return null;
-
-  return (
-    <div className="card attack-paths">
-      <div className="card-title">
-        <Icon name="conversion_path" />
-        {t("Пути атаки")}
-        <span className="count">{all.length}</span>
-        <span className="ap-sub">{t("прослежено от ввода до опасного вызова")}</span>
-      </div>
-      <div className={`ap-list ${expanded ? "expanded" : ""}`}>
-        {paths.map(({ f, flow, crosses, steps }) => {
-          const sink = flow[flow.length - 1];
-          return (
-            <button key={f.id} className="ap-row" onClick={() => onOpenFinding(f)}>
-              <span className={`sev-dot ${f.severity}`} />
-              <span className="ap-entry">
-                <Icon name="login" />
-                {t(f.extra?.entry ?? "пользовательский ввод")}
-              </span>
-              <Icon name="arrow_right_alt" className="ap-arrow" />
-              <span className="ap-sink">{t(f.category)}</span>
-              {crosses && (
-                <span className="ap-xfile" title={t("Цепочка проходит через другой файл")}>
-                  <Icon name="alt_route" />
-                  {t("межфайловый")}
-                </span>
-              )}
-              <span className="ap-loc">
-                {(sink?.file ?? f.file).split(/[\\/]/).pop()}
-                {sink ? `:${sink.line}` : ""}
-              </span>
-              <span className="ap-steps">{t("{n} шагов", { n: String(steps) })}</span>
-            </button>
-          );
-        })}
-      </div>
-      {all.length > TOP && (
-        <button className="ap-more" onClick={() => setExpanded((v) => !v)}>
-          <Icon name={expanded ? "expand_less" : "expand_more"} />
-          {expanded
-            ? t("Свернуть список")
-            : t("Показать все пути ({n})", { n: all.length })}
-        </button>
-      )}
-    </div>
-  );
-}
-
-/**
- * "Where to start" — the files carrying the most risk, ranked by the same
- * weights the security score uses (severity, doubled-ish when the engine proved
- * the finding reachable). A dashboard that only totals findings tells you the
- * project is bad; this tells you which five files to open first. Clicking a row
- * opens the findings list narrowed to that file.
- */
-function RiskyFiles({
-  report,
-  onOpenFile,
-}: {
-  report: ScanReport;
-  onOpenFile: (path: string) => void;
-}) {
-  const t = useT();
-  const rows = useMemo(() => {
-    const by = new Map<
-      string,
-      { risk: number; total: number; reachable: number; worst: Severity }
-    >();
-    for (const f of report.findings) {
-      if (f.suppressed || f.extra?.experimental || !f.file) continue;
-      const r = by.get(f.file) ?? { risk: 0, total: 0, reachable: 0, worst: "info" as Severity };
-      r.risk += findingRisk(f);
-      r.total += 1;
-      if (f.extra?.onDataPath) r.reachable += 1;
-      if (SEVERITY_ORDER.indexOf(f.severity) < SEVERITY_ORDER.indexOf(r.worst)) r.worst = f.severity;
-      by.set(f.file, r);
-    }
-    return [...by.entries()]
-      .map(([file, r]) => ({ file, ...r }))
-      .sort((a, b) => b.risk - a.risk)
-      .slice(0, 5);
-  }, [report.findings]);
-
-  if (rows.length < 2) return null;
-  const max = rows[0].risk || 1;
-
-  return (
-    <div className="card risky-files">
-      <div className="card-title">
-        <Icon name="priority_high" />
-        {t("С чего начать")}
-        <span className="ap-sub">{t("файлы с наибольшим риском")}</span>
-      </div>
-      <div className="rf-list">
-        {rows.map((r) => (
-          <button key={r.file} className="rf-row" onClick={() => onOpenFile(r.file)}>
-            <span className={`rf-bar sev-${r.worst}`} style={{ width: `${(r.risk / max) * 100}%` }} />
-            <span className="rf-name" title={r.file}>
-              {r.file.split(/[\\/]/).pop()}
-            </span>
-            <span className="rf-path">
-              <LtrPath>{r.file}</LtrPath>
-            </span>
-            {r.reachable > 0 && (
-              <span className="rf-reach" title={t("Достижимо по данным")}>
-                <Icon name="my_location" />
-                {r.reachable}
-              </span>
-            )}
-            <span className="rf-count">{t("находок: {n}", { n: r.total })}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * A compact trend of total findings over the last several scans, shown on the
- * dashboard — the screen people actually look at after every run. The full
- * multi-series chart lives in the report; this is the at-a-glance sparkline that
- * says "getting better or worse?" and opens the report on click. Hidden until a
- * target has been scanned at least twice (one point is not a trend).
- */
-function TrendStrip({ report, onOpen }: { report: ScanReport; onOpen: () => void }) {
-  const t = useT();
-  const [history, setHistory] = useState<HistoryPoint[]>([]);
-  useEffect(() => {
-    let live = true;
-    invoke<HistoryPoint[]>("get_scan_history", { root: report.root })
-      .then((h) => live && setHistory(h))
-      .catch(() => live && setHistory([]));
-    return () => {
-      live = false;
-    };
-  }, [report.root]);
-
-  if (history.length < 2) return null;
-
-  const W = 220;
-  const H = 34;
-  const pad = 3;
-  const totals = history.map((p) => p.total);
-  // Scale to the data's own min..max, not 0..max: totals cluster near each other
-  // (a mature project barely moves scan to scan), so a zero-based axis would draw
-  // a flat line pinned to the top and hide the very variation this is here to show.
-  const lo = Math.min(...totals);
-  const hi = Math.max(...totals);
-  const span = hi - lo || 1;
-  const x = (i: number) => pad + (i * (W - 2 * pad)) / (history.length - 1);
-  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - 2 * pad);
-  const line = totals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-  const area =
-    `${x(0)},${H - pad} ` + totals.map((v, i) => `${x(i)},${y(v)}`).join(" ") + ` ${x(history.length - 1)},${H - pad}`;
-  const delta = totals[totals.length - 1] - totals[0];
-  // Fewer findings over time is improvement — the whole point of the tool.
-  const dir = delta < 0 ? "good" : delta > 0 ? "bad" : "flat";
-
-  return (
-    <button className="trend-strip" onClick={onOpen} title={t("Открыть отчёт с полным графиком динамики")}>
-      <span className="trend-strip-label">
-        <Icon name="show_chart" />
-        {t("Динамика")}
-      </span>
-      <svg className="trend-strip-svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-        <polygon className={`trend-strip-area ${dir}`} points={area} />
-        <polyline className={`trend-strip-line ${dir}`} points={line} fill="none" />
-        <circle className={`trend-strip-dot ${dir}`} cx={x(history.length - 1)} cy={y(totals[totals.length - 1])} r="2.5" />
-      </svg>
-      <span className={`trend-strip-delta ${dir}`}>
-        <Icon name={dir === "good" ? "trending_down" : dir === "bad" ? "trending_up" : "remove"} />
-        {delta > 0 ? "+" : ""}
-        {delta} {t("находок за {n} сканов", { n: history.length })}
-      </span>
-    </button>
-  );
-}
-
-function Overview({
-  report,
-  onOpenFinding,
-  onOpenReport,
-  onOpenFile,
-}: {
-  report: ScanReport;
-  onOpenFinding: (f: Finding) => void;
-  onOpenReport: () => void;
-  onOpenFile: (path: string) => void;
-}) {
-  const t = useT();
-  const lang = useContext(LangContext);
-
-  // Experimental (BETA) findings are *suspected*, not confirmed, and live on
-  // their own tab — so they must not inflate the dashboard's headline numbers,
-  // severity bars, or the risk shield. Count them separately.
-  const confirmed = useMemo(
-    () => report.findings.filter((f) => !f.extra?.experimental),
-    [report.findings]
-  );
-  const counts = useMemo(() => {
-    const c = { critical: 0, high: 0, medium: 0, low: 0, info: 0 } as Record<Severity, number>;
-    for (const f of confirmed) c[f.severity]++;
-    return c;
-  }, [confirmed]);
-  const betaCount = report.findings.length - confirmed.length;
-
-  // A cancelled scan checked nothing, so it must never be styled like a clean
-  // result — a green shield over "0 находок" reads as "you are safe".
-  const risk = report.cancelled
-    ? ""
-    : counts.critical > 0
-    ? "risk-critical"
-    : counts.high > 0
-    ? "risk-high"
-    : "risk-ok";
-  const maxSev = Math.max(...SEVERITY_ORDER.map((s) => counts[s]), 1);
-  const maxLang = Math.max(...report.languages.map((l) => l.files), 1);
-
-  // The spoken end of the scan, so a screen-reader user hears the outcome the
-  // dashboard shows visually instead of landing on a silent screen. The reader
-  // reached "Готово" on the progress screen; this is the result.
-  const summary = scanSummary(report, lang);
-
-  const score = useMemo(() => computeScore(report), [report]);
-
-  return (
-    <div className="overview">
-      <Announce message={summary} />
-      {score && <ScoreHero score={score} />}
-      {!report.cancelled && <AttackPaths report={report} onOpenFinding={onOpenFinding} />}
-      {!report.cancelled && <RiskyFiles report={report} onOpenFile={onOpenFile} />}
-      {!report.cancelled && report.delta.previousScanAt && (
-        <div className="delta-bar">
-          <div className={`delta-stat ${report.delta.newCount > 0 ? "bad" : ""}`}>
-            <Icon name={report.delta.newCount > 0 ? "trending_up" : "check"} />
-            <b>{report.delta.newCount}</b> {t("новых")}
-          </div>
-          <div className={`delta-stat ${report.delta.fixedCount > 0 ? "good" : ""}`}>
-            <Icon name="trending_down" />
-            <b>{report.delta.fixedCount}</b> {t("исправлено")}
-          </div>
-          <div className="delta-stat">
-            <Icon name="remove" />
-            <b>{report.delta.unchangedCount}</b> {t("без изменений")}
-          </div>
-          <div style={{ flex: 1 }} />
-          <span className="meta-chip">
-            <Icon name="history" />
-            {t("с прошлого скана {date}", { date: new Date(report.delta.previousScanAt).toLocaleString(lang === "en" ? "en-US" : "ru-RU") })}
-          </span>
-        </div>
-      )}
-
-      {!report.cancelled && !report.delta.previousScanAt && (
-        <div className="delta-bar">
-          <Icon name="history" style={{ color: "var(--t-4)" }} />
-          <span style={{ color: "var(--t-3)", fontSize: 12 }}>
-{t("Первое сканирование этой цели — сравнивать пока не с чем. Следующий прогон покажет, что изменилось.")}
-          </span>
-        </div>
-      )}
-
-      {!report.cancelled && <TrendStrip report={report} onOpen={onOpenReport} />}
-
-      {report.suppressedCount > 0 && (
-        <div className="warn-box">
-          <Icon name="visibility_off" />
-{t("Подавлено находок: {n}. Они исключены из счётчиков и скрыты — включите «Подавленные» над списком, чтобы посмотреть или вернуть. Правила лежат в", { n: report.suppressedCount })} <code>.vulnscope-ignore</code>.
-        </div>
-      )}
-
-      {report.cancelled && (
-        <div className="error-banner">
-          <Icon name="cancel" />
-{t("Сканирование отменено — результаты неполные. Отсутствие находок здесь не означает, что код чист: большая часть файлов не проверялась.")}
-        </div>
-      )}
-      {!report.cancelled &&
-        report.warnings.map((w, i) => (
-          <div key={i} className="warn-box">
-            <Icon name="warning" />
-            {w}
-          </div>
-        ))}
-
-      <div className="ov-grid">
-        <div className={`stat-card ${risk}`}>
-          <Icon
-            name={
-              report.cancelled
-                ? "cancel"
-                : counts.critical > 0
-                ? "gpp_maybe"
-                : "verified_user"
-            }
-          />
-          <div className="stat-val">
-            {report.cancelled ? "—" : formatNumber(confirmed.length)}
-          </div>
-          <div className="stat-key">
-            {report.cancelled ? t("Проверка не завершена") : t("Всего находок")}
-          </div>
-          {!report.cancelled && betaCount > 0 && (
-            <div className="stat-beta" title={t("Экспериментальные (BETA) находки не входят в счётчики — см. отдельную вкладку")}>
-              <Icon name="science" />
-              {t("+{n} BETA", { n: String(betaCount) })}
-            </div>
-          )}
-        </div>
-        <div className="stat-card">
-          <Icon name="description" />
-          <div className="stat-val">{formatNumber(report.filesScanned)}</div>
-          <div className="stat-key">{t("Файлов проверено")}</div>
-        </div>
-        <div className="stat-card">
-          <Icon name="numbers" />
-          <div className="stat-val">{formatNumber(report.linesScanned)}</div>
-          <div className="stat-key">{t("Строк кода")}</div>
-        </div>
-        <div className="stat-card">
-          <Icon name="inventory_2" />
-          <div className="stat-val">{formatNumber(report.dependenciesChecked)}</div>
-          <div className="stat-key">{t("Зависимостей проверено")}</div>
-        </div>
-        <div className="stat-card">
-          <Icon name="timer" />
-          <div className="stat-val">{formatDuration(report.durationMs)}</div>
-          <div className="stat-key">{t("Время сканирования")}</div>
-        </div>
-        <div className="stat-card">
-          <Icon name="database" />
-          <div className="stat-val">{formatBytes(report.bytesScanned)}</div>
-          <div className="stat-key">{t("Объём кода")}</div>
-        </div>
-      </div>
-
-      <div className="two-col">
-        <div className="card">
-          <div className="card-title">
-            <Icon name="bar_chart" />
-            {t("По уровню опасности")}
-          </div>
-          {(() => {
-            const total = SEVERITY_ORDER.reduce((n, s) => n + counts[s], 0);
-            if (total === 0) return null;
-            // A single proportional bar answers "how much of this is critical?"
-            // before the eye reaches the per-level rows below.
-            return (
-              <div
-                className="sev-split"
-                role="img"
-                aria-label={SEVERITY_ORDER.filter((s) => counts[s] > 0)
-                  .map((s) => `${t(SEVERITY_LABEL[s])}: ${counts[s]}`)
-                  .join(", ")}
-              >
-                {SEVERITY_ORDER.filter((s) => counts[s] > 0).map((s) => (
-                  <span
-                    key={s}
-                    className={`sev-split-seg ${s}`}
-                    style={{ flexGrow: counts[s] }}
-                    title={`${t(SEVERITY_LABEL[s])}: ${counts[s]}`}
-                  />
-                ))}
-              </div>
-            );
-          })()}
-          {SEVERITY_ORDER.map((s) => (
-            <SeverityBar
-              key={s}
-              label={t(SEVERITY_LABEL[s])}
-              value={counts[s]}
-              max={maxSev}
-              kind={s}
-            />
-          ))}
-        </div>
-
-        <div className="card">
-          <div className="card-title">
-            <Icon name="code" />
-            {t("Языки")}
-          </div>
-          {report.languages.slice(0, 6).map((l) => (
-            <SeverityBar key={l.language} label={l.label} value={l.files} max={maxLang} kind="lang" />
-          ))}
-          {report.languages.length === 0 && (
-            <p style={{ color: "var(--t-2)", fontSize: 12.5 }}>{t("Файлы не найдены")}</p>
-          )}
-        </div>
-      </div>
-
-      {report.delta.fixed.length > 0 && (
-        <div className="card fixed-card">
-          <div className="card-title">
-            <Icon name="task_alt" />
-            {t("Исправлено с прошлого скана")}
-            <span className="count">{report.delta.fixed.length}</span>
-          </div>
-          <div className="fixed-list">
-            {report.delta.fixed.slice(0, 12).map((f) => (
-              <div key={f.fingerprint} className="fixed-row">
-                <span className={`sev-dot ${f.severity}`} />
-                <span className="fx-title">{t(f.title)}</span>
-                <span className="fx-file">
-                  <LtrPath>{f.file}</LtrPath>
-                </span>
-              </div>
-            ))}
-          </div>
-          {report.delta.fixed.length > 12 && (
-            <p className="fx-more">{t("и ещё {n}", { n: report.delta.fixed.length - 12 })}</p>
-          )}
-        </div>
-      )}
-
-      <div className="card" style={{ marginTop: 12 }}>
-        <div className="card-title">
-          <Icon name="checklist" />
-          {t("Использованные движки")}
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {report.enginesUsed.map((e) => (
-            <span key={e} className="tag" style={{ fontSize: 11, padding: "3px 8px" }}>
-              {/* Engine names come from the backend as full strings. "Свои
-                  правила (N)" bakes in the count, so it is matched by pattern;
-                  the rest are looked up directly. */}
-              {engineLabel(e, t)}
-            </span>
-          ))}
         </div>
       </div>
     </div>

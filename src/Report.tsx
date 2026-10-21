@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ScanReport, Finding, Severity, HistoryPoint, Staff1c } from "./types";
 import { SEVERITY_ORDER, SEVERITY_LABEL } from "./types";
 import { Icon, formatNumber, formatDuration } from "./components";
-import { computeScore, type Grade } from "./score";
+import { computeScore, GRADE_TONE } from "./score";
 import { responsibleBreakdown } from "./responsible.ts";
 import { useT, LangContext } from "./i18n";
 
@@ -14,14 +14,6 @@ import { useT, LangContext } from "./i18n";
  * previous scan, and remediation efficiency, then prints straight to PDF via the
  * webview (no heavy PDF library, and Cyrillic renders with system fonts).
  */
-
-const GRADE_TONE: Record<Grade, string> = {
-  A: "ok",
-  B: "ok",
-  C: "med",
-  D: "high",
-  F: "crit",
-};
 
 function pct(n: number, d: number): string {
   if (d <= 0) return "—";

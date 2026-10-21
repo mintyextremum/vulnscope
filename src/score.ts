@@ -115,6 +115,15 @@ const SCALE = 24;
 
 export type Grade = "A" | "B" | "C" | "D" | "F";
 
+/** The severity-token family each grade is painted in. */
+export const GRADE_TONE: Record<Grade, "ok" | "med" | "high" | "crit"> = {
+  A: "ok",
+  B: "ok",
+  C: "med",
+  D: "high",
+  F: "crit",
+};
+
 /** One contributing bucket, so the score reads as arithmetic, not a verdict. */
 export interface ScoreFactor {
   severity: Severity;
@@ -139,6 +148,8 @@ export interface PlanStep {
   ruleId: string;
   /** Title of the cause's worst finding (Russian; translated at the call site). */
   title: string;
+  /** Its category — what a data-flow cause is named by. */
+  category: string;
   severity: Severity;
   count: number;
   files: number;
@@ -410,6 +421,7 @@ function buildPlan(causes: Cause[]): PlanStep[] {
       key: cause.key,
       ruleId: worst.ruleId,
       title: worst.title,
+      category: worst.category,
       severity: SEVERITY_ORDER[cause.presence.worst],
       count: cause.findings.length,
       files: new Set(cause.findings.map((f) => f.file)).size,
