@@ -306,6 +306,16 @@ export const EN: Record<string, string> = {
   "Средняя защита": "Fair posture",
   "Слабая защита": "Weak posture",
   "Критические риски": "Critical risks",
+  "Серьёзные риски": "Serious risks",
+  "Только информационные находки — оценка не ниже {n}": "Informational findings only — the score stays at {n} or above",
+  "Нет находок выше низкого уровня — оценка не ниже {n}": "Nothing above low severity — the score stays at {n} or above",
+  "Нет находок выше среднего уровня — оценка не ниже {n}": "Nothing above medium severity — the score stays at {n} or above",
+  "Критическая уязвимость достижима из внешнего ввода — оценка не выше {n}":
+    "A critical vulnerability is reachable from external input — the score stays at {n} or below",
+  "Есть критическая уязвимость — оценка не выше {n}": "A critical vulnerability is present — the score stays at {n} or below",
+  "Уязвимость высокого уровня достижима из внешнего ввода — оценка не выше {n}":
+    "A high-severity vulnerability is reachable from external input — the score stays at {n} or below",
+  "Есть уязвимость высокого уровня — оценка не выше {n}": "A high-severity vulnerability is present — the score stays at {n} or below",
   "достижимо по данным": "reachable by data flow",
   "Достижимо": "Reachable",
   "На пути данных": "On a data path",

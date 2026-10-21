@@ -22,6 +22,9 @@
  *  5. The help screen's `SECTIONS` array — data, not literals at the call site,
  *     so `t(variable)` hides it from (1). Checking it here retires a manual
  *     step that drifted every time the help text was edited.
+ *  6. The security score's labels and limit reasons (score.ts). The module
+ *     deliberately imports nothing at runtime, so it carries Russian strings
+ *     that the dashboard renders as `t(score.label)` — invisible to (1).
  *
  * Not covered: labels built at runtime (OSV messages with `{}` placeholders) and
  * the assorted `*Label` mappings in the scanner — those are not parseable from a
@@ -40,6 +43,7 @@ const SECRETS_FILE = join(ROOT, "src-tauri", "src", "secrets.rs");
 const MODEL_FILE = join(ROOT, "src-tauri", "src", "model.rs");
 const SETTINGS_FILE = join(ROOT, "src-tauri", "src", "settings.rs");
 const HELP_FILE = join(SRC, "Help.tsx");
+const SCORE_FILE = join(SRC, "score.ts");
 
 function walk(dir) {
   const out = [];
@@ -166,6 +170,21 @@ function helpKeys(file) {
 }
 
 /**
+ * Every Cyrillic string literal in score.ts. The module has no comments in
+ * Russian and no other use for Russian text, so each such literal is a label
+ * or a limit reason the dashboard translates — no field list to keep in sync.
+ */
+function scoreKeys(file) {
+  const keys = new Map();
+  const src = readFileSync(file, "utf8");
+  for (const m of src.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)) {
+    const key = unesc(m[1]);
+    if (needsTranslation(key)) add(keys, key, "score.ts");
+  }
+  return keys;
+}
+
+/**
  * User-visible JSX attributes holding a raw Cyrillic literal — text that never
  * reaches `t()` at all.
  *
@@ -273,6 +292,10 @@ const groups = [
   {
     name: "Справка (SECTIONS в Help.tsx)",
     keys: helpKeys(HELP_FILE),
+  },
+  {
+    name: "Оценка защищённости (score.ts)",
+    keys: scoreKeys(SCORE_FILE),
   },
 ];
 
