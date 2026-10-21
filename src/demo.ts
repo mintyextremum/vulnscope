@@ -944,7 +944,13 @@ export function demoReport(durationMs = 4200): ScanReport {
       newBySeverity: { critical: 1, high: 2, medium: 1 },
     },
     suppressedCount: findings.filter((f) => f.suppressed).length,
-    findings: findings.map((f) => ({ ...f })),
+    // In the order the scanner returns them: worst first, then by place.
+    findings: findings
+      .map((f) => ({ ...f }))
+      .sort(
+        (a, b) =>
+          ORDER.indexOf(a.severity) - ORDER.indexOf(b.severity) || a.file.localeCompare(b.file) || a.line - b.line,
+      ),
     files,
     skipped: [
       { path: "web/node_modules/express/index.js", reason: "vendor", reasonLabel: "Вендор-директория", size: 4200 },

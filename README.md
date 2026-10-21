@@ -14,7 +14,7 @@ and CVE lookup — for local projects and public repositories.
 
 *[Русская версия](README.ru.md)*
 
-<img src="docs/images/01-dashboard.png" alt="VulnScope dashboard: security score, riskiest files, and scan statistics" width="900">
+<img src="docs/images/01-dashboard.png" alt="VulnScope dashboard: security score with its risk breakdown, the fix plan, attack paths, the riskiest files and the trend" width="900">
 
 </div>
 
@@ -46,8 +46,8 @@ Download the latest installer from the
 
 | File | What it is |
 |---|---|
-| `VulnScope_1.3.0_x64-setup.exe` | NSIS installer — the usual choice |
-| `VulnScope_1.3.0_x64_en-US.msi` | MSI package, for deployment via group policy |
+| `VulnScope_2.0.0_x64-setup.exe` | NSIS installer — the usual choice |
+| `VulnScope_2.0.0_x64_en-US.msi` | MSI package, for deployment via group policy |
 
 Windows 10 or 11, 64-bit. Nothing else to install: WebView2 ships with Windows 11
 and current Windows 10, and VulnScope bundles no runtime of its own.
@@ -67,7 +67,7 @@ info → Run anyway**, or build it yourself from source (see
   - [Rules](#code--274-built-in-rules) · [Data-flow analysis](#data-flow-analysis-the-flagship) · [Compromise indicators](#compromise-indicators) · [Secrets](#secrets--55-detectors) · [Dependencies](#dependencies--cves-via-osvdev) · [External scanners](#external-scanners-optional)
 - [What it doesn't analyze](#what-it-doesnt-analyze)
 - [Working through the results](#working-through-the-results)
-  - [Security score](#security-score) · [While the scan runs](#while-the-scan-runs) · [Comparing scans](#comparing-with-the-last-scan) · [Suppressing](#suppressing-findings) · [Accountability](#accountability)
+  - [Security score](#security-score) · [While the scan runs](#while-the-scan-runs) · [Comparing scans](#comparing-with-the-last-scan) · [Changes only](#checking-only-your-changes-beta) · [Suppressing](#suppressing-findings) · [Accountability](#accountability)
 - [Export](#export)
 - [Interface](#interface) · [Accessibility](#accessibility) · [Language](#language) · [Themes](#themes) · [Settings](#settings)
 - [Development](#development) · [How it works](#how-it-works) · [Accuracy and limits](#accuracy-and-limits)
@@ -135,8 +135,18 @@ that line-by-line rules cannot see, and every finding is self-verifiable: the ex
 route is visible. No AI, no black boxes — the same input always produces the same
 answer.
 
+The engine reads statements, not lines: a query split over three lines, arguments
+in a column and call chains with a leading dot are one statement, and the finding
+still points at the real line. It knows where functions begin and end in Python,
+JavaScript/TypeScript, PHP, Go, Java, C#, Kotlin, Scala, Ruby, Elixir and Perl, so
+one handler's variables never leak into the next. In frameworks where input
+arrives as a parameter rather than through `request` — `@RequestParam` in Spring,
+`[FromQuery]` in ASP.NET, `@Query` in NestJS, `Query()` and route paths in FastAPI
+and Flask — the parameter is the source; a path parameter typed `int` or `uuid`
+is not, since no string fits through it.
+
 <div align="center">
-<img src="docs/images/02-findings.png" alt="Findings list with the file tree, a selected finding, its code, fix, and CWE/OWASP classification" width="900">
+<img src="docs/images/02-findings.png" alt="Findings list with the file tree and a cross-file data flow: source, call, and the sink in another file" width="900">
 </div>
 
 ### Compromise indicators
@@ -231,13 +241,29 @@ dependencies** checkbox turns that off.
 ### Security score
 
 One number for the whole report, on a 0–100 scale with a letter grade. Each finding
-subtracts points weighted by severity and — the part that sets it apart — by
-whether the data-flow engine proved it **reachable** from untrusted input. A
-reachable critical is worse than an isolated one, and the score says so.
+weighs by severity, by the rule's confidence, and — the part that sets it apart —
+by whether the data-flow engine proved it **reachable** from untrusted input.
+
+Findings are grouped by **root cause**: a rule, or one version of a package (every
+advisory against it is fixed by one upgrade). Repeats of a cause still count, but
+less each time — forty MD5 calls are one habit to break, not forty catastrophes.
+And the worst finding sets **honest limits**: without high or critical findings
+the score never reaches F, however many small ones there are; a critical
+vulnerability keeps it at C or below, and one reachable from input at D or below,
+however large and clean the rest of the code is. A limit that applies is named on
+the dashboard.
+
+**Why this score?** opens the arithmetic: each severity's share of the risk, the
+repeat discount, the multipliers, the limit and what the score would be without
+it. Next to the score, the **fix plan** lists the causes whose fixes buy the most
+points, step by step, with the score and grade after each — and a fix clears the
+whole line, so a step also counts other rules' findings on the same lines. Every
+step's number is a promise the score audit checks by recomputing the report
+without those findings. The plan is in the printed report and the exports too.
 
 It is deterministic and fully attributable: the same report always yields the same
-score, and every point traces to a factor shown in the breakdown. The dashboard
-also lists **attack paths** sorted by danger, each opening the finding behind it.
+score. The dashboard also lists **attack paths** sorted by danger, each opening the
+finding behind it.
 
 ### While the scan runs
 
@@ -270,6 +296,16 @@ leaves the fingerprint intact for the same reason.
 
 The first scan of a target says plainly that there is nothing to compare against,
 rather than reporting "0 new".
+
+### Checking only your changes (BETA)
+
+**Changes only** scans the files that differ from the last commit — staged,
+unstaged and new, minus ignored ones — to check an edit before committing it. The
+cross-file data-flow pass still reads the whole project: a flow from your change
+into an unchanged helper is exactly what you need to see. Such a scan is not
+compared with the previous one and not written to the history — otherwise
+everything outside the change would look fixed, and the next full scan would
+report it all as new. Its score is labelled the score of the changes.
 
 ### Suppressing findings
 
@@ -339,6 +375,11 @@ how many findings are hidden and resets the filters in one click: a list emptied
 a filter looks too much like a clean project, so it says so plainly instead of
 showing a green shield.
 
+**Collapse repeats** shows one row per root cause, marked ×N; the finding's detail
+lists the other places, each opening at its line. Every traced data flow is titled
+with what it reaches — "SQL injection · User data reaches a dangerous call" — so
+four flows never read as four identical rows.
+
 The viewer shows the code, but fixing it happens in an editor — so a button next to
 the path reveals the file in the system file manager. Set an editor command in the
 settings (say, `code -g {file}:{line}`) and a second button opens the finding right
@@ -354,7 +395,7 @@ placeholders, not baked into the app.
 | `Ctrl+N` | New scan |
 | `Ctrl+Shift+R` | Re-scan the same target |
 | `Ctrl+S` | Export report |
-| `1`–`4` | Tabs: overview / findings / code / skipped |
+| `1`–`5` | Tabs: overview / findings / experimental / code / skipped |
 | `J`, `K`, `↑`, `↓` | Move between findings |
 | `Enter` | Open the finding in code |
 | `Esc` | Close the palette, catalogue or settings |
@@ -428,7 +469,13 @@ npm run check:all
 ```
 
 That covers a TypeScript typecheck, eight audit scripts, a production build, the
-288 backend tests, and Clippy with warnings denied.
+backend tests, and Clippy with warnings denied.
+
+`npm run dev` opened in a plain browser runs against a simulated backend
+(`src/devbackend.ts`, on Tauri's own IPC mock): setup, a scan with live progress,
+results, the code viewer, edit-and-recheck and settings all work on a demo
+project, so the interface can be built and checked without the Rust side. None of
+it reaches a production build.
 
 Each audit script exists because something shipped broken in a way review did not
 catch — contrast, localization completeness, SARIF shape, score maths, 1C XML

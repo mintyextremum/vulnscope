@@ -3142,23 +3142,6 @@ kbd,
 }
 .score-limit .material-symbols-outlined { font-size: 15px; color: var(--tone); flex-shrink: 0; }
 
-.score-card .sev-split { margin: 0; }
-
-.sc-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-4);
-  margin-top: calc(var(--sp-2) * -1);
-}
-.sc-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  color: var(--t-3);
-  font-size: var(--fs-xs);
-}
-.sc-legend-item b { color: var(--t-1); font-variant-numeric: tabular-nums; }
-
 /* The stats row sits at the bottom when the card is stretched beside the plan. */
 .score-card .sc-stats { margin-top: auto; }
 

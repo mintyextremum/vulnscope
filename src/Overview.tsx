@@ -161,28 +161,21 @@ function ScoreCard({
 
       {score.total > 0 && (
         <>
-          <div
-            className="sev-split"
-            role="img"
-            aria-label={score.factors.map((f) => `${t(SEVERITY_LABEL[f.severity])}: ${f.count}`).join(", ")}
-          >
-            {score.factors.map((f) => (
-              <span
-                key={f.severity}
-                className={`sev-split-seg ${f.severity}`}
-                style={{ flexGrow: f.count }}
-                title={`${t(SEVERITY_LABEL[f.severity])}: ${f.count}`}
-              />
-            ))}
-          </div>
-          <div className="sc-legend">
-            {score.factors.map((f) => (
-              <span key={f.severity} className="sc-legend-item">
-                <span className={`sev-dot ${f.severity}`} />
-                {t(SEVERITY_LABEL[f.severity])}
-                <b>{f.count}</b>
-              </span>
-            ))}
+          <div className="sw-factors">
+            {score.factors.map((f) => {
+              const share = Math.round((f.penalty / load) * 100);
+              return (
+                <div key={f.severity} className="sw-factor">
+                  <span className={`sev-dot ${f.severity}`} />
+                  <span className="sw-label">{t(SEVERITY_LABEL[f.severity])}</span>
+                  <span className="sw-count">{f.count}</span>
+                  <span className="sw-bar">
+                    <span className={`sw-fill ${f.severity}`} style={{ width: `${Math.max(2, share)}%` }} />
+                  </span>
+                  <span className="sw-share">{t("{n}% риска", { n: share })}</span>
+                </div>
+              );
+            })}
           </div>
           <div className="sc-stats">
             <span className="sc-stat">
@@ -219,22 +212,6 @@ function ScoreCard({
 
       {why && (
         <div className="score-why">
-          <div className="sw-factors">
-            {score.factors.map((f) => {
-              const share = Math.round((f.penalty / load) * 100);
-              return (
-                <div key={f.severity} className="sw-factor">
-                  <span className={`sev-dot ${f.severity}`} />
-                  <span className="sw-label">{t(SEVERITY_LABEL[f.severity])}</span>
-                  <span className="sw-count">{f.count}</span>
-                  <span className="sw-bar">
-                    <span className={`sw-fill ${f.severity}`} style={{ width: `${Math.max(2, share)}%` }} />
-                  </span>
-                  <span className="sw-share">{t("{n}% риска", { n: share })}</span>
-                </div>
-              );
-            })}
-          </div>
           <ul className="sw-notes">
             <li>
               {t("Повторы одной причины весят всё меньше — находок: {n}, причин: {c}.", {
