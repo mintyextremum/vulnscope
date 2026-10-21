@@ -90,7 +90,23 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function installDevBackend(): void {
   mockWindows("main");
-  let settings: AppSettings = { ...DEMO_SETTINGS };
+  // Kept across reloads, like the real settings file: switching the language
+  // or a theme and pressing F5 should not quietly undo it.
+  const STORE = "vs.dev.settings";
+  let settings: AppSettings = (() => {
+    try {
+      return { ...DEMO_SETTINGS, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") };
+    } catch {
+      return { ...DEMO_SETTINGS };
+    }
+  })();
+  const keep = () => {
+    try {
+      localStorage.setItem(STORE, JSON.stringify(settings));
+    } catch {
+      /* the demo simply forgets */
+    }
+  };
   let cancelled = false;
   const sources: Record<string, string> = { ...DEMO_SOURCES };
 
@@ -207,9 +223,11 @@ export function installDevBackend(): void {
           return settings;
         case "save_settings":
           settings = { ...(args.settings as AppSettings) };
+          keep();
           return settings;
         case "reset_settings":
           settings = { ...DEMO_SETTINGS };
+          keep();
           return settings;
         case "get_settings_path":
           return "C:/Users/demo/AppData/Roaming/vulnscope/settings.json";
