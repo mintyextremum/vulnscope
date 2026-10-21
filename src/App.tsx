@@ -107,6 +107,9 @@ export default function App() {
     () => localStorage.getItem("vs.dataflow") !== "0",
   );
   const [enabledTools, setEnabledTools] = useState<Set<ToolId>>(new Set());
+  // Not remembered across launches on purpose: a scan quietly limited to the
+  // last edits is the kind of setting nobody remembers having turned on.
+  const [changedOnly, setChangedOnly] = useState(false);
 
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [report, setReport] = useState<ScanReport | null>(null);
@@ -340,6 +343,9 @@ export default function App() {
     // false reassurance the results screen refuses to give. Nothing is recorded,
     // and any earlier honest entry for this target survives untouched.
     if (r.cancelled) return;
+    // A scan of the latest edits says nothing about the project as a whole;
+    // its grade next to the project's name would.
+    if (r.changedOnly) return;
     const score = computeScore(r);
     const entry: RecentTarget = {
       mode: isRepo ? "repo" : "local",
@@ -393,6 +399,7 @@ export default function App() {
       experimental,
       dataflow,
       externalTools: [...enabledTools],
+      changedOnly: changedOnly && !isRepo,
     };
 
     try {
@@ -1683,6 +1690,8 @@ export default function App() {
           setExperimental={setExperimental}
           dataflow={dataflow}
           setDataflow={setDataflow}
+          changedOnly={changedOnly}
+          setChangedOnly={setChangedOnly}
           enabledTools={enabledTools}
           setEnabledTools={setEnabledTools}
           canScan={canScan}
@@ -1735,6 +1744,11 @@ export default function App() {
             <div className="target-chip">
               <Icon name={report.root.includes("repos") ? "cloud_download" : "folder"} />
               {report.targetLabel}
+              {report.changedOnly && (
+                <span className="tag beta" title={t("Проверены только файлы, изменённые с последнего коммита")}>
+                  {t("только изменения")}
+                </span>
+              )}
             </div>
             <div className="sev-pills">
               {SEVERITY_ORDER.map((s) => {
@@ -1999,6 +2013,8 @@ interface SetupProps {
   setExperimental: (v: boolean) => void;
   dataflow: boolean;
   setDataflow: (v: boolean) => void;
+  changedOnly: boolean;
+  setChangedOnly: (v: boolean) => void;
   enabledTools: Set<ToolId>;
   setEnabledTools: (v: Set<ToolId>) => void;
   canScan: boolean;
@@ -2245,6 +2261,21 @@ function SetupScreen(p: SetupProps) {
                 "Эвристики: помечают возможные уязвимости, которые не поймали точные правила",
               )}
             />
+            {p.mode === "local" && (
+              <Check
+                checked={p.changedOnly}
+                onChange={p.setChangedOnly}
+                title={
+                  <>
+                    {t("Только изменения")}
+                    <span className="beta-badge">BETA</span>
+                  </>
+                }
+                desc={t(
+                  "Файлы, изменённые с последнего коммита, и новые — проверка правки до коммита. Нужен git-репозиторий",
+                )}
+              />
+            )}
           </div>
         </div>
 

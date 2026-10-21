@@ -308,6 +308,14 @@ export const EN: Record<string, string> = {
   "Критические риски": "Critical risks",
   "Серьёзные риски": "Serious risks",
   // Dashboard 2.0
+  "Только изменения": "Changes only",
+  "Файлы, изменённые с последнего коммита, и новые — проверка правки до коммита. Нужен git-репозиторий":
+    "Files changed since the last commit, and new ones — check an edit before committing it. Needs a git repository",
+  "Проверены только изменения с последнего коммита — файлов: {n}. Оценка относится к ним; сравнение с прошлым сканом и история не обновлялись.":
+    "Only the changes since the last commit were scanned — files: {n}. The score is theirs; the comparison with the previous scan and the history were not updated.",
+  "Оценка изменений": "Score of the changes",
+  "Проверены только файлы, изменённые с последнего коммита": "Only files changed since the last commit were scanned",
+  "только изменения": "changes only",
   "Выберите файл слева или начните отсюда:": "Pick a file on the left, or start here:",
   "Свернуть повторы": "Collapse repeats",
   "Одна строка на причину: правило или версию пакета. Остальные места — в карточке находки.":

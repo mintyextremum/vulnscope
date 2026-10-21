@@ -62,6 +62,81 @@ pub fn git_available() -> bool {
         .unwrap_or(false)
 }
 
+/// `git -C <root>` for reading a repository VulnScope did not create.
+///
+/// The repository being scanned is untrusted input, and so is its
+/// `.git/config`: a folder unpacked from an archive brings one along. Git runs
+/// programs named there — `core.fsmonitor` on any command that refreshes the
+/// index, external diff and textconv drivers — so a plain `git diff` in such a
+/// folder executes whatever the archive's author chose. These overrides take
+/// precedence over the repository's own config: fsmonitor is switched off
+/// here, and the commands that could reach a diff driver pass `--no-ext-diff`
+/// and `--no-textconv` themselves. None of the commands used runs hooks.
+/// Optional locks are off too, so reading never writes the index.
+pub fn hardened(root: &Path) -> std::process::Command {
+    let mut cmd = crate::proc::std_command("git");
+    cmd.arg("-C")
+        .arg(root)
+        .args(["-c", "core.fsmonitor=false"])
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::null());
+    cmd
+}
+
+/// NUL-separated paths from a git listing, forward-slashed and non-empty.
+fn nul_paths(out: &[u8]) -> impl Iterator<Item = String> + '_ {
+    out.split(|&b| b == 0)
+        .filter(|p| !p.is_empty())
+        .map(|p| String::from_utf8_lossy(p).replace('\\', "/"))
+}
+
+/// Files under `root` that differ from the last commit — staged, unstaged or
+/// untracked (but not ignored) — as paths relative to `root`, forward-slashed
+/// like discovery's. Deleted files are left out: there is nothing to scan.
+///
+/// A repository without commits yet has no HEAD to compare with, so everything
+/// in it counts as changed.
+pub fn changed_files(root: &Path) -> Result<std::collections::HashSet<String>> {
+    let inside = hardened(root)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .context("git не запустился")?;
+    if !inside.status.success() || String::from_utf8_lossy(&inside.stdout).trim() != "true" {
+        bail!("режим «только изменения» работает в git-репозитории, а {} — не он", root.display());
+    }
+
+    let mut changed = std::collections::HashSet::new();
+    let has_head = hardened(root)
+        .args(["rev-parse", "--verify", "--quiet", "HEAD"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    let listing = if has_head {
+        // `--relative`: paths relative to `root` and only below it, which is
+        // what a scan of a subfolder of a repository needs.
+        hardened(root)
+            .args(["diff", "HEAD", "--name-only", "-z", "--relative", "--diff-filter=d", "--no-ext-diff", "--no-textconv", "--no-renames"])
+            .output()
+    } else {
+        hardened(root).args(["ls-files", "-z"]).output()
+    }
+    .context("git не запустился")?;
+    if !listing.status.success() {
+        bail!("git не смог перечислить изменения: {}", String::from_utf8_lossy(&listing.stderr).trim());
+    }
+    changed.extend(nul_paths(&listing.stdout));
+
+    let untracked = hardened(root)
+        .args(["ls-files", "--others", "--exclude-standard", "-z"])
+        .output()
+        .context("git не запустился")?;
+    if untracked.status.success() {
+        changed.extend(nul_paths(&untracked.stdout));
+    }
+    Ok(changed)
+}
+
 /// Working directory for cloned repositories, under the OS cache dir.
 pub fn clone_root() -> Result<PathBuf> {
     let dir = dirs::cache_dir()
@@ -204,6 +279,104 @@ mod tests {
         assert!(parse_repo_url("").is_err());
         assert!(parse_repo_url("not a url at all").is_err());
         assert!(parse_repo_url("https://example.com/a/b/c/d").is_err());
+    }
+
+    /// A throwaway repository with one committed file, or None without git.
+    fn temp_repo(tag: &str) -> Option<PathBuf> {
+        if !git_available() {
+            eprintln!("git недоступен — тест пропущен");
+            return None;
+        }
+        let dir = std::env::temp_dir().join(format!("vs-git-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let git = |args: &[&str]| {
+            let ok = crate::proc::std_command("git")
+                .arg("-C")
+                .arg(&dir)
+                .args(["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"])
+                .args(args)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            assert!(ok, "git {args:?}");
+        };
+        git(&["init", "-q"]);
+        std::fs::write(dir.join("kept.py"), "a = 1\n").unwrap();
+        std::fs::write(dir.join("edited.py"), "b = 1\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-q", "-m", "init"]);
+        Some(dir)
+    }
+
+    #[test]
+    fn changed_files_lists_edits_and_new_files_only() {
+        let Some(dir) = temp_repo("changed") else { return };
+        std::fs::write(dir.join("edited.py"), "b = 2\n").unwrap();
+        std::fs::write(dir.join("sub").join("new.py"), "c = 1\n").unwrap();
+        std::fs::write(dir.join(".gitignore"), "ignored.py\n").unwrap();
+        std::fs::write(dir.join("ignored.py"), "d = 1\n").unwrap();
+
+        let changed = changed_files(&dir).expect("a work tree");
+        assert!(changed.contains("edited.py"), "{changed:?}");
+        assert!(changed.contains("sub/new.py"), "forward slashes, like discovery: {changed:?}");
+        assert!(changed.contains(".gitignore"));
+        assert!(!changed.contains("kept.py"), "unchanged files are not scanned");
+        assert!(!changed.contains("ignored.py"), "ignored files are not scanned");
+
+        // A subfolder scan sees paths relative to itself, and only below it.
+        let sub = changed_files(&dir.join("sub")).unwrap();
+        assert_eq!(sub.into_iter().collect::<Vec<_>>(), vec!["new.py".to_string()]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn changed_files_refuses_a_plain_folder() {
+        let dir = std::env::temp_dir().join(format!("vs-git-plain-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // A temp dir can sit inside some repository on a developer machine;
+        // only assert when it really is outside one.
+        let inside = hardened(&dir).args(["rev-parse", "--is-inside-work-tree"]).output();
+        if inside.map(|o| o.status.success()).unwrap_or(true) {
+            return;
+        }
+        assert!(changed_files(&dir).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The reason every git call goes through `proc`: a scanned repository's own
+    /// `.git/config` must not get to run a program. Proven against the real
+    /// attack — a `core.fsmonitor` command — on the git commands scans use.
+    #[test]
+    fn a_scanned_repository_cannot_run_its_fsmonitor() {
+        let Some(dir) = temp_repo("fsmonitor") else { return };
+        let marker = dir.join("pwned.txt");
+        crate::proc::std_command("git")
+            .arg("-C")
+            .arg(&dir)
+            .args(["config", "core.fsmonitor", "echo pwned > pwned.txt"])
+            .output()
+            .unwrap();
+        std::fs::write(dir.join("edited.py"), "b = 2\n").unwrap();
+
+        let _ = changed_files(&dir);
+        for args in [vec!["ls-files", "-z"], vec!["blame", "--line-porcelain", "-L", "1,1", "--", "kept.py"]] {
+            // Plain `git -C`, no `-c`: the environment from `proc` alone.
+            let _ = crate::proc::std_command("git").arg("-C").arg(&dir).args(&args).output();
+        }
+        assert!(!marker.exists(), "the repository's core.fsmonitor ran");
+
+        // Control: without the override the same config does run, so the
+        // assertion above is testing something real on this machine.
+        let _ = crate::proc::std_command("git")
+            .arg("-C")
+            .arg(&dir)
+            .args(["ls-files"])
+            .env_remove("GIT_CONFIG_COUNT")
+            .output();
+        let ran = marker.exists();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(ran, "control: an unprotected git should have run the hook");
     }
 
     #[test]

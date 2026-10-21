@@ -50,9 +50,20 @@ export function Overview({
         </div>
       )}
 
+      {report.changedOnly && (
+        <div className="scope-note">
+          <Icon name="difference" />
+          <span>
+            {t("Проверены только изменения с последнего коммита — файлов: {n}. Оценка относится к ним; сравнение с прошлым сканом и история не обновлялись.", {
+              n: report.filesScanned,
+            })}
+          </span>
+        </div>
+      )}
+
       {score && (
         <div className="ov-top">
-          <ScoreCard score={score} onShowReachable={onShowReachable} />
+          <ScoreCard score={score} onShowReachable={onShowReachable} partial={!!report.changedOnly} />
           <FixPlan score={score} report={report} onOpenFinding={onOpenFinding} />
         </div>
       )}
@@ -72,7 +83,7 @@ export function Overview({
         </div>
       )}
 
-      {!report.cancelled && <Dynamics report={report} onOpenReport={onOpenReport} />}
+      {!report.cancelled && !report.changedOnly && <Dynamics report={report} onOpenReport={onOpenReport} />}
 
       {report.delta.fixed.length > 0 && <FixedSince report={report} />}
 
@@ -111,7 +122,16 @@ function Ring({ score }: { score: SecurityScore }) {
  * the repeat discount and the limit that held it — every number the formula
  * used, none of it hidden.
  */
-function ScoreCard({ score, onShowReachable }: { score: SecurityScore; onShowReachable: () => void }) {
+function ScoreCard({
+  score,
+  onShowReachable,
+  partial,
+}: {
+  score: SecurityScore;
+  onShowReachable: () => void;
+  /** Only the changed files were scanned: the score is theirs, not the project's. */
+  partial: boolean;
+}) {
   const t = useT();
   const [why, setWhy] = useState(false);
   const tone = GRADE_TONE[score.grade];
@@ -122,7 +142,7 @@ function ScoreCard({ score, onShowReachable }: { score: SecurityScore; onShowRea
       <div className="sc-head">
         <Ring score={score} />
         <div className="score-body">
-          <div className="score-title">{t("Оценка защищённости")}</div>
+          <div className="score-title">{partial ? t("Оценка изменений") : t("Оценка защищённости")}</div>
           <div className="score-label">{t(score.label)}</div>
           {score.limit && (
             <div className={`score-limit ${score.limit.kind}`}>

@@ -301,6 +301,9 @@ export interface ScanReport {
   dependenciesChecked: number;
   enginesUsed: string[];
   warnings: string[];
+  /** Only the files changed since the last commit were scanned; such a report
+   *  is not compared with the previous scan nor recorded in its history. */
+  changedOnly?: boolean;
 }
 
 /**
@@ -442,6 +445,8 @@ export interface ScanOptions {
   experimental: boolean;
   dataflow: boolean;
   externalTools: ToolId[];
+  /** Experimental: only the files changed since the last commit. */
+  changedOnly: boolean;
 }
 
 export interface RuleInfo {

@@ -140,6 +140,18 @@ export function installDevBackend(): void {
     if (cancelled) {
       return { ...report, cancelled: true, findings: [], files: [], counts: { critical: 0, high: 0, medium: 0, low: 0, info: 0 } };
     }
+    if (options.changedOnly) {
+      // The demo's "uncommitted edits": the files whose findings are new.
+      const changed = new Set(report.findings.filter((f) => f.isNew).map((f) => f.file));
+      report.findings = report.findings.filter((f) => changed.has(f.file));
+      report.files = report.files.filter((f) => changed.has(f.path));
+      report.filesScanned = changed.size;
+      report.changedOnly = true;
+      report.delta = { previousScanAt: null, newCount: 0, fixedCount: 0, unchangedCount: 0, fixed: [], newBySeverity: {} };
+      for (const f of report.findings) f.isNew = false;
+      report.counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+      for (const f of report.findings) if (!f.suppressed) report.counts[f.severity]++;
+    }
     // The options are honoured where they change what a real scan returns.
     report.findings = report.findings.filter(
       (f) =>

@@ -27,10 +27,27 @@ use std::ffi::OsStr;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+/// Git configuration forced on every child process and everything it starts.
+///
+/// A scanned folder is untrusted input, and when it carries a `.git` directory
+/// its `.git/config` comes with it. Git runs the program named in
+/// `core.fsmonitor` from `git status`, `git diff`, `git ls-files` and
+/// `git blame` alike — so an archive with a crafted config ran its author's
+/// command the moment a scan touched it, through our blame step or through an
+/// external scanner that lists files with git. Config passed this way has the
+/// precedence of `git -c`, above the repository's, and environment variables
+/// reach grandchildren that no argument list could.
+const GIT_OVERRIDES: [(&str, &str); 3] = [
+    ("GIT_CONFIG_COUNT", "1"),
+    ("GIT_CONFIG_KEY_0", "core.fsmonitor"),
+    ("GIT_CONFIG_VALUE_0", "false"),
+];
+
 /// `std::process::Command`, minus the console window.
 pub fn std_command(program: impl AsRef<OsStr>) -> std::process::Command {
     #[allow(unused_mut)]
     let mut cmd = std::process::Command::new(program);
+    cmd.envs(GIT_OVERRIDES);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -43,6 +60,7 @@ pub fn std_command(program: impl AsRef<OsStr>) -> std::process::Command {
 pub fn command(program: impl AsRef<OsStr>) -> tokio::process::Command {
     #[allow(unused_mut)]
     let mut cmd = tokio::process::Command::new(program);
+    cmd.envs(GIT_OVERRIDES);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd

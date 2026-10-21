@@ -613,6 +613,10 @@ pub struct ScanReport {
     pub engines_used: Vec<String>,
     /// Non-fatal problems worth showing (OSV offline, tool crashed, ...).
     pub warnings: Vec<String>,
+    /// Only the files changed since the last commit were scanned. Such a report
+    /// is not compared with the previous scan and not recorded in the history.
+    #[serde(default)]
+    pub changed_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

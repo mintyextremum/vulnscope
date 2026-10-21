@@ -48,6 +48,10 @@ pub struct ScanOptions {
     pub dataflow: bool,
     #[serde(default)]
     pub external_tools: Vec<Tool>,
+    /// Experimental: scan only the files that differ from the last commit
+    /// (staged, unstaged or new). For checking a change before committing it.
+    #[serde(default)]
+    pub changed_only: bool,
 }
 
 fn default_true() -> bool {
@@ -944,6 +948,25 @@ pub async fn run_scan(
             .context("обход файлов прерван")?
     };
 
+    // Experimental: only what changed since the last commit. Everything below
+    // that reads files one by one is narrowed to these; the cross-file data-flow
+    // pre-pass is not, because a flow from changed code into an unchanged helper
+    // is exactly what a reviewer of the change needs to see.
+    let changed: Option<std::collections::HashSet<String>> = if opts.changed_only {
+        if opts.is_repo {
+            anyhow::bail!("режим «только изменения» работает с локальной папкой, а не со ссылкой на репозиторий");
+        }
+        let root = root.clone();
+        Some(
+            tokio::task::spawn_blocking(move || git::changed_files(&root))
+                .await
+                .context("список изменений прерван")??,
+        )
+    } else {
+        None
+    };
+    let in_scope = |rel: &str| changed.as_ref().map_or(true, |set| set.contains(rel));
+
     // A broken user rule must not sink the scan: skip it, warn, keep going.
     let (compiled_user, mut rule_warnings) = match userrules::load() {
         Ok(rules) => {
@@ -957,7 +980,9 @@ pub async fn run_scan(
     };
     warnings.append(&mut rule_warnings);
 
-    progress.total.store(discovery.candidates.len() as u32, Ordering::Relaxed);
+    let to_scan: Vec<&walk::Candidate> =
+        discovery.candidates.iter().filter(|c| in_scope(&c.rel_path)).collect();
+    progress.total.store(to_scan.len() as u32, Ordering::Relaxed);
     progress.emit(ScanPhase::ScanningCode, "", true);
 
     // --------------------------------------------------------- scan the files
@@ -1005,7 +1030,7 @@ pub async fn run_scan(
     let max_findings = cfg.max_findings_per_file as usize;
     let behavior = cfg.rule_behavior();
     let scan_results: Vec<(String, Language, Vec<Finding>, u32, u64)> = {
-        let candidates = &discovery.candidates;
+        let candidates = &to_scan;
         let cancel = cancel.clone();
         let externals = &externals;
 
@@ -1103,7 +1128,7 @@ pub async fn run_scan(
         progress.emit(ScanPhase::ResolvingDependencies, "", true);
 
         let mut all_deps = Vec::new();
-        for c in discovery.candidates.iter().filter(|c| c.is_manifest) {
+        for c in discovery.candidates.iter().filter(|c| c.is_manifest && in_scope(&c.rel_path)) {
             if let Ok(content) = std::fs::read_to_string(&c.abs_path) {
                 all_deps.extend(deps::parse_manifest(&c.rel_path, &content));
             }
@@ -1197,6 +1222,12 @@ pub async fn run_scan(
         return Ok(cancelled_report(scan_id, &root, target_label, started_at, started));
     }
 
+    // External scanners walk the whole folder on their own; in changed-only mode
+    // their findings outside the change are not part of this report.
+    if let Some(set) = &changed {
+        findings.retain(|f| set.contains(&f.file.replace('\\', "/")));
+    }
+
     // ------------------------------------------------------------- assemble
     progress.emit(ScanPhase::Finalizing, "", true);
 
@@ -1269,13 +1300,23 @@ pub async fn run_scan(
         .map(|f| (f.fingerprint.clone(), f))
         .collect();
 
-    let previous = baseline::load_snapshot(&root);
-    let (delta, statuses) = baseline::compare(&active, previous.as_ref(), &suppressed_fps);
-
-    let snapshot = baseline::to_snapshot(&target_label, &now_iso(), &active);
-    if let Err(e) = baseline::save_snapshot(&root, &snapshot) {
-        warnings.push(format!("не удалось сохранить историю сканов: {e}"));
-    }
+    // A scan of the changed files is not a scan of the project: compared with
+    // the last full one, everything outside the change would read as fixed, and
+    // saved as the new baseline it would make the next full scan report all of
+    // it as new. So it neither compares nor records.
+    let partial = changed.is_some();
+    let scanned_at = now_iso();
+    let (delta, statuses) = if partial {
+        (Default::default(), Default::default())
+    } else {
+        let previous = baseline::load_snapshot(&root);
+        let (delta, statuses) = baseline::compare(&active, previous.as_ref(), &suppressed_fps);
+        let snapshot = baseline::to_snapshot(&target_label, &scanned_at, &active);
+        if let Err(e) = baseline::save_snapshot(&root, &snapshot) {
+            warnings.push(format!("не удалось сохранить историю сканов: {e}"));
+        }
+        (delta, statuses)
+    };
 
     for f in &mut findings {
         if matches!(
@@ -1304,7 +1345,7 @@ pub async fn run_scan(
         })
         .count() as u32;
     let point = baseline::HistoryPoint {
-        scanned_at: snapshot.scanned_at.clone(),
+        scanned_at: scanned_at.clone(),
         total: counts.total(),
         critical: counts.critical,
         high: counts.high,
@@ -1313,8 +1354,10 @@ pub async fn run_scan(
         info: counts.info,
         reachable,
     };
-    if let Err(e) = baseline::append_history(&root, point, cfg.history_cap as usize) {
-        warnings.push(format!("не удалось обновить историю трендов: {e}"));
+    if !partial {
+        if let Err(e) = baseline::append_history(&root, point, cfg.history_cap as usize) {
+            warnings.push(format!("не удалось обновить историю трендов: {e}"));
+        }
     }
 
     let mut per_file: std::collections::HashMap<&str, SeverityCounts> = Default::default();
@@ -1371,6 +1414,7 @@ pub async fn run_scan(
         dependencies_checked,
         engines_used: engines,
         warnings,
+        changed_only: partial,
     };
 
     // The report is usable and points at the clone, so it must outlive this
@@ -1720,6 +1764,7 @@ fn cancelled_report(
         dependencies_checked: 0,
         engines_used: Vec::new(),
         warnings: vec!["Сканирование отменено пользователем.".to_string()],
+        changed_only: false,
     }
 }
 

@@ -2,8 +2,6 @@ use crate::model::{BlameInfo, Finding};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use crate::proc::std_command;
-use std::process::Stdio;
 
 /// Annotates findings with `git blame` attribution: who last touched each
 /// offending line, in which commit, and when. This is what turns a finding into
@@ -86,13 +84,10 @@ fn normalize_path(p: &str) -> String {
 /// same shape as a finding's path. `None` when the listing fails, which makes
 /// the caller fall back to attempting every file rather than attributing none.
 fn tracked_files(root: &Path) -> Option<HashSet<String>> {
-    let out = std_command("git")
-        .arg("-C")
-        .arg(root)
+    let out = crate::git::hardened(root)
         // NUL-separated: a path may legally contain anything but NUL, and
         // without -z git quotes and escapes non-ASCII names.
         .args(["ls-files", "-z"])
-        .stdin(Stdio::null())
         .output()
         .ok()?;
     if !out.status.success() {
@@ -110,11 +105,8 @@ fn tracked_files(root: &Path) -> Option<HashSet<String>> {
 /// True only for a non-shallow work tree — the two conditions under which blame
 /// output can be trusted.
 fn repo_supports_blame(root: &Path) -> bool {
-    let Ok(out) = std_command("git")
-        .arg("-C")
-        .arg(root)
+    let Ok(out) = crate::git::hardened(root)
         .args(["rev-parse", "--is-inside-work-tree", "--is-shallow-repository"])
-        .stdin(Stdio::null())
         .output()
     else {
         return false;
@@ -130,14 +122,18 @@ fn repo_supports_blame(root: &Path) -> bool {
 /// Blames just the finding lines of one file (`-L n,n` per line, one process
 /// per file) and returns line → attribution.
 fn blame_file(root: &Path, file: &str, lines: &[u32]) -> Option<HashMap<u32, BlameInfo>> {
-    let mut cmd = std_command("git");
-    cmd.arg("-C").arg(root).args(["blame", "--line-porcelain"]);
+    // Hardened like every git call into a scanned folder (see `git::hardened`),
+    // and without textconv: a driver named in the repository's config would be
+    // a program run on its say-so, and the finding's line numbers refer to the
+    // file's real content anyway.
+    let mut cmd = crate::git::hardened(root);
+    cmd.args(["blame", "--line-porcelain", "--no-textconv"]);
     for l in lines {
         cmd.arg("-L").arg(format!("{l},{l}"));
     }
     // Git wants forward slashes for pathspecs regardless of platform.
     cmd.arg("--").arg(normalize_path(file));
-    let out = cmd.stdin(Stdio::null()).output().ok()?;
+    let out = cmd.output().ok()?;
     if !out.status.success() {
         return None;
     }

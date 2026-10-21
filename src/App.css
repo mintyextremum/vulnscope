@@ -2929,6 +2929,22 @@ kbd,
 .overview > .warn-box,
 .overview > .error-banner { margin-bottom: var(--sp-3); }
 
+/* A scan that covered only part of the project says so above everything. */
+.scope-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3);
+  border-radius: var(--r-2);
+  background: var(--s-1);
+  box-shadow: inset 3px 0 0 var(--a);
+  color: var(--t-1);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+.scope-note .material-symbols-outlined { color: var(--a); font-size: 18px; flex-shrink: 0; }
+
 /* An empty panel says what its emptiness means, quietly. */
 .ov-empty {
   display: flex;
