@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import hljs from "highlight.js/lib/common";
 import { invoke } from "@tauri-apps/api/core";
 import { useVirtual } from "./ui";
@@ -94,6 +94,19 @@ export interface FindingFilters {
   author: string | null;
   clearAuthor: () => void;
   reset: () => void;
+}
+
+/**
+ * A path inside a box that truncates from the left (`direction: rtl`), so the
+ * file name — the part people read — survives a narrow column.
+ *
+ * The right-to-left box alone reorders the text itself: the bidi algorithm
+ * moves neutral characters at the edges, so `.env` rendered as `env.` and
+ * `.env:3` as `env:3.`. Isolating the text as left-to-right keeps it intact
+ * while the box still clips from the left.
+ */
+export function LtrPath({ children }: { children: ReactNode }) {
+  return <bdi dir="ltr">{children}</bdi>;
 }
 
 export function Icon({
@@ -678,8 +691,10 @@ export function FindingList({
                 <div className="fi-title">{t(f.title)}</div>
               </div>
               <div className="fi-loc" title={`${f.file}:${f.line}`}>
-                {f.file}
-                {f.line > 0 ? `:${f.line}` : ""}
+                <LtrPath>
+                  {f.file}
+                  {f.line > 0 ? `:${f.line}` : ""}
+                </LtrPath>
               </div>
               <div className="fi-tags">
                 {f.extra?.combination && (
@@ -1062,7 +1077,7 @@ export function CodeViewer({
       <div className="viewer-head">
         <Icon name={fileIcon(path)} style={{ color: "var(--t-3)" }} />
         <span className="viewer-path" title={path}>
-          {path}
+          <LtrPath>{path}</LtrPath>
         </span>
         {!editing && (
           <>
@@ -1356,8 +1371,9 @@ export function FindingDetail({
         {open && (
           <div className="supp-form">
             <div className="field-note" style={{ marginBottom: 8 }}>
-              {t("Запись попадёт в")} <code>.vulnscope-ignore</code> в проекте — она версионируется
-              вместе с кодом и видна на ревью.
+              {t("Запись попадёт в {file} в проекте — она версионируется вместе с кодом и видна на ревью.", {
+                file: ".vulnscope-ignore",
+              })}
             </div>
             <input
               className="input"

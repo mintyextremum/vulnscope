@@ -36,6 +36,7 @@ import {
   setFormatLang,
   formatNumber,
   Icon,
+  LtrPath,
   ProgressRing,
   SeverityBar,
 } from "./components";
@@ -163,7 +164,6 @@ export default function App() {
         setReport(DEMO_REPORT);
         setSettings(DEMO_SETTINGS);
         setSelectedFinding(DEMO_REPORT.findings[0] ?? null);
-        setSelectedFile(DEMO_REPORT.findings[0]?.file ?? null);
         setScreen("results");
       });
       return;
@@ -408,7 +408,11 @@ export default function App() {
       const r = await invoke<ScanReport>("start_scan", { options });
       setReport(r);
       setSelectedFinding(r.findings[0] ?? null);
-      setSelectedFile(r.findings[0]?.file ?? null);
+      // No file is picked for the user. The tree selection narrows the
+      // findings list, so pre-selecting the first finding's file opened every
+      // fresh report on "1/N" — most of the findings hidden behind a filter
+      // nobody set.
+      setSelectedFile(null);
       setTab("overview");
       setScreen("results");
       rememberTarget(scanTarget.trim(), isRepo, r);
@@ -1286,15 +1290,11 @@ export default function App() {
         id: "clear-filters",
         label: t("Сбросить фильтры"),
         icon: "filter_alt_off",
-        when:
-          screen === "results" &&
-          (sevFilter.size > 0 || onlyNew || showSuppressed || findingQuery !== "" || !!selectedFile),
-        run: () => {
-          setSevFilter(new Set());
-          setOnlyNew(false);
-          setShowSuppressed(false);
-          setFindingQuery("");
-        },
+        // The same reset the list's own button runs: a palette command that
+        // left the reachable toggle, the author and the file in place said
+        // "reset" and kept the list narrowed.
+        when: screen === "results" && (anyFilterActive || !!selectedFile),
+        run: resetFilters,
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1323,6 +1323,8 @@ export default function App() {
       filteredFindings,
       copyMarkdown,
       rescan,
+      anyFilterActive,
+      resetFilters,
     ]
   );
 
@@ -1656,7 +1658,11 @@ export default function App() {
       {screen === "myrules" && <RuleEditor onClose={() => setScreen(prevScreen)} />}
 
       {screen === "settings" && (
-        <SettingsScreen onClose={() => setScreen(prevScreen)} onApplied={setSettings} />
+        <SettingsScreen
+          onClose={() => setScreen(prevScreen)}
+          onApplied={setSettings}
+          initial={settings}
+        />
       )}
 
       {screen === "scanning" && <ScanningScreen progress={progress} plan={phasePlan} />}
@@ -2292,7 +2298,7 @@ function ScanningScreen({ progress, plan }: { progress: ScanProgress | null; pla
       <div style={{ textAlign: "center" }}>
         <div className="progress-phase">{t(progress?.phaseLabel ?? t("Подготовка"))}</div>
         <div className="progress-file" title={progress?.currentFile}>
-          {progress?.currentFile || " "}
+          <LtrPath>{progress?.currentFile || " "}</LtrPath>
         </div>
       </div>
 
@@ -2639,7 +2645,9 @@ function RiskyFiles({
             <span className="rf-name" title={r.file}>
               {r.file.split(/[\\/]/).pop()}
             </span>
-            <span className="rf-path">{r.file}</span>
+            <span className="rf-path">
+              <LtrPath>{r.file}</LtrPath>
+            </span>
             {r.reachable > 0 && (
               <span className="rf-reach" title={t("Достижимо по данным")}>
                 <Icon name="my_location" />
@@ -2940,7 +2948,9 @@ function Overview({
               <div key={f.fingerprint} className="fixed-row">
                 <span className={`sev-dot ${f.severity}`} />
                 <span className="fx-title">{t(f.title)}</span>
-                <span className="fx-file">{f.file}</span>
+                <span className="fx-file">
+                  <LtrPath>{f.file}</LtrPath>
+                </span>
               </div>
             ))}
           </div>
@@ -3005,7 +3015,7 @@ function SkippedView({ report }: { report: ScanReport }) {
         <div key={reason} className="card">
           <div className="card-title">
             <Icon name="block" />
-            {reason}
+            {t(reason)}
             <span style={{ marginLeft: "auto", color: "var(--t-3)", fontWeight: 400 }}>
               {items.length}
             </span>
@@ -3014,7 +3024,7 @@ function SkippedView({ report }: { report: ScanReport }) {
             <div key={s.path} className="skip-row">
               <Icon name="description" />
               <span className="skip-path" title={s.path}>
-                {s.path}
+                <LtrPath>{s.path}</LtrPath>
               </span>
               <span className="skip-reason">{formatBytes(s.size)}</span>
             </div>

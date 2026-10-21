@@ -220,6 +220,34 @@ function untranslatedAttrs(files) {
 }
 
 /**
+ * Cyrillic text written straight into JSX — `<code>x</code> в проекте — …` —
+ * which never passes through `t()`. The attribute check above cannot see it
+ * either. Two of these sat in the suppress form and the settings screen: half
+ * of each sentence translated, the other half Russian in the English UI.
+ *
+ * Only text that follows a JSX tag (`<x …>`, `</x>` or `/>`) counts, so a `>`
+ * comparison in code is not mistaken for markup. Comments are blanked first,
+ * since a Russian comment between two tags is not text on screen.
+ */
+function jsxTextLeaks(files) {
+  const found = [];
+  const re = /(?:<\/[\w.]+>|<[\w.]+(?:\s[^<>]*)?>|\/>)([^<>{}]*[Ѐ-ӿ][^<>{}]*)(?=[<{])/g;
+  const blank = (m) => m.replace(/[^\n]/g, " ");
+  for (const f of files) {
+    if (!f.endsWith(".tsx") || f.endsWith("i18n.tsx")) continue;
+    const src = readFileSync(f, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, blank)
+      .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, (m, p) => p + blank(m.slice(p.length)));
+    for (const m of src.matchAll(re)) {
+      const text = m[1].trim().replace(/\s+/g, " ");
+      if (!text) continue;
+      found.push({ where: `${f.slice(SRC.length + 1)}:${src.slice(0, m.index).split("\n").length}`, text });
+    }
+  }
+  return found;
+}
+
+/**
  * Re-escapes a runtime string into the form it is written as inside a source
  * literal delimited by `q`, so it can be matched against the dictionary text.
  * Without this a key containing a newline is searched for as a real line break
@@ -328,15 +356,25 @@ if (bypassed.length === 0) {
     console.log(`        ${b.where}`);
   }
 }
+const rawText = jsxTextLeaks(walk(SRC));
+if (rawText.length === 0) {
+  console.log("✓ Текст в JSX идёт через t(...)");
+} else {
+  console.log(`✗ Текст в JSX мимо словаря: ${rawText.length}`);
+  for (const r of rawText) {
+    console.log(`    ${JSON.stringify(r.text.length > 66 ? r.text.slice(0, 66) + "…" : r.text)}`);
+    console.log(`        ${r.where}`);
+  }
+}
 
-if (failed === 0 && bypassed.length === 0) {
+if (failed === 0 && bypassed.length === 0 && rawText.length === 0) {
   console.log("\nВсе строки есть в словаре EN — фоллбэков на русский нет.");
   process.exit(0);
 }
 if (failed > 0) {
   console.log(`\nБез перевода: ${failed}. В EN-режиме покажутся по-русски — добавьте в словарь EN (src/i18n.tsx).`);
 }
-if (bypassed.length > 0) {
+if (bypassed.length > 0 || rawText.length > 0) {
   console.log(`\nЭти строки нельзя перевести, и их не видит ни одна проверка выше: оберните в t("…").`);
 }
 process.exit(1);

@@ -1474,7 +1474,8 @@ export const EN: Record<string, string> = {
     "Git not found in PATH — scanning by URL is unavailable.",
   "Команды — Ctrl+K": "Commands — Ctrl+K",
   Команды: "Commands",
-  "Запись попадёт в": "The entry goes into",
+  "Запись попадёт в {file} в проекте — она версионируется вместе с кодом и видна на ревью.":
+    "The entry goes into {file} in the project — it is versioned with the code and visible in review.",
   "в проекте — она версионируется вместе с кодом и видна на ревью.":
     "in the project — it is versioned with the code and visible in review.",
   "Причина: почему это не проблема": "Reason: why this is not a problem",
@@ -1533,6 +1534,10 @@ export const EN: Record<string, string> = {
   "Подсветка синтаксиса до": "Highlight syntax up to",
   строк: "lines",
   "Файл настроек:": "Settings file:",
+  "Не удалось сохранить: {e}": "Could not save: {e}",
+  Повторить: "Retry",
+  "Не удалось прочитать настройки: {e}": "Could not read the settings: {e}",
+  "— тему можно править и прямо в нём, ключ {key}.": "— the theme can be edited right there too, under the {key} key.",
   "тему можно править и прямо в нём, ключ": "the theme can be edited there too, key",
 
   // -- settings: accessibility

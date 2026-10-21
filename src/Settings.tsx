@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { Icon } from "./components";
@@ -127,12 +127,19 @@ export function prettyCombo(combo: string): string {
 export function SettingsScreen({
   onClose,
   onApplied,
+  initial = null,
 }: {
   onClose: () => void;
   onApplied: (s: AppSettings) => void;
+  /** The settings the app already holds: the screen opens on them at once and
+   *  refreshes from disk behind, instead of flashing a loading line. */
+  initial?: AppSettings | null;
 }) {
   const t = useT();
-  const [s, setS] = useState<AppSettings | null>(null);
+  const [s, setS] = useState<AppSettings | null>(initial);
+  // Set only when nothing could be shown at all. The screen used to wait on
+  // "Загрузка настроек…" forever when the read failed, with no way back but Esc.
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [actions, setActions] = useState<KeybindAction[]>([]);
   const [capturing, setCapturing] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<KeybindConflict[]>([]);
@@ -145,11 +152,15 @@ export function SettingsScreen({
   const searching = query.trim().length > 0;
   const shows = (id: TabId) => searching || tab === id;
 
-  useEffect(() => {
-    invoke<AppSettings>("get_settings").then(setS).catch(() => {});
+  const load = useCallback(() => {
+    setLoadErr(null);
+    invoke<AppSettings>("get_settings")
+      .then(setS)
+      .catch((e) => setLoadErr(String(e)));
     invoke<KeybindAction[]>("get_keybind_actions").then(setActions).catch(() => {});
     invoke<string>("get_settings_path").then(setPath).catch(() => {});
   }, []);
+  useEffect(load, [load]);
 
   // Conflicts are checked in the backend so the rule matches what actually
   // dispatches keys, not a second implementation in the UI.
@@ -179,17 +190,29 @@ export function SettingsScreen({
     if (!base) return;
     const next = { ...base, ...patch };
     latest.current = next;
-    const stored = await invoke<AppSettings>("save_settings", { settings: next });
-    latest.current = stored;
-    setS(stored);
-    onApplied(stored);
+    try {
+      const stored = await invoke<AppSettings>("save_settings", { settings: next });
+      latest.current = stored;
+      setS(stored);
+      onApplied(stored);
+    } catch (e) {
+      // Showing the new value while the scanner keeps the old one would be a
+      // lie the user only discovers on the next scan: say so and roll back.
+      latest.current = base;
+      setS(base);
+      flash(t("Не удалось сохранить: {e}", { e: String(e) }));
+    }
   };
 
   const reset = async () => {
-    const d = await invoke<AppSettings>("reset_settings");
-    setS(d);
-    onApplied(d);
-    flash(t("Настройки сброшены"));
+    try {
+      const d = await invoke<AppSettings>("reset_settings");
+      setS(d);
+      onApplied(d);
+      flash(t("Настройки сброшены"));
+    } catch (e) {
+      flash(t("Не удалось сохранить: {e}", { e: String(e) }));
+    }
   };
 
   const onCapture = (action: string, e: React.KeyboardEvent) => {
@@ -223,7 +246,26 @@ export function SettingsScreen({
   const conflictFor = (action: string) =>
     conflicts.find((c) => c.action === action || c.otherAction === action);
 
-  if (!s) return <div className="viewer-loading">{t("Загрузка настроек…")}</div>;
+  if (!s) {
+    return loadErr ? (
+      <div className="detail-empty settings-failed">
+        <Icon name="error" />
+        <span>{t("Не удалось прочитать настройки: {e}", { e: loadErr })}</span>
+        <div className="settings-failed-actions">
+          <button className="btn btn-ghost" onClick={onClose}>
+            <Icon name="arrow_back" />
+            {t("Назад")}
+          </button>
+          <button className="btn btn-primary" onClick={load}>
+            <Icon name="refresh" />
+            {t("Повторить")}
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div className="viewer-loading">{t("Загрузка настроек…")}</div>
+    );
+  }
 
   return (
     <div className="rules-screen">
@@ -667,8 +709,8 @@ export function SettingsScreen({
 
             {path && (
               <p className="hint-path">
-                {t("Файл настроек:")} <code>{path}</code> — тему можно править и прямо в нём,
-                ключ <code>theme</code>.
+                {t("Файл настроек:")} <code>{path}</code>{" "}
+                {t("— тему можно править и прямо в нём, ключ {key}.", { key: "theme" })}
               </p>
             )}
           </div>

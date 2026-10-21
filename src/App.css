@@ -2610,6 +2610,18 @@ kbd,
   opacity: 0.3;
 }
 
+/* Settings that could not be read: the message, and the two ways out. */
+.settings-failed {
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--t-2);
+}
+.settings-failed-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
 /* ========================================================== code viewer */
 
 .viewer {
@@ -4649,6 +4661,9 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   z-index: 100;
   display: flex;
   justify-content: center;
+  /* Top-aligned, not stretched: a flex row stretches its children to its own
+     height, so three commands sat in a box as tall as the cap allows. */
+  align-items: flex-start;
   padding-top: 14vh;
   animation: fadeIn var(--t-fast) var(--ease);
 }
@@ -4733,7 +4748,11 @@ circle.rep-trend-reach { fill: var(--a); stroke: none; }
   color: var(--on-a);
 }
 
-.palette-item.active .pi-hint,
+/* The hint is plain text: a wash behind it read as a text selection. Only the
+   key caps keep one, as keys. */
+.palette-item.active .pi-hint {
+  color: var(--on-a);
+}
 .palette-item.active kbd {
   color: var(--on-a);
   background: var(--on-a-wash);
