@@ -29,6 +29,11 @@ those two answers. It also closes a security hole that every 1.x release had.
   GHSA-587h-7wmj-h5pm (its bundled `launch-editor`: missing `%` escaping and
   argument confusion on Windows, an existence check that could be bypassed). The
   development server only — it does not enter a released binary.
+- The HTTP stack behind the two outbound requests (OSV.dev and the update check)
+  updated within semver: `rustls` 0.23.46, `rustls-webpki` 0.103.16,
+  `webpki-roots` 1.0.10 and `quinn-proto` 0.11.19, closing RUSTSEC-2026-0338 to
+  -0342, -0346 to -0349, -0381 and -0382; the yanked `chacha20` 0.10.1 is
+  replaced by 0.10.2.
 
 ### Added
 
