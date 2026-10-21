@@ -74,9 +74,10 @@ those two answers. It also closes a security hole that every 1.x release had.
 - The code tab opens on the riskiest files, each at its worst line.
 - What's new, shown once after an update; the version badge in the title bar
   brings it back.
-- **An app icon of its own.** The executable, the installer, the taskbar and the
-  window all carried the stock Tauri logo; they now show the shield-and-lock mark
-  from the title bar, rendered from the same Material Symbols glyph.
+- **An app icon of its own.** The executable, the taskbar and the window carried
+  the stock Tauri logo, and the installer NSIS's generic one; all of them now
+  show the shield-and-lock mark from the title bar, rendered from the same
+  Material Symbols glyph.
 
 ### Changed
 
