@@ -42,6 +42,8 @@ import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
 import { computeScore, isReachable, rootCause, GRADE_TONE, type Grade } from "./score";
 import { Overview } from "./Overview";
+import { WhatsNew, markWhatsNewSeen, shouldShowWhatsNew } from "./WhatsNew";
+import { RELEASE_LINE } from "./version";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
 import { toExcel } from "./excel";
@@ -136,6 +138,11 @@ export default function App() {
   const [focusLine, setFocusLine] = useState<number | null>(null);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [whatsNew, setWhatsNew] = useState(shouldShowWhatsNew);
+  const closeWhatsNew = useCallback(() => {
+    markWhatsNewSeen();
+    setWhatsNew(false);
+  }, []);
   const [exportOpen, setExportOpen] = useState(false);
   // Fixed-position coords for the export menu: it lives in the titlebar, which
   // is inside `.app { overflow: clip }`, so an absolutely-positioned dropdown
@@ -1325,6 +1332,13 @@ export default function App() {
         run: copyMarkdown,
       },
       {
+        id: "whats-new",
+        label: t("Что нового в {v}", { v: RELEASE_LINE }),
+        icon: "bolt",
+        when: screen !== "scanning",
+        run: () => setWhatsNew(true),
+      },
+      {
         id: "cancel",
         label: t("Отменить сканирование"),
         icon: "stop_circle",
@@ -1507,7 +1521,7 @@ export default function App() {
         <span className="amb amb-1" />
         <span className="amb amb-2" />
       </div>
-      <Titlebar>
+      <Titlebar onVersion={() => setWhatsNew(true)}>
         {(screen === "setup" || screen === "results") && (
           <>
             <button
@@ -1659,6 +1673,8 @@ export default function App() {
         </div>
       )}
 
+      {whatsNew && <WhatsNew onClose={closeWhatsNew} />}
+
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -1706,7 +1722,7 @@ export default function App() {
         />
       )}
 
-      {screen === "help" && <HelpScreen onClose={() => setScreen(prevScreen)} />}
+      {screen === "help" && <HelpScreen onClose={() => setScreen(prevScreen)} onWhatsNew={() => setWhatsNew(true)} />}
 
       {screen === "report" && report && (
         <ReportScreen

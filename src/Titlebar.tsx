@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getCurrentWindow, type Window } from "@tauri-apps/api/window";
 import { Icon } from "./components";
 import { useT } from "./i18n";
+import { APP_VERSION, RELEASE_LINE, RELEASE_NAME } from "./version";
 
 /**
  * The Tauri window handle, or null when the app is opened outside Tauri (a plain
@@ -27,7 +28,14 @@ function tauriWindow(): Window | null {
  * out via `data-tauri-drag-region` being absent — otherwise a click on a button
  * starts a window drag instead of firing onClick.
  */
-export function Titlebar({ children }: { children?: React.ReactNode }) {
+export function Titlebar({
+  children,
+  onVersion,
+}: {
+  children?: React.ReactNode;
+  /** Opens the release note; the version badge is its way back in. */
+  onVersion?: () => void;
+}) {
   const t = useT();
   const [maximized, setMaximized] = useState(false);
   const win = useMemo(tauriWindow, []);
@@ -56,6 +64,13 @@ export function Titlebar({ children }: { children?: React.ReactNode }) {
         <span className="tb-name" data-tauri-drag-region>
           VulnScope
         </span>
+        <button
+          className="tb-version"
+          onClick={onVersion}
+          title={t("VulnScope {v} «{name}» — что нового", { v: APP_VERSION, name: RELEASE_NAME })}
+        >
+          {RELEASE_LINE}
+        </button>
       </div>
 
       {/* The empty space around the actions is the main place a user grabs to

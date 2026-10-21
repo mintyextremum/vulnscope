@@ -25,6 +25,8 @@
  *  6. The security score's labels and limit reasons (score.ts). The module
  *     deliberately imports nothing at runtime, so it carries Russian strings
  *     that the dashboard renders as `t(score.label)` — invisible to (1).
+ *  7. The release note's `ITEMS` (WhatsNew.tsx) — data rendered as
+ *     `t(it.title)`, invisible to (1) for the same reason as (5).
  *
  * Not covered: labels built at runtime (OSV messages with `{}` placeholders) and
  * the assorted `*Label` mappings in the scanner — those are not parseable from a
@@ -44,6 +46,7 @@ const MODEL_FILE = join(ROOT, "src-tauri", "src", "model.rs");
 const SETTINGS_FILE = join(ROOT, "src-tauri", "src", "settings.rs");
 const HELP_FILE = join(SRC, "Help.tsx");
 const SCORE_FILE = join(SRC, "score.ts");
+const WHATSNEW_FILE = join(SRC, "WhatsNew.tsx");
 
 function walk(dir) {
   const out = [];
@@ -166,6 +169,15 @@ function helpKeys(file) {
   )) {
     add(keys, unesc(m[1]), "Help.tsx");
   }
+  return keys;
+}
+
+/** The release note's items: `title`/`desc` strings in its `ITEMS` array. */
+function whatsNewKeys(file) {
+  const keys = new Map();
+  const src = readFileSync(file, "utf8");
+  const items = src.slice(src.indexOf("const ITEMS"), src.indexOf("];", src.indexOf("const ITEMS")));
+  for (const m of items.matchAll(/(?:title|desc):\s*"((?:[^"\\]|\\.)*)"/g)) add(keys, unesc(m[1]), "WhatsNew.tsx");
   return keys;
 }
 
@@ -324,6 +336,10 @@ const groups = [
   {
     name: "Оценка защищённости (score.ts)",
     keys: scoreKeys(SCORE_FILE),
+  },
+  {
+    name: "Что нового (WhatsNew.tsx)",
+    keys: whatsNewKeys(WHATSNEW_FILE),
   },
 ];
 

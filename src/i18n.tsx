@@ -308,6 +308,45 @@ export const EN: Record<string, string> = {
   "Критические риски": "Critical risks",
   "Серьёзные риски": "Serious risks",
   // Dashboard 2.0
+  "Сканирует файлы, изменённые с последнего коммита, и новые — правку до коммита. Такой скан не сравнивается с прошлым и не пишется в историю, а оценка называется «Оценкой изменений».":
+    "Scans the files changed since the last commit, and new ones — an edit before it is committed. Such a scan is not compared with the previous one nor written to the history, and its score is called the score of the changes.",
+  "Шаги, которые поднимут оценку сильнее всего, с баллами и классом после каждого. Правка чинит строку целиком, поэтому шаг учитывает и находки других правил на тех же строках. План есть и в отчёте, и в выгрузках.":
+    "The steps that raise the score the most, with the points and the grade after each. A fix changes the whole line, so a step also counts the other rules' findings on the same lines. The plan is in the report and the exports too.",
+  "Пределы оценки":
+    "Score limits",
+  "Без высоких и критических находок оценка не опускается до F; критическая уязвимость держит её не выше C, достижимая из ввода — не выше D. Сработавший предел назван на дашборде.":
+    "Without high or critical findings the score never falls to F; a critical vulnerability keeps it at C or below, one reachable from input at D or below. A limit that applies is named on the dashboard.",
+  "Многострочные выражения":
+    "Multi-line statements",
+  "Запрос на несколько строк, аргументы в столбик и цепочки вызовов с точкой в начале строки читаются как одно выражение; номера строк в находке остаются настоящими.":
+    "A query over several lines, arguments in a column and call chains with a leading dot are read as one statement; the line numbers in the finding stay real.",
+  "Параметры фреймворков":
+    "Framework parameters",
+  "@RequestParam в Spring, [FromQuery] в ASP.NET, @Query в NestJS, Query() и пути маршрутов во FastAPI и Flask — источники ввода. Параметр пути с типом int или uuid источником не считается.":
+    "@RequestParam in Spring, [FromQuery] in ASP.NET, @Query in NestJS, Query() and route paths in FastAPI and Flask are input sources. A path parameter typed int or uuid is not.",
+  "Одна строка на причину — правило или версию пакета — с меткой ×N; остальные места перечислены в карточке находки.":
+    "One row per cause — a rule or a package version — marked ×N; the other places are listed in the finding's detail.",
+  "Что нового": "What's new",
+  "Что нового в {v}": "What's new in {v}",
+  "VulnScope {v} «{name}» — что нового": "VulnScope {v} “{name}” — what's new",
+  Понятно: "Got it",
+  "Движок читает настоящий код": "The engine reads real code",
+  "Запрос на три строки и цепочка вызовов с точкой в начале строки больше не обрывают поток. Функции видны в Java, C#, Kotlin, Scala, Ruby, Elixir и Perl, а параметры обработчиков Spring, ASP.NET, NestJS, FastAPI и Flask — это источники ввода.":
+    "A query split over three lines and a call chain with a leading dot no longer cut the flow. Functions are seen in Java, C#, Kotlin, Scala, Ruby, Elixir and Perl, and handler parameters in Spring, ASP.NET, NestJS, FastAPI and Flask are input sources.",
+  "Честная оценка": "An honest score",
+  "Худшая находка задаёт пределы: мелочи не доводят до F, критическая уязвимость не даёт подняться выше C. Повторы одной причины весят всё меньше. «Почему такая оценка?» раскрывает всю арифметику.":
+    "The worst finding sets the limits: small issues never make an F, and a critical vulnerability keeps the score at C or below. Repeats of one cause weigh less each time. “Why this score?” opens all the arithmetic.",
+  "Что поднимет оценку сильнее всего — по шагам, с баллами и классом после каждого. Каждое обещание проверено пересчётом.":
+    "What raises the score the most — step by step, with the points and the grade after each. Every promise is checked by recomputing.",
+  "Повторы — одной строкой": "Repeats on one row",
+  "«Свернуть повторы» оставляет строку на причину с меткой ×N; остальные места — в карточке находки.":
+    "“Collapse repeats” keeps one row per cause with a ×N mark; the other places are in the finding's detail.",
+  "Только изменения (BETA)": "Changes only (BETA)",
+  "Проверка файлов, изменённых с последнего коммита, — правка до коммита за секунды.":
+    "Scan the files changed since the last commit — check an edit before committing it, in seconds.",
+  Безопасность: "Security",
+  "Папка с чужим .git больше не может запустить свою команду через git, который вызывает сканер.":
+    "A folder with someone else's .git can no longer run its own command through the git the scanner calls.",
   "Что сделать": "What to do",
   Где: "Where",
   Мест: "Places",
@@ -401,8 +440,8 @@ export const EN: Record<string, string> = {
   "VulnScope — локальный сканер безопасности кода: весь анализ идёт на вашей машине, исходники никуда не уходят. Наружу отправляется только то, без чего нельзя обойтись, и это перечислимо: имена и версии пакетов — в базу CVE, наборы правил и базы уязвимостей — во внешние сканеры, которые их скачивают. Метрики и проверка найденных секретов у провайдеров отключены принудительно. Офлайн-режим в настройках убирает и это. Укажите папку или ссылку на GitHub-репозиторий — и получите размеченный отчёт.":
     "VulnScope is a local code security scanner: all analysis runs on your machine and your sources never leave it. What does go out is only what cannot be avoided, and it is enumerable: package names and versions to the CVE database, and rule sets and vulnerability databases pulled in by the external scanners. Telemetry and provider-side verification of discovered secrets are forced off. Offline mode in the settings removes even this. Point it at a folder or a GitHub URL and get an annotated report.",
   "Движки поиска": "Detection engines",
-  "Больше 270 паттернов на 38 языках плюс детекторы секретов. Каждая находка размечена CWE, OWASP и уровнем важности.":
-    "Over 270 patterns across 38 languages plus secret detectors. Every finding is tagged with CWE, OWASP and a severity.",
+  "Больше 270 правил на 37 языках и 55 детекторов секретов. Каждая находка размечена CWE, OWASP и уровнем важности.":
+    "More than 270 rules across 37 languages and 55 secret detectors. Every finding is tagged with CWE, OWASP and a severity.",
   "Флагман: прослеживает пользовательский ввод от источника до опасного вызова и показывает весь путь. Только подтверждённые находки, каждая самопроверяема.":
     "Flagship: traces user input from source to a dangerous call and shows the whole path. Confirmed findings only, each self-verifiable.",
   "Ключи, токены и пароли в исходниках. Значение секрета никогда не попадает в отчёт — только факт и место.":
@@ -415,17 +454,17 @@ export const EN: Record<string, string> = {
   "Подозрительные места, которые точные правила не поймали. Живут на отдельной вкладке и не влияют на счётчики и оценку.":
     "Suspicious spots the precise rules missed. They live on their own tab and do not affect the counts or the score.",
   "Флагман: оценка и пути атаки": "Flagship: score & attack paths",
-  "Весь отчёт в одном балле 0–100 и классе A–F. Находки взвешены по важности и по реальной достижимости из недоверенного ввода.":
-    "The whole report as one 0–100 score and an A–F grade. Findings are weighted by severity and by real reachability from untrusted input.",
+  "Весь отчёт в одном балле 0–100 и классе A–F. Находки взвешены по важности, уверенности правила и достижимости из недоверенного ввода; повторы одной причины весят всё меньше. «Почему такая оценка?» на дашборде раскрывает всю арифметику.":
+    "The whole report in one 0–100 score and an A–F grade. Findings are weighted by severity, the rule's confidence and reachability from untrusted input; repeats of one cause weigh less each time. “Why this score?” on the dashboard opens all the arithmetic.",
   "Достижимость": "Reachability",
   "Находка, до которой реально доходит пользовательский ввод, помечена «Достижимо» и весит в оценке больше — «присутствует» не то же, что «эксплуатируемо».":
     "A finding that user input actually reaches is marked \"Reachable\" and weighs more in the score — \"present\" is not \"exploitable\".",
   "На дашборде — сами маршруты «точка входа → опасный вызов», отсортированные по опасности. Клик открывает находку, «Показать все пути» раскрывает список целиком.":
     "On the dashboard: the routes themselves, \"entry point → dangerous call\", sorted by severity. Click one to open the finding; \"Show all paths\" expands the whole list.",
-  "Пять файлов с наибольшим риском — ранжированы теми же весами, что и оценка. Клик открывает список находок этого файла.":
-    "The five files carrying the most risk, ranked by the same weights the score uses. Click one to open its findings.",
-  "Полоса на дашборде показывает, растёт или падает число находок за последние сканы; клик открывает отчёт с полным графиком.":
-    "A strip on the dashboard shows whether the finding count is rising or falling over recent scans; click it to open the report with the full chart.",
+  "Файлы с наибольшим риском — теми же весами, что и оценка; процент — доля риска всего проекта. Клик открывает находки файла.":
+    "The files carrying the most risk — by the same weights as the score; the percentage is the file's share of the whole project's risk. A click opens the file's findings.",
+  "Карточка на дашборде: новые, исправленные и без изменений с прошлого скана, и график числа находок за последние сканы; клик по графику открывает отчёт.":
+    "A dashboard card: new, fixed and unchanged since the last scan, and a chart of findings over the recent scans; clicking the chart opens the report.",
   "Точка входа": "Entry point",
   "Движок определяет, откуда входит ввод: HTTP-запрос, аргумент командной строки, переменная окружения, стандартный ввод или адрес страницы (DOM).":
     "The engine classifies where input enters: HTTP request, command-line argument, environment variable, standard input, or the page URL (DOM).",

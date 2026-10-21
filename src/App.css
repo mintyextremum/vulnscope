@@ -192,6 +192,68 @@ kbd,
   color: var(--on-a);
 }
 
+/* The release badge beside the name: quiet, and the way back to what is new. */
+.tb-version {
+  margin-left: var(--sp-1);
+  padding: 1px 6px;
+  border: none;
+  border-radius: var(--r-full);
+  background: var(--s-3);
+  color: var(--t-2);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: var(--fw-semi);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.tb-version:hover { background: var(--s-4); color: var(--t-1); }
+
+/* ======================================================== what's new */
+
+.wn-backdrop { padding-top: 10vh; }
+.wn {
+  width: min(600px, calc(100vw - 32px));
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--s-3);
+  border-radius: var(--r-3);
+  box-shadow: var(--e-4), inset 0 0 0 1px var(--line-strong);
+  padding: var(--sp-5);
+  animation: paletteIn var(--t-base) var(--ease-out);
+}
+.wn-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.wn-mark {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-2);
+  background: var(--a);
+  flex-shrink: 0;
+}
+.wn-mark .material-symbols-outlined { color: var(--on-a); font-size: 26px; }
+.wn-kicker {
+  font-size: 10px;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--t-2);
+}
+.wn-title { margin: 2px 0 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); color: var(--t-1); }
+.wn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.wn-item { display: flex; gap: var(--sp-3); align-items: flex-start; }
+.wn-item > .material-symbols-outlined { color: var(--a); font-size: 20px; margin-top: 1px; flex-shrink: 0; }
+.wn-item-title { color: var(--t-1); font-weight: var(--fw-semi); font-size: var(--fs-base); }
+.wn-item-desc { color: var(--t-2); font-size: var(--fs-sm); line-height: var(--lh-base); margin-top: 2px; }
+.wn-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--sp-5);
+}
+.wn-version { color: var(--t-2); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+
 .tb-name {
   font-size: var(--fs-sm);
   font-weight: var(--fw-semi);

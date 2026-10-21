@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import pkg from "./package.json";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -7,6 +8,12 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react()],
+
+  // The version the app shows is the one it was built as — one source, the
+  // package manifest, instead of a string to forget on the next release.
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
