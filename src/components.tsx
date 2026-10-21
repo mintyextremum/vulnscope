@@ -69,6 +69,14 @@ const FINDING_ROW_H = 96;
  * needs it to say how much it is hiding. */
 export interface FindingFilters {
   total: number;
+  /** How many findings pass the filters — repeats included even while the
+   *  list collapses them, so collapsing never reads as hiding. */
+  shown: number;
+  /** One row per root cause, with a "×N" for the rest. Offered only when some
+   *  cause actually repeats in the current view. */
+  collapse: boolean;
+  setCollapse: (v: boolean) => void;
+  canCollapse: boolean;
   newCount: number;
   suppressedCount: number;
   query: string;
@@ -94,6 +102,15 @@ export interface FindingFilters {
   author: string | null;
   clearAuthor: () => void;
   reset: () => void;
+}
+
+/**
+ * A finding's title as the list and the detail show it. Every traced data flow
+ * carries the same rule title, so four flows read as four identical rows; the
+ * category in front is what tells an SQL injection from an SSRF.
+ */
+export function findingTitle(f: Finding, t: (s: string) => string): string {
+  return f.ruleId === "VS-FLOW" ? `${t(f.category)} · ${t(f.title)}` : t(f.title);
 }
 
 /**
@@ -467,12 +484,16 @@ export function FindingList({
   onSelect,
   width,
   filters,
+  repeats,
 }: {
   findings: Finding[];
   selected: string | null;
   onSelect: (f: Finding) => void;
   width: number;
   filters: FindingFilters;
+  /** Finding id → how many findings its root cause has in view, for the rows
+   *  that stand for a collapsed group. */
+  repeats?: Map<string, number>;
 }) {
   const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
@@ -499,14 +520,14 @@ export function FindingList({
     }
   }, [selected, findings]);
 
-  const hidden = filters.total - findings.length;
+  const hidden = filters.total - filters.shown;
 
   return (
     <div className="list-panel" style={{ width }}>
       <div className="panel-head">
         <Icon name="bug_report" />
         {t("Находки")}
-        <span className="count">{findings.length}</span>
+        <span className="count">{filters.shown}</span>
         {hidden > 0 && (
           <button className="head-link" onClick={filters.reset} title={t("Сбросить фильтры")}>
             <Icon name="filter_alt_off" />
@@ -553,6 +574,16 @@ export function FindingList({
               <Icon name="my_location" />
               {t("Только достижимые")}
               <span className="chip-n">{filters.reachableCount}</span>
+            </button>
+          )}
+          {filters.canCollapse && (
+            <button
+              className={`chip ${filters.collapse ? "on" : ""}`}
+              onClick={() => filters.setCollapse(!filters.collapse)}
+              title={t("Одна строка на причину: правило или версию пакета. Остальные места — в карточке находки.")}
+            >
+              <Icon name="stacks" />
+              {t("Свернуть повторы")}
             </button>
           )}
           {filters.suppressedCount > 0 && (
@@ -643,7 +674,7 @@ export function FindingList({
                 attached to it rather than just looking shorter. */}
             <span className="af-right">
               <span className="af-count">
-                {t("показано {n} из {total}", { n: findings.length, total: filters.total })}
+                {t("показано {n} из {total}", { n: filters.shown, total: filters.total })}
               </span>
               <button className="af-reset" onClick={filters.reset}>
                 {t("Сбросить всё")}
@@ -688,7 +719,7 @@ export function FindingList({
             >
               <div className={`fi-top ${f.severity}`}>
                 <Icon name={SEVERITY_SYMBOL[f.severity]} />
-                <div className="fi-title">{t(f.title)}</div>
+                <div className="fi-title">{findingTitle(f, t)}</div>
               </div>
               <div className="fi-loc" title={`${f.file}:${f.line}`}>
                 <LtrPath>
@@ -697,6 +728,14 @@ export function FindingList({
                 </LtrPath>
               </div>
               <div className="fi-tags">
+                {(repeats?.get(f.id) ?? 1) > 1 && (
+                  <span
+                    className="tag repeats"
+                    title={t("Ещё мест той же причины: {n}", { n: (repeats?.get(f.id) ?? 1) - 1 })}
+                  >
+                    ×{repeats?.get(f.id)}
+                  </span>
+                )}
                 {f.extra?.combination && (
                   <span className="tag combo" title={t("Опасная связка возможных уязвимостей")}>
                     <Icon name="account_tree" />
@@ -1197,6 +1236,7 @@ export function FindingDetail({
   onSuppressionChanged,
   editorCommand = "",
   onFilterAuthor,
+  siblings = [],
 }: {
   finding: Finding | null;
   onOpenFile: (path: string, line: number) => void;
@@ -1206,6 +1246,9 @@ export function FindingDetail({
   editorCommand?: string;
   /** Narrow the findings list to this git-blame author. Absent → chip is static. */
   onFilterAuthor?: (author: string) => void;
+  /** The other findings of the same root cause — the places one fix pattern
+   *  has to reach. */
+  siblings?: Finding[];
 }) {
   const t = useT();
   const [reason, setReason] = useState("");
@@ -1414,7 +1457,7 @@ export function FindingDetail({
             </div>
           </div>
         )}
-        <div className="detail-title">{t(finding.title)}</div>
+        <div className="detail-title">{findingTitle(finding, t)}</div>
         <div className="detail-loc-row">
           <div className="detail-loc" onClick={() => onOpenFile(finding.file, finding.line)}>
             <Icon name="open_in_new" />
@@ -1593,6 +1636,36 @@ export function FindingDetail({
             </pre>
           )}
         </div>
+
+        {siblings.length > 0 && (
+          <div className="detail-section">
+            <h3>
+              <Icon name="stacks" />
+              {t("Та же причина — ещё мест: {n}", { n: siblings.length })}
+            </h3>
+            <ol className="sibling-list">
+              {siblings.slice(0, 30).map((s) => (
+                <li key={s.id}>
+                  <button
+                    className="sibling"
+                    onClick={() => onOpenFile(s.file, s.line)}
+                    title={t("Открыть строку {n} в коде", { n: String(s.line) })}
+                  >
+                    <span className={`sev-dot ${s.severity}`} />
+                    <span className="sibling-loc">
+                      <LtrPath>
+                        {s.file}
+                        {s.line > 0 ? `:${s.line}` : ""}
+                      </LtrPath>
+                    </span>
+                    {s.package && <span className="sibling-code">{s.cve[0] ?? s.ruleId}</span>}
+                  </button>
+                </li>
+              ))}
+            </ol>
+            {siblings.length > 30 && <p className="fx-more">{t("и ещё {n}", { n: siblings.length - 30 })}</p>}
+          </div>
+        )}
 
         <div className="detail-section">
           <h3>

@@ -33,13 +33,14 @@ import {
   formatDuration,
   setFormatLang,
   formatNumber,
+  findingTitle,
   Icon,
   LtrPath,
   ProgressRing,
 } from "./components";
 import { applyTheme } from "./theme-tokens";
 import { toSarif } from "./sarif";
-import { computeScore, isReachable, GRADE_TONE, type Grade } from "./score";
+import { computeScore, isReachable, rootCause, GRADE_TONE, type Grade } from "./score";
 import { Overview } from "./Overview";
 import { toMarkdown } from "./markdown";
 import { toCsv } from "./csv";
@@ -117,6 +118,13 @@ export default function App() {
   // triage view, matching what the security score weights most.
   const [onlyReachable, setOnlyReachable] = useState(false);
   const [showSuppressed, setShowSuppressed] = useState(false);
+  // One row per root cause. A view preference rather than a filter — it hides
+  // nothing, the rest are listed in the finding's detail — so it survives
+  // "reset filters" and a restart.
+  const [collapseRepeats, setCollapseRepeats] = useState(() => localStorage.getItem("vs.collapse") === "1");
+  useEffect(() => {
+    localStorage.setItem("vs.collapse", collapseRepeats ? "1" : "0");
+  }, [collapseRepeats]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   // Triage by who last touched the line (git blame). Set from the author chip in
   // a finding's detail; null means "everyone".
@@ -818,6 +826,46 @@ export default function App() {
     return out;
   }, [report, selectedFile, tab, matchesFilters]);
 
+  /** How many findings each root cause has in the current view. */
+  const causeCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of filteredFindings) {
+      const k = rootCause(f);
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [filteredFindings]);
+  const canCollapse = useMemo(() => [...causeCounts.values()].some((n) => n > 1), [causeCounts]);
+
+  /** The rows the list shows: every finding, or the first of each cause. */
+  const listedFindings = useMemo(() => {
+    if (!collapseRepeats || !canCollapse) return filteredFindings;
+    const seen = new Set<string>();
+    return filteredFindings.filter((f) => {
+      const k = rootCause(f);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [filteredFindings, collapseRepeats, canCollapse]);
+
+  const repeatCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    if (listedFindings === filteredFindings) return m;
+    for (const f of listedFindings) m.set(f.id, causeCounts.get(rootCause(f)) ?? 1);
+    return m;
+  }, [listedFindings, filteredFindings, causeCounts]);
+
+  /** The selected finding's root cause elsewhere in the report. */
+  const siblings = useMemo(() => {
+    if (!report || !selectedFinding) return [];
+    const k = rootCause(selectedFinding);
+    const beta = !!selectedFinding.extra?.experimental;
+    return report.findings.filter(
+      (f) => f.id !== selectedFinding.id && !f.suppressed && !!f.extra?.experimental === beta && rootCause(f) === k,
+    );
+  }, [report, selectedFinding]);
+
   const fileFindings = useMemo(
     () => (report && selectedFile ? report.findings.filter((f) => f.file === selectedFile) : []),
     [report, selectedFile]
@@ -910,9 +958,9 @@ export default function App() {
   // just hid. Follow the list instead.
   useEffect(() => {
     if (tab !== "findings" && tab !== "beta") return;
-    if (selectedFinding && filteredFindings.some((f) => f.id === selectedFinding.id)) return;
-    setSelectedFinding(filteredFindings[0] ?? null);
-  }, [filteredFindings, selectedFinding, tab]);
+    if (selectedFinding && listedFindings.some((f) => f.id === selectedFinding.id)) return;
+    setSelectedFinding(listedFindings[0] ?? null);
+  }, [listedFindings, selectedFinding, tab]);
 
   const resetFilters = useCallback(() => {
     setSevFilter(new Set());
@@ -997,6 +1045,10 @@ export default function App() {
             return true;
           }).length
         : 0,
+      shown: filteredFindings.length,
+      collapse: collapseRepeats && canCollapse,
+      setCollapse: setCollapseRepeats,
+      canCollapse,
       newCount: chipCounts.newCount,
       reachableCount: chipCounts.reachableCount,
       suppressedCount: chipCounts.suppressedCount,
@@ -1016,7 +1068,7 @@ export default function App() {
       clearAuthor: () => setAuthorFilter(null),
       reset: resetFilters,
     }),
-    [report, selectedFile, tab, findingQuery, onlyNew, onlyReachable, showSuppressed, sevFilter, toggleSev, authorFilter, chipCounts, resetFilters]
+    [report, selectedFile, tab, findingQuery, onlyNew, onlyReachable, showSuppressed, sevFilter, toggleSev, authorFilter, chipCounts, resetFilters, filteredFindings, collapseRepeats, canCollapse]
   );
 
   const openFileAt = useCallback((path: string, line: number) => {
@@ -1082,15 +1134,15 @@ export default function App() {
   /** Moves the selection within the currently filtered finding list. */
   const step = useCallback(
     (delta: number) => {
-      if (filteredFindings.length === 0) return;
-      const i = filteredFindings.findIndex((f) => f.id === selectedFinding?.id);
+      if (listedFindings.length === 0) return;
+      const i = listedFindings.findIndex((f) => f.id === selectedFinding?.id);
       const next = Math.min(
-        filteredFindings.length - 1,
+        listedFindings.length - 1,
         Math.max(0, (i === -1 ? 0 : i) + delta)
       );
-      setSelectedFinding(filteredFindings[next]);
+      setSelectedFinding(listedFindings[next]);
     },
-    [filteredFindings, selectedFinding]
+    [listedFindings, selectedFinding]
   );
 
   /** Opens a secondary screen, remembering where to return to. */
@@ -1839,7 +1891,8 @@ export default function App() {
               <Resizer width={treeW} setWidth={setTreeW} storageKey="vs.treeW" />
               <FindingList
                 width={listW}
-                findings={filteredFindings}
+                findings={listedFindings}
+                repeats={repeatCounts}
                 selected={selectedFinding?.id ?? null}
                 onSelect={setSelectedFinding}
                 filters={findingFilters}
@@ -1858,6 +1911,7 @@ export default function App() {
                   root={report.root}
                   onSuppressionChanged={rescan}
                   editorCommand={settings?.editorCommand ?? ""}
+                  siblings={siblings}
                   onFilterAuthor={(author) => {
                     setAuthorFilter(author);
                     setSelectedFile(null);
@@ -1893,10 +1947,13 @@ export default function App() {
                     onRechecked={onRechecked}
                   />
                 ) : (
-                  <div className="detail-empty">
-                    <Icon name="code_off" />
-                    <span>{t("Выберите файл слева")}</span>
-                  </div>
+                  <CodeStart
+                    report={report}
+                    onOpen={(path, line) => {
+                      setSelectedFile(path);
+                      setFocusLine(line);
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -2411,6 +2468,50 @@ function ScanningScreen({ progress, plan }: { progress: ScanProgress | null; pla
           <div className="pstat-key">{t("Прошло")}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------- code start
+
+/**
+ * The code tab before a file is picked. A blank "pick a file" panel next to a
+ * tree of two hundred files leaves the choice to the user; the riskiest files
+ * are the obvious place to start, each opened at its worst line.
+ */
+function CodeStart({ report, onOpen }: { report: ScanReport; onOpen: (path: string, line: number) => void }) {
+  const t = useT();
+  const top = useMemo(() => {
+    const worst = new Map<string, Finding>();
+    for (const f of report.findings) {
+      if (f.suppressed || f.extra?.experimental || f.line <= 0 || f.package) continue;
+      const cur = worst.get(f.file);
+      if (!cur || SEVERITY_ORDER.indexOf(f.severity) < SEVERITY_ORDER.indexOf(cur.severity)) worst.set(f.file, f);
+    }
+    return [...worst.values()]
+      .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
+      .slice(0, 6);
+  }, [report.findings]);
+
+  return (
+    <div className="detail-empty code-start">
+      <Icon name="code" />
+      <span>{top.length > 0 ? t("Выберите файл слева или начните отсюда:") : t("Выберите файл слева")}</span>
+      {top.length > 0 && (
+        <div className="code-start-list">
+          {top.map((f) => (
+            <button key={f.file} className="sibling" onClick={() => onOpen(f.file, f.line)}>
+              <span className={`sev-dot ${f.severity}`} />
+              <span className="sibling-loc">
+                <LtrPath>
+                  {f.file}:{f.line}
+                </LtrPath>
+              </span>
+              <span className="sibling-code">{findingTitle(f, t)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

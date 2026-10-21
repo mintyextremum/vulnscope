@@ -308,6 +308,12 @@ export const EN: Record<string, string> = {
   "Критические риски": "Critical risks",
   "Серьёзные риски": "Serious risks",
   // Dashboard 2.0
+  "Выберите файл слева или начните отсюда:": "Pick a file on the left, or start here:",
+  "Свернуть повторы": "Collapse repeats",
+  "Одна строка на причину: правило или версию пакета. Остальные места — в карточке находки.":
+    "One row per cause: a rule or a package version. The other places are listed in the finding's detail.",
+  "Ещё мест той же причины: {n}": "More places of the same cause: {n}",
+  "Та же причина — ещё мест: {n}": "Same cause — more places: {n}",
   "Находки одного правила или одной версии пакета — одна причина": "Findings of one rule or one package version are one cause",
   Причины: "Causes",
   "Почему такая оценка?": "Why this score?",
