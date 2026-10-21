@@ -497,6 +497,11 @@ fn scan_one_file(
                     exploit,
                     impact,
                     fix_code,
+                    // A traced path from untrusted input is reachable by
+                    // definition. Left unmarked, the report counted "0
+                    // reachable" next to a list of attack paths, and the
+                    // exports said "Достижима: Нет" on the flagship's findings.
+                    on_data_path: true,
                     ..Default::default()
                 }),
                 package: None,
@@ -1404,7 +1409,8 @@ fn mark_reachable_findings(findings: &mut [Finding]) {
         return;
     }
     for f in findings.iter_mut() {
-        // The data-flow findings themselves are the path, not a separate signal.
+        // The data-flow findings are marked where they are made; a leak flow
+        // starts at a secret, not at untrusted input, so it is not "reachable".
         if f.rule_id == "VS-FLOW" || f.rule_id == "VS-LEAK" || f.line == 0 {
             continue;
         }
@@ -2313,7 +2319,8 @@ mod tests {
         let reachable = |f: &Finding| f.extra.as_ref().map(|e| e.on_data_path).unwrap_or(false);
         assert!(reachable(&findings[1]), "finding on the flow line must be reachable");
         assert!(!reachable(&findings[2]), "finding off the flow must not be");
-        // The flow finding itself is the path, not a separately-marked signal.
+        // The flow finding is marked where the taint pass builds it, not here:
+        // this pass only bridges pattern findings onto existing paths.
         assert!(!reachable(&findings[0]));
     }
 
@@ -2428,6 +2435,27 @@ mod tests {
             scan_one_file(&path, "chain.py", Language::Python, false, false, false, &[], 200, &Default::default(), Default::default()).unwrap();
         assert!(!plain.iter().any(|f| f.rule_id == "VS-EXP-COMBO"));
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn traced_flows_are_marked_reachable() {
+        let dir = std::env::temp_dir().join(format!("vs-reach-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("view.py");
+        std::fs::write(
+            &path,
+            "import os\n\
+             def run():\n    cmd = request.args.get('cmd')\n    os.system(cmd)\n",
+        )
+        .unwrap();
+        let (findings, _, _) =
+            scan_one_file(&path, "view.py", Language::Python, false, false, true, &[], 200, &Default::default(), Default::default()).unwrap();
+        let flow = findings.iter().find(|f| f.rule_id == "VS-FLOW").expect("the flow must be traced");
+        assert!(
+            flow.extra.as_ref().is_some_and(|e| e.on_data_path),
+            "a path traced from untrusted input is reachable by definition"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

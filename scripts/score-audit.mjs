@@ -20,12 +20,15 @@
  *   6. Root causes: repeats of one rule cost less than as many distinct rules,
  *      advisories against one package version are one cause, and a low-
  *      confidence finding weighs less than a high-confidence one.
- *   7. The fix plan: each step's score is the real score of the report with
- *      those causes removed, and fixing everything reaches 100.
+ *   7. Traced data flows count as reachable even in reports that did not mark
+ *      them, and a flow's cause is what it reaches.
+ *   8. The fix plan: each step's score is the real score of the report once
+ *      that cause is fixed — its findings and everything else on the same lines
+ *      gone — and fixing everything reaches 100.
  *
  * Usage: npm run audit:score
  */
-import { computeScore, rootCause } from "../src/score.ts";
+import { computeScore, rootCause, isReachable } from "../src/score.ts";
 
 function report(findings, over = {}) {
   const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
@@ -51,7 +54,8 @@ function finding(severity, over = {}) {
     // are about severity, and must not be blurred by the repeat discount.
     isNew: false, ruleId: "VS-" + n, title: "T", description: "D", recommendation: "R",
     severity, confidence: "high", source: "builtin", sourceLabel: "L", category: "C",
-    file: "a.py", line: 1, endLine: 1, column: 1, endColumn: 1, snippet: "s", snippetStartLine: 1,
+    // A line of its own, so no two findings share a spot unless a case says so.
+    file: "a.py", line: n, endLine: n, column: 1, endColumn: 1, snippet: "s", snippetStartLine: 1,
     cwe: [], owasp: null, cve: [], references: [], extra: null, package: null, ...over,
   };
 }
@@ -90,7 +94,11 @@ for (let trial = 0; trial < 400 && monotonicBreaks === 0; trial++) {
       confidence: CONFS[rnd(3)],
       extra: rnd(3) === 0 ? { onDataPath: true } : null,
       package: pkg,
-      file: "f" + rnd(4),
+      // Few files, lines and categories, so findings keep landing on shared
+      // spots — the case where a fix clears several causes at once.
+      file: "f" + rnd(3),
+      line: 1 + rnd(4),
+      category: "C" + rnd(2),
     }));
     const s = score(fs).score;
     if (s > prev + 1e-9) {
@@ -163,7 +171,33 @@ const sure = score([finding("medium")]);
 const unsure = score([finding("medium", { confidence: "low" })]);
 check(unsure.score > sure.score, "a low-confidence finding must weigh less than a high-confidence one");
 
-// 7) The fix plan tells the truth.
+// 7) Traced flows.
+const legacyFlow = finding("high", { ruleId: "VS-FLOW", category: "SQL-инъекция", confidence: "medium" });
+check(isReachable(legacyFlow), "a traced flow is reachable even when the report did not mark it");
+check(score([legacyFlow]).limit?.reason.includes("достижима"), "a reachable high must use the reachable ceiling");
+const twoFlows = score([
+  finding("high", { ruleId: "VS-FLOW", category: "SQL-инъекция" }),
+  finding("high", { ruleId: "VS-FLOW", category: "XSS" }),
+]);
+check(twoFlows.causes === 2, `flows into different sinks are different causes, got ${twoFlows.causes}`);
+
+// 8) The fix plan tells the truth: fixing a step means the real report has
+//    lost that cause's findings and everything on the same lines.
+const spot = (f) => (f.package || f.line <= 0 ? null : `${f.file}|${f.line}|${f.category}`);
+function replay(findings, plan) {
+  let left = findings.filter((f) => !f.suppressed && !f.extra?.experimental);
+  for (const step of plan) {
+    const fixed = left.filter((f) => rootCause(f) === step.key);
+    const spots = new Set(fixed.map(spot).filter(Boolean));
+    const before = left.length;
+    left = left.filter((f) => rootCause(f) !== step.key && !spots.has(spot(f)));
+    const after = computeScore(report(left));
+    if (after.score !== step.scoreAfter) return `${step.key}: promised ${step.scoreAfter}, real ${after.score}`;
+    if (before - left.length !== step.count + step.alsoCloses)
+      return `${step.key}: says it clears ${step.count}+${step.alsoCloses}, really ${before - left.length}`;
+  }
+  return null;
+}
 const mixed = [
   finding("critical", { ruleId: "SQL", ...reach }),
   ...many(6, "medium", { ruleId: "MD5" }),
@@ -174,15 +208,45 @@ const mixed = [
 const full = score(mixed);
 check(full.plan.length === 5, `every cause of a small report must be in the plan, got ${full.plan.length}`);
 check(full.plan[0].ruleId === "SQL", `the reachable critical must be fixed first, got ${full.plan[0]?.ruleId}`);
-let fixedRules = new Set();
-for (const step of full.plan) {
-  fixedRules.add(step.ruleId);
-  const after = score(mixed.filter((f) => !fixedRules.has(f.ruleId)));
-  check(after.score === step.scoreAfter, `plan step ${step.ruleId}: promised ${step.scoreAfter}, real ${after.score}`);
-}
+const lie = replay(mixed, full.plan);
+check(lie === null, `plan replay: ${lie}`);
 check(full.plan.at(-1).scoreAfter === 100 && full.plan.at(-1).gradeAfter === "A", "fixing every cause must reach 100");
 check(full.plan.every((s, i) => Math.abs(s.scoreAfter - (i ? full.plan[i - 1].scoreAfter : full.score) - s.gain) < 0.11),
   "each step's gain must be the difference between consecutive scores");
+
+// A traced path and the pattern rule on its sink are one line of code: one fix.
+const sink = { file: "db.py", line: 40, category: "SQL-инъекция" };
+const paired = [
+  finding("critical", { ruleId: "VS-FLOW", confidence: "medium", ...sink }),
+  finding("critical", { ruleId: "VS-PY-SQL", ...reach, ...sink }),
+  finding("critical", { ruleId: "VS-PY-SQL", file: "db.py", line: 90, category: "SQL-инъекция" }),
+  ...many(2, "medium", { ruleId: "MD5" }),
+];
+const pairedScore = score(paired);
+check(pairedScore.plan[0].alsoCloses === 1, `fixing the sink line must also close its twin, got ${pairedScore.plan[0].alsoCloses}`);
+const pairLie = replay(paired, pairedScore.plan);
+check(pairLie === null, `paired plan replay: ${pairLie}`);
+
+// Random reports: every plan replays exactly.
+seed = 7;
+for (let trial = 0; trial < 150; trial++) {
+  const fs = Array.from({ length: 4 + rnd(30) }, () =>
+    finding(SEVS[rnd(5)], {
+      ruleId: rnd(4) === 0 ? "VS-FLOW" : "R" + rnd(5),
+      confidence: CONFS[rnd(3)],
+      extra: rnd(3) === 0 ? { onDataPath: true } : null,
+      file: "f" + rnd(3),
+      line: 1 + rnd(5),
+      category: "C" + rnd(2),
+    }),
+  );
+  const r = score(fs);
+  const bad = replay(fs, r.plan);
+  if (bad) {
+    problems.push(`random plan ${trial}: ${bad}`);
+    break;
+  }
+}
 const big = score(Array.from({ length: 3000 }, (_, i) => finding(SEVS[i % 5], { ruleId: "R" + (i % 700) })));
 check(big.plan.length === 8, "a big report's plan is capped at eight steps");
 

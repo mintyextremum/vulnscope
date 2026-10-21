@@ -60,8 +60,17 @@ export function findingRisk(f: Finding): number {
   return (
     SEVERITY_WEIGHT[f.severity] *
     (CONFIDENCE_WEIGHT[f.confidence] ?? 1) *
-    (f.extra?.onDataPath ? REACHABLE_MULTIPLIER : 1)
+    (isReachable(f) ? REACHABLE_MULTIPLIER : 1)
   );
+}
+
+/**
+ * Whether untrusted input provably reaches the finding: a pattern finding lying
+ * on a traced path, or the traced path itself. Reports from before 2.0 did not
+ * mark the paths themselves, so the rule id is checked as well.
+ */
+export function isReachable(f: Finding): boolean {
+  return !!f.extra?.onDataPath || f.ruleId === "VS-FLOW";
 }
 
 /**
@@ -71,7 +80,20 @@ export function findingRisk(f: Finding): number {
  */
 export function rootCause(f: Finding): string {
   if (f.package) return `pkg:${f.package.ecosystem}:${f.package.name}@${f.package.version}`;
+  // Every traced path carries the one rule id; what it reaches is the cause.
+  if (f.ruleId === "VS-FLOW") return `flow:${f.category}`;
   return `rule:${f.source}:${f.ruleId}`;
+}
+
+/**
+ * The line of code a finding points at. Findings on one spot fall to one fix —
+ * a traced SQL path and the pattern rule on its sink are the same `execute`
+ * call — so the fix plan clears them together. Dependencies are not spots: a
+ * manifest holds many packages, each its own upgrade.
+ */
+function spotKey(f: Finding): string | null {
+  if (f.package || !f.file || f.line <= 0) return null;
+  return `${f.file}|${f.line}|${f.category}`;
 }
 
 /**
@@ -122,6 +144,8 @@ export interface PlanStep {
   files: number;
   /** How many of the cause's findings sit on a traced data-flow path. */
   reachable: number;
+  /** Findings of other causes on the same lines, which this fix clears too. */
+  alsoCloses: number;
   /** For a vulnerable dependency: the package and the version that fixes it. */
   package: { name: string; version: string; ecosystem: string; fixedVersion: string | null } | null;
   /** Points this step adds, given the steps above it are done. */
@@ -240,7 +264,7 @@ function buildCause(key: string, findings: Finding[]): Cause {
     load += part;
     bySeverity.set(f.severity, (bySeverity.get(f.severity) ?? 0) + part);
     presence.worst = Math.min(presence.worst, SEVERITY_ORDER.indexOf(f.severity));
-    const reach = !!f.extra?.onDataPath;
+    const reach = isReachable(f);
     if (f.severity === "critical") {
       presence.critical = true;
       presence.criticalReachable ||= reach;
@@ -321,47 +345,85 @@ const PLAN_STEPS = 8;
  * given the steps already taken. Greedy rather than ranked once, because the
  * limits interact — fixing the only critical lifts a ceiling, and only then do
  * the high findings below it start to pay off.
+ *
+ * A fix is a change to code, so it clears everything on the lines it touches:
+ * fixing a cause also removes the other causes' findings on the same spots.
+ * Each step's score is therefore the real score of the report once that code
+ * is fixed — the score audit re-scores the report without them to prove it.
  */
 function buildPlan(causes: Cause[]): PlanStep[] {
-  const left = new Set(causes);
-  const totals = totalsOf(left);
-  let current = evaluate(totals).score;
+  let left = causes;
+  let current = evaluate(totalsOf(left)).score;
   const plan: PlanStep[] = [];
-  while (left.size > 0 && plan.length < PLAN_STEPS) {
-    let best: Cause | null = null;
-    let bestScore = -1;
+  while (left.length > 0 && plan.length < PLAN_STEPS) {
+    const owner = new Map<Finding, Cause>();
+    const bySpot = new Map<string, Finding[]>();
     for (const c of left) {
-      shift(totals, c, -1);
-      const s = evaluate(totals).score;
-      shift(totals, c, 1);
+      for (const f of c.findings) {
+        owner.set(f, c);
+        const k = spotKey(f);
+        if (!k) continue;
+        const list = bySpot.get(k);
+        if (list) list.push(f);
+        else bySpot.set(k, [f]);
+      }
+    }
+    const totals = totalsOf(left);
+
+    let best: { cause: Cause; score: number; touched: Map<Cause, Cause | null>; closes: number } | null = null;
+    for (const c of left) {
+      // What the fix clears beyond the cause itself, grouped by their causes.
+      const cleared = new Set<Finding>(c.findings);
+      for (const f of c.findings) {
+        const k = spotKey(f);
+        if (k) for (const g of bySpot.get(k) ?? []) cleared.add(g);
+      }
+      const touched = new Map<Cause, Cause | null>();
+      for (const g of cleared) {
+        const d = owner.get(g);
+        if (d && d !== c && !touched.has(d)) touched.set(d, null);
+      }
+      const t: Totals = { ...totals, worst: totals.worst.slice() };
+      shift(t, c, -1);
+      for (const d of touched.keys()) {
+        shift(t, d, -1);
+        const rest = d.findings.filter((f) => !cleared.has(f));
+        const rebuilt = rest.length > 0 ? buildCause(d.key, rest) : null;
+        if (rebuilt) shift(t, rebuilt, 1);
+        touched.set(d, rebuilt);
+      }
+      const s = evaluate(t).score;
       // Ties go to the heavier cause: equal points now, more risk removed.
-      if (s > bestScore || (s === bestScore && best && c.load > best.load)) {
-        best = c;
-        bestScore = s;
+      if (!best || s > best.score || (s === best.score && c.load > best.cause.load)) {
+        best = { cause: c, score: s, touched, closes: cleared.size - c.findings.length };
       }
     }
     if (!best) break;
-    left.delete(best);
-    shift(totals, best, -1);
-    const worst = best.findings[0];
+
+    const { cause, score, touched, closes } = best;
+    left = left
+      .filter((c) => c !== cause && !touched.has(c))
+      .concat([...touched.values()].filter((c): c is Cause => c !== null));
+    const worst = cause.findings[0];
     const pkg = worst.package;
     plan.push({
-      key: best.key,
+      key: cause.key,
       ruleId: worst.ruleId,
       title: worst.title,
-      severity: SEVERITY_ORDER[best.presence.worst],
-      count: best.findings.length,
-      files: new Set(best.findings.map((f) => f.file)).size,
-      reachable: best.findings.filter((f) => f.extra?.onDataPath).length,
+      severity: SEVERITY_ORDER[cause.presence.worst],
+      count: cause.findings.length,
+      files: new Set(cause.findings.map((f) => f.file)).size,
+      reachable: cause.findings.filter(isReachable).length,
+      alsoCloses: closes,
       package: pkg
         ? { name: pkg.name, version: pkg.version, ecosystem: pkg.ecosystem, fixedVersion: pkg.fixedVersion }
         : null,
-      gain: round1(bestScore - current),
-      scoreAfter: bestScore,
-      gradeAfter: gradeFor(bestScore),
+      gain: round1(score - current),
+      scoreAfter: score,
+      gradeAfter: gradeFor(score),
       findingId: worst.id,
     });
-    current = bestScore;
+    current = score;
   }
   return plan;
 }
@@ -372,6 +434,19 @@ function buildPlan(causes: Cause[]): PlanStep[] {
  */
 export function computeScore(report: ScanReport): SecurityScore | null {
   if (report.cancelled) return null;
+  // The dashboard, the report screen, the exports and the recent list all ask
+  // for the score of the same report. Reports are replaced, never mutated, so
+  // the object itself is a safe key.
+  const cached = memo.get(report);
+  if (cached) return cached;
+  const result = scoreOf(report);
+  memo.set(report, result);
+  return result;
+}
+
+const memo = new WeakMap<ScanReport, SecurityScore>();
+
+function scoreOf(report: ScanReport): SecurityScore {
 
   const scored = report.findings.filter(counts);
   const grouped = new Map<string, Finding[]>();
@@ -399,7 +474,7 @@ export function computeScore(report: ScanReport): SecurityScore | null {
     score,
     grade,
     label,
-    reachable: scored.filter((f) => f.extra?.onDataPath).length,
+    reachable: scored.filter(isReachable).length,
     total: scored.length,
     causes: causes.length,
     factors,

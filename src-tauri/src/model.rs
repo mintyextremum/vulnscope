@@ -434,7 +434,8 @@ pub struct FindingExtra {
     pub flow: Vec<CombineSpot>,
     /// True when this finding sits on a data-flow path the taint engine traced
     /// from untrusted input — i.e. it is reachable by an attacker, not just
-    /// present. Drives prioritisation and the security score.
+    /// present. Set on the traced flows themselves (`VS-FLOW`) and on pattern
+    /// findings lying on one. Drives prioritisation and the security score.
     #[serde(default)]
     pub on_data_path: bool,
     /// For a data-flow finding, where the untrusted data enters — "HTTP-запрос",
