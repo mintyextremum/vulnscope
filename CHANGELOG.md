@@ -25,6 +25,10 @@ those two answers. It also closes a security hole that every 1.x release had.
   also run hardened, and blame runs without textconv drivers. A test reproduces
   the attack against the real git, with an unprotected control run, so it checks
   what git actually does. This is now design commitment 5 in SECURITY.md.
+- `vite` raised to 7.3.7, closing GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw and
+  GHSA-587h-7wmj-h5pm (its bundled `launch-editor`: missing `%` escaping and
+  argument confusion on Windows, an existence check that could be bypassed). The
+  development server only — it does not enter a released binary.
 
 ### Added
 
